@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-slate-750: #1e293b;
+  --color-slate-850: #0f172a;
+}
+
+@variant dark (&:where(.dark, .dark *));
+
+html, body {
+  touch-action: manipulation;
+  overscroll-behavior-y: contain;
+}
+
+/* Hide number input spinners/arrows globally for a cleaner look */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Force uppercase visually while typing in all text fields and textareas */
+input[type="text"], 
+textarea, 
+input:not([type="password"]):not([type="number"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]) {
+  text-transform: uppercase;
+}
+
+/* Global Dark Mode Input Contrast & Legibility Fixes */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+html.dark textarea,
+html.dark select {
+  color: #ffffff !important; /* Absolute white text for perfect legibility */
+  background-color: #0f172a !important; /* Deep dark background */
+  border-color: #334155 !important; /* Muted border */
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  background-color: #1e293b !important; /* Slightly lighter on focus */
+  color: #ffffff !important;
+  outline: 2px solid #3b82f6 !important; /* Solid blue outline */
+  border-color: transparent !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8 !important; /* Muted placeholder */
+}
+
+html.dark select option {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Force all inputs inside print-preview-area to stay light-themed, even under html.dark */
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]) {
+  background-color: transparent !important;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light !important;
+}
+
+/* Restore custom text colors (e.g. text-gray-400, text-red-600, text-black) in print preview inputs */
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-red-600,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-red-600 {
+  color: #dc2626 !important;
+}
+
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-gray-400,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-gray-400 {
+  color: #9ca3af !important;
+}
+
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-black,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-black,
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(.text-red-600):not(.text-gray-400),
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(.text-red-600):not(.text-gray-400) {
+  color: #000000 !important;
+}
+
+/* Also ensure other elements like selects or textareas inside print-preview-area remain light-themed */
+html.dark .print-preview-area select,
+.print-preview-area select,
+html.dark .print-preview-area textarea,
+.print-preview-area textarea {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #e2e8f0 !important;
+}
+
+
+
