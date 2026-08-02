@@ -200,9 +200,6 @@ export const TeacherDashboard: React.FC = () => {
         <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-blue-500/5 dark:bg-blue-500/3 rounded-full blur-2xl pointer-events-none"></div>
 
         <div>
-          <span className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase rounded-lg tracking-wider border border-blue-100 dark:border-blue-900/30">
-            Painel Docente Ativo • Período {currentPeriod}
-          </span>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight mt-1.5">
             Olá, {currentUser?.name || 'Professor(a)'}!
           </h2>
@@ -235,12 +232,6 @@ export const TeacherDashboard: React.FC = () => {
             <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Diários Ativos</span>
             <span className="block text-lg font-black text-blue-700 dark:text-blue-400 mt-0.5">
               {activeJournalsCount}
-            </span>
-          </div>
-          <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-150 dark:border-slate-800 rounded-2xl text-center min-w-[100px]">
-            <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Simulação</span>
-            <span className="block text-xs font-mono font-bold text-slate-700 dark:text-slate-300 mt-1.5">
-              {formatDateBR(simulatedDate)}
             </span>
           </div>
         </div>
