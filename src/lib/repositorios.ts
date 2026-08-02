@@ -438,6 +438,43 @@ export async function publicarEstrutura(dados: {
   return { ok: true };
 }
 
+/**
+ * Exclui um curso do banco de verdade.
+ *
+ * Por que isto precisou existir separado do `publicarEstrutura`:
+ *
+ * A sincronização automática da estrutura só faz `upsert` — ela grava o que
+ * existe na lista local, mas nunca apaga uma linha que sumiu da lista. Um
+ * curso removido pela tela desaparecia do navegador de quem excluiu, a
+ * sincronização rodava, gravava os cursos restantes, e a linha do curso
+ * excluído continuava intacta na tabela. Em qualquer outro aparelho (ou na
+ * próxima recarga da mesma tela), `carregarEstrutura` lia a tabela de novo e
+ * trazia o curso "excluído" de volta — porque, para o banco, ele nunca tinha
+ * saído.
+ */
+export async function excluirCurso(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('cursos').delete().eq('id', id);
+  if (error) return falha('excluir curso', error);
+  return { ok: true };
+}
+
+/** Mesma lógica do curso, para quando uma disciplina é excluída pela tela. */
+export async function excluirDisciplina(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('disciplinas').delete().eq('id', id);
+  if (error) return falha('excluir disciplina', error);
+  return { ok: true };
+}
+
+/** Mesma lógica do curso, para quando uma turma é excluída pela tela. */
+export async function excluirTurma(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('turmas').delete().eq('id', id);
+  if (error) return falha('excluir turma', error);
+  return { ok: true };
+}
+
 /* ==========================================================================
  * CALENDÁRIO ACADÊMICO
  *
