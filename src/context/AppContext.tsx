@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -2280,6 +2280,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCourse = (id: string) => {
     setCourses(prev => prev.filter(c => c.id !== id));
+    // A sincronização automática da estrutura só faz upsert (grava o que
+    // existe), nunca apaga quem sumiu da lista local. Sem este comando
+    // direto, o curso reaparecia em qualquer outro aparelho — porque, para
+    // o banco, ele nunca tinha sido removido de verdade.
+    excluirCurso(id).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao excluir curso ${id} do banco: ${res.erro}`, 'high');
+      }
+    });
   };
 
   const addStaffMember = (staffData: Omit<StaffMember, 'id' | 'username' | 'registrationDate'> & { permissions?: StaffPermissions; username?: string }) => {
@@ -2462,6 +2471,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveClassId(null);
     }
     addSecurityLog('TURMA_REMOVIDA', `Turma ${classToDelete?.name || ''} (ID: ${id}) foi excluída do sistema.`, 'medium');
+    // Mesmo motivo do curso: a sincronização automática só faz upsert e
+    // nunca apaga uma linha sozinha, então a exclusão precisa ser mandada
+    // direto pro banco aqui, ou a turma reaparece em outro aparelho.
+    excluirTurma(id).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao excluir turma ${id} do banco: ${res.erro}`, 'high');
+      }
+    });
   };
 
   const updateClass = (id: string, updates: Partial<ClassSection>) => {
@@ -2530,6 +2547,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveSubjectId(null);
     }
     addSecurityLog('DISCIPLINA_REMOVIDA', `Disciplina ${subToDelete?.name || ''} (ID: ${id}) foi excluída do sistema.`, 'medium');
+    // Mesmo motivo do curso e da turma: precisa mandar o comando de
+    // exclusão direto pro banco, senão a disciplina reaparece em outro
+    // aparelho na próxima vez que a estrutura for recarregada.
+    excluirDisciplina(id).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao excluir disciplina ${id} do banco: ${res.erro}`, 'high');
+      }
+    });
   };
 
   const addUser = (user: User) => {
