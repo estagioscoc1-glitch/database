@@ -1,0 +1,3 @@
+A solicitaá∆o ping n∆o pìde encontrar o host github.com. Verifique o nome e tente
+novamente.
+fatal: unable to access 'https://github.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC.git/': Could not resolve host: github.com

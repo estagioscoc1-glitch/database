@@ -1,0 +1,6 @@
+{
+  "name": "Portal Acadêmico - LYnx EDU",
+  "description": "Portal acadêmico do LYnx EDU com painel para administrador, professor e aluno, controle de notas, frequências, boletins e diários de classe.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

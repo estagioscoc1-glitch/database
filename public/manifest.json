@@ -1,0 +1,9 @@
+{
+  "name": "Portal Acadêmico - Colégio Oswaldo Cruz",
+  "short_name": "Portal COC",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a"
+}

@@ -1,0 +1,7 @@
+Instruções para Substituir o Cabeçalho e Assinatura da Declaração:
+
+1. Salve as imagens do cabeçalho e da assinatura em seu computador.
+2. Nomeie a imagem do cabeçalho como: cabecalho_escolaridade.png
+3. Nomeie a imagem da assinatura como: assinatura_escolaridade.png
+4. Arraste e solte (drag and drop) os dois arquivos diretamente para dentro desta pasta 'public' no gerenciador de arquivos do editor.
+5. Pronto! O sistema irá carregar as imagens originais diretamente nas declarações, sem tentar "desenhá-las" via código!

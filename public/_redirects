@@ -1,0 +1,7 @@
+# O portal é uma aplicação de página única: quem digita /boletim direto na
+# barra de endereço precisa receber o index.html, e não um erro 404. A própria
+# aplicação decide o que mostrar depois de carregar.
+#
+# As chamadas de /api/* NÃO entram aqui — elas são atendidas pelas funções da
+# pasta `functions/`, que têm prioridade.
+/*    /index.html   200

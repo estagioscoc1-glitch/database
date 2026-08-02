@@ -1,0 +1,1048 @@
+-- ============================================================================
+-- PORTAL ACADÊMICO COC — Banco de dados (Supabase / PostgreSQL)
+-- ============================================================================
+-- Como usar:
+--   1. Crie um projeto em https://supabase.com (região: South America / São Paulo)
+--   2. No menu lateral, abra "SQL Editor"
+--   3. Cole ESTE ARQUIVO INTEIRO e clique em "Run"
+--   4. Rode depois o arquivo 02_usuario_admin.sql para criar o administrador
+--
+-- Este script pode ser executado mais de uma vez sem quebrar nada.
+-- ============================================================================
+
+-- ============================================================================
+-- PARTE 1 — TIPOS
+-- ============================================================================
+
+do $$ begin
+  create type papel_usuario as enum ('ADMIN', 'SECRETARIA', 'PROFESSOR', 'ALUNO');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type turno_aula as enum ('MATUTINO', 'VESPERTINO', 'NOTURNO', 'SABADO', 'EAD');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type situacao_aluno as enum ('ATIVO', 'INATIVO', 'TRANCADO', 'CONCLUIDO', 'TRANSFERIDO');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type resultado_nota as enum ('APTO', 'NAO_APTO', 'F_NOTA', 'REP_FALTAS', 'PENDENTE', 'DISPENSADO', 'DESISTENTE');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type presenca_tipo as enum ('P', 'F');
+exception when duplicate_object then null; end $$;
+
+
+-- ============================================================================
+-- PARTE 2 — IDENTIDADE E PERMISSÕES
+-- ============================================================================
+
+-- Perfil de cada pessoa. O 'id' é o mesmo do Supabase Auth (auth.users),
+-- onde a senha fica guardada com hash — nunca em texto puro.
+create table if not exists public.usuarios (
+  id            uuid primary key references auth.users(id) on delete cascade,
+  nome          text not null,
+  email         text not null,
+  login         text unique not null,   -- matrícula (aluno) ou usuário (professor/admin)
+  papel         papel_usuario not null,
+  ativo         boolean not null default true,
+  trocar_senha  boolean not null default true,  -- força troca no primeiro acesso
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+
+create index if not exists idx_usuarios_login on public.usuarios(lower(login));
+create index if not exists idx_usuarios_papel on public.usuarios(papel) where ativo;
+
+-- Permissões finas por módulo (usado para o papel SECRETARIA / funcionários)
+create table if not exists public.permissoes_modulo (
+  usuario_id  uuid not null references public.usuarios(id) on delete cascade,
+  modulo      text not null,
+  ver         boolean not null default false,
+  criar       boolean not null default false,
+  editar      boolean not null default false,
+  excluir     boolean not null default false,
+  imprimir    boolean not null default false,
+  exportar    boolean not null default false,
+  primary key (usuario_id, modulo)
+);
+
+
+-- (As funções de apoio à segurança ficam na PARTE 10B, depois das tabelas,
+--  porque precisam que as tabelas já existam para serem validadas.)
+
+
+-- ============================================================================
+-- PARTE 4 — ESTRUTURA ACADÊMICA
+-- ============================================================================
+
+create table if not exists public.cursos (
+  id             text primary key default gen_random_uuid()::text,
+  nome           text not null,
+  descricao      text,
+  carga_horaria  integer,
+  turnos         turno_aula[] default '{}',
+  ativo          boolean not null default true,
+  criado_em      timestamptz not null default now(),
+  atualizado_em  timestamptz not null default now()
+);
+
+create table if not exists public.modulos_curso (
+  id             text primary key default gen_random_uuid()::text,
+  curso_id       text not null references public.cursos(id) on delete cascade,
+  nome           text not null,
+  ordem          integer not null,
+  carga_horaria  integer,
+  tipo_ensino    text,
+  ativo          boolean not null default true,
+  criado_em      timestamptz not null default now(),
+  unique (curso_id, ordem)
+);
+
+create table if not exists public.disciplinas (
+  id             text primary key default gen_random_uuid()::text,
+  curso_id       text not null references public.cursos(id) on delete restrict,
+  nome           text not null,
+  codigo         text,
+  modulo         integer not null default 1,
+  carga_horaria  integer not null default 0,
+  ativo          boolean not null default true,
+  criado_em      timestamptz not null default now(),
+  atualizado_em  timestamptz not null default now()
+);
+
+create index if not exists idx_disciplinas_curso on public.disciplinas(curso_id);
+
+create table if not exists public.salas (
+  id          text primary key default gen_random_uuid()::text,
+  nome        text not null,
+  codigo      text,
+  bloco       text,
+  andar       text,
+  capacidade  integer,
+  tipo        text,
+  situacao    text not null default 'ATIVO',
+  observacoes text,
+  criado_em   timestamptz not null default now()
+);
+
+create table if not exists public.turmas (
+  id                text primary key default gen_random_uuid()::text,
+  curso_id          text not null references public.cursos(id) on delete restrict,
+  nome              text not null,
+  codigo            text,
+  turno             turno_aula not null,
+  modulo            integer not null default 1,
+  ano               integer not null,
+  semestre          integer not null default 1,
+  sala_id           text references public.salas(id) on delete set null,
+  horario           text,
+  fechada_s1        boolean not null default false,
+  fechada_s2        boolean not null default false,
+  fechada_definitivo boolean not null default false,
+  eh_dependencia    boolean not null default false,
+  criado_em         timestamptz not null default now(),
+  atualizado_em     timestamptz not null default now()
+);
+
+create index if not exists idx_turmas_curso on public.turmas(curso_id);
+
+
+-- ============================================================================
+-- PARTE 5 — PESSOAS
+-- ============================================================================
+
+create table if not exists public.alunos (
+  id            text primary key default gen_random_uuid()::text,
+  usuario_id    uuid unique references public.usuarios(id) on delete set null,
+  matricula     text unique not null,
+  dossie        text,
+  nome          text not null,
+  nome_mae      text,
+  nome_pai      text,
+  sexo          text,
+  estado_civil  text,
+  nacionalidade text,
+  data_nascimento date,
+  cidade_nascimento text,
+  uf_nascimento text,
+  cpf           text,
+  rg            text,
+  rg_orgao      text,
+  rg_uf         text,
+  cep           text,
+  logradouro    text,
+  numero        text,
+  complemento   text,
+  bairro        text,
+  cidade        text,
+  uf            text,
+  pais          text default 'Brasil',
+  whatsapp      text,
+  telefone      text,
+  email         text,
+  profissao     text,
+  observacoes   text,
+  curso_id      text references public.cursos(id) on delete set null,
+  turma_id      text references public.turmas(id) on delete set null,
+  situacao      situacao_aluno not null default 'ATIVO',
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
+);
+
+create index if not exists idx_alunos_matricula on public.alunos(matricula);
+create index if not exists idx_alunos_turma on public.alunos(turma_id);
+create index if not exists idx_alunos_nome on public.alunos using gin (to_tsvector('portuguese', nome));
+-- CPF único quando informado (evita aluno duplicado)
+create unique index if not exists uq_alunos_cpf on public.alunos(cpf) where cpf is not null and cpf <> '';
+
+create table if not exists public.professores (
+  id                 text primary key default gen_random_uuid()::text,
+  usuario_id         uuid unique references public.usuarios(id) on delete set null,
+  matricula          text unique,
+  nome               text not null,
+  cpf                text,
+  rg                 text,
+  data_nascimento    date,
+  email              text,
+  telefone           text,
+  whatsapp           text,
+  conselho           text,
+  conselho_numero    text,
+  conselho_uf        text,
+  conselho_validade  date,
+  titulacao          text,
+  especialidade      text,
+  tipo_professor     text,
+  situacao           text not null default 'ATIVO',
+  observacoes        text,
+  criado_em          timestamptz not null default now(),
+  atualizado_em      timestamptz not null default now()
+);
+
+create unique index if not exists uq_professores_cpf on public.professores(cpf) where cpf is not null and cpf <> '';
+
+create table if not exists public.funcionarios (
+  id            text primary key default gen_random_uuid()::text,
+  usuario_id    uuid unique references public.usuarios(id) on delete cascade,
+  nome          text not null,
+  cpf           text,
+  cargo         text,
+  telefone      text,
+  email         text,
+  ativo         boolean not null default true,
+  criado_em     timestamptz not null default now()
+);
+
+
+-- ============================================================================
+-- PARTE 6 — MATRÍCULAS E DIÁRIOS
+-- ============================================================================
+
+create table if not exists public.matriculas (
+  id             text primary key default gen_random_uuid()::text,
+  aluno_id       text not null references public.alunos(id) on delete cascade,
+  turma_id       text not null references public.turmas(id) on delete cascade,
+  numero         text,
+  data_matricula date not null default current_date,
+  situacao       text not null default 'ATIVA',
+  criado_em      timestamptz not null default now(),
+  unique (aluno_id, turma_id)   -- impede matrícula duplicada
+);
+
+create index if not exists idx_matriculas_turma on public.matriculas(turma_id);
+
+-- Diário = turma + disciplina + professor + período letivo
+create table if not exists public.diarios (
+  id            text primary key default gen_random_uuid()::text,
+  turma_id      text not null references public.turmas(id) on delete cascade,
+  disciplina_id text not null references public.disciplinas(id) on delete restrict,
+  professor_id  text references public.professores(id) on delete set null,
+  periodo       text not null,
+  fechado       boolean not null default false,
+  fechado_em    timestamptz,
+  fechado_por   uuid references public.usuarios(id),
+  criado_em     timestamptz not null default now(),
+  unique (turma_id, disciplina_id, periodo)
+);
+
+create index if not exists idx_diarios_professor on public.diarios(professor_id);
+
+
+-- ============================================================================
+-- PARTE 7 — NOTAS, AULAS E FREQUÊNCIA
+-- ============================================================================
+
+create table if not exists public.notas (
+  id            text primary key default gen_random_uuid()::text,
+  diario_id     text not null references public.diarios(id) on delete cascade,
+  aluno_id      text not null references public.alunos(id) on delete cascade,
+  av1           numeric(5,2), av2 numeric(5,2), av3 numeric(5,2), rec_s1 numeric(5,2),
+  s1            numeric(5,2),
+  av4           numeric(5,2), av5 numeric(5,2), av6 numeric(5,2), rec_s2 numeric(5,2),
+  s2            numeric(5,2),
+  extra         numeric(5,2),
+  conselho      numeric(5,2),
+  afc           numeric(5,2),
+  pf            numeric(5,2),
+  conceito      text,
+  resultado     resultado_nota not null default 'PENDENTE',
+  importado     boolean not null default false,
+  lancado_por   uuid references public.usuarios(id),
+  atualizado_em timestamptz not null default now(),
+  unique (diario_id, aluno_id)   -- impede nota duplicada do mesmo aluno
+);
+
+create index if not exists idx_notas_aluno on public.notas(aluno_id);
+create index if not exists idx_notas_diario on public.notas(diario_id);
+
+-- Registro de aula ministrada (diário de classe)
+create table if not exists public.aulas (
+  id           text primary key default gen_random_uuid()::text,
+  diario_id    text not null references public.diarios(id) on delete cascade,
+  data         date not null,
+  qtd_aulas    integer not null default 1,
+  titulo       text,
+  conteudo     text,
+  registrado_por uuid references public.usuarios(id),
+  criado_em    timestamptz not null default now()
+);
+
+create index if not exists idx_aulas_diario_data on public.aulas(diario_id, data);
+
+create table if not exists public.frequencia (
+  id        text primary key default gen_random_uuid()::text,
+  aula_id   text not null references public.aulas(id) on delete cascade,
+  aluno_id  text not null references public.alunos(id) on delete cascade,
+  presenca  presenca_tipo not null default 'P',
+  unique (aula_id, aluno_id)
+);
+
+create index if not exists idx_frequencia_aluno on public.frequencia(aluno_id);
+
+-- Faltas lançadas de forma agregada (o sistema atual usa 'directAbsences')
+create table if not exists public.faltas_diretas (
+  diario_id  text not null references public.diarios(id) on delete cascade,
+  aluno_id   text not null references public.alunos(id) on delete cascade,
+  quantidade integer not null default 0,
+  atualizado_em timestamptz not null default now(),
+  primary key (diario_id, aluno_id)
+);
+
+
+-- ============================================================================
+-- PARTE 8 — HISTÓRICO, DOCUMENTOS E APOIO
+-- ============================================================================
+
+create table if not exists public.historico_escolar (
+  id             text primary key default gen_random_uuid()::text,
+  aluno_id       text not null references public.alunos(id) on delete cascade,
+  disciplina_nome text not null,
+  curso_nome     text,
+  ano            integer,
+  periodo        text,
+  carga_horaria  integer,
+  nota_final     numeric(5,2),
+  frequencia_pct numeric(5,2),
+  situacao       text,
+  origem         text not null default 'SISTEMA',  -- SISTEMA | IMPORTADO | TRANSFERENCIA
+  criado_em      timestamptz not null default now()
+);
+
+create index if not exists idx_historico_aluno on public.historico_escolar(aluno_id);
+
+create table if not exists public.documentos_aluno (
+  id            text primary key default gen_random_uuid()::text,
+  aluno_id      text not null references public.alunos(id) on delete cascade,
+  tipo          text not null,          -- RG, CPF, DIPLOMA, etc.
+  caminho       text,                   -- caminho no Storage
+  nome_arquivo  text,
+  situacao      text not null default 'PENDENTE',
+  enviado_em    timestamptz,
+  criado_em     timestamptz not null default now()
+);
+
+create index if not exists idx_documentos_aluno on public.documentos_aluno(aluno_id);
+
+create table if not exists public.faixas_conceito (
+  id          text primary key default gen_random_uuid()::text,
+  nota_min    numeric(5,2) not null,
+  nota_max    numeric(5,2) not null,
+  letra       text not null,
+  descricao   text
+);
+
+create table if not exists public.eventos_calendario (
+  id          text primary key default gen_random_uuid()::text,
+  titulo      text not null,
+  data        date not null,
+  tipo        text not null,
+  descricao   text,
+  criado_em   timestamptz not null default now()
+);
+
+create table if not exists public.mensagens (
+  id            text primary key default gen_random_uuid()::text,
+  remetente_id  uuid references public.usuarios(id) on delete set null,
+  remetente_nome text,
+  destinatario_id uuid references public.usuarios(id) on delete cascade,
+  destino_grupo text,                   -- 'TODOS_PROFESSORES', 'TURMA:<id>', etc.
+  conteudo      text not null,
+  anexo_caminho text,
+  anexo_tipo    text,
+  anexo_nome    text,
+  criado_em     timestamptz not null default now()
+);
+
+create index if not exists idx_mensagens_destinatario on public.mensagens(destinatario_id);
+
+create table if not exists public.notificacoes (
+  id          text primary key default gen_random_uuid()::text,
+  usuario_id  uuid not null references public.usuarios(id) on delete cascade,
+  conteudo    text not null,
+  lida        boolean not null default false,
+  criado_em   timestamptz not null default now()
+);
+
+create index if not exists idx_notificacoes_usuario on public.notificacoes(usuario_id) where not lida;
+
+-- Registro dos arquivos importados (planilhas de notas, cadastros, etc.)
+create table if not exists public.importacoes (
+  id            text primary key default gen_random_uuid()::text,
+  tipo          text not null,
+  nome_arquivo  text not null,
+  caminho       text,
+  enviado_por   uuid references public.usuarios(id),
+  situacao      text not null default 'PROCESSANDO',
+  linhas_ok     integer default 0,
+  linhas_erro   integer default 0,
+  detalhes      jsonb,
+  criado_em     timestamptz not null default now()
+);
+
+
+-- ============================================================================
+-- PARTE 9 — MÓDULOS AUXILIARES (financeiro, CRM, estágios, requerimentos)
+-- ============================================================================
+-- Cada registro é uma LINHA própria com RLS. Isso já resolve o limite de
+-- tamanho e a sobrescrita entre usuários. A normalização completa destes
+-- módulos pode ser feita depois, sem parar o sistema.
+
+create table if not exists public.registros_modulo (
+  id            text primary key default gen_random_uuid()::text,
+  modulo        text not null,   -- 'financeiro', 'crm', 'estagios', 'movimentacao', ...
+  entidade      text not null,   -- 'parcela', 'lead', 'vaga_estagio', ...
+  ref_externa   text,            -- id original usado hoje no front-end
+  aluno_id      text references public.alunos(id) on delete cascade,
+  dados         jsonb not null default '{}'::jsonb,
+  criado_por    uuid references public.usuarios(id),
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  unique (modulo, entidade, ref_externa)
+);
+
+create index if not exists idx_registros_modulo on public.registros_modulo(modulo, entidade);
+create index if not exists idx_registros_aluno on public.registros_modulo(aluno_id);
+create index if not exists idx_registros_dados on public.registros_modulo using gin (dados);
+
+-- Configurações globais (período letivo atual, prazos, dados das declarações...)
+create table if not exists public.configuracoes (
+  chave         text primary key,
+  valor         jsonb not null,
+  atualizado_em timestamptz not null default now(),
+  atualizado_por uuid references public.usuarios(id)
+);
+
+
+-- ============================================================================
+-- PARTE 10 — AUDITORIA (quem mudou o quê)
+-- ============================================================================
+
+create table if not exists public.auditoria (
+  id            bigserial primary key,
+  usuario_id    uuid references public.usuarios(id) on delete set null,
+  usuario_nome  text,
+  acao          text not null,        -- INSERT | UPDATE | DELETE
+  tabela        text not null,
+  registro_id   text,
+  valor_antes   jsonb,
+  valor_depois  jsonb,
+  criado_em     timestamptz not null default now()
+);
+
+create index if not exists idx_auditoria_tabela on public.auditoria(tabela, criado_em desc);
+
+-- Gatilho genérico de auditoria
+create or replace function public.registrar_auditoria()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_nome text;
+begin
+  select nome into v_nome from public.usuarios where id = auth.uid();
+  insert into public.auditoria (usuario_id, usuario_nome, acao, tabela, registro_id, valor_antes, valor_depois)
+  values (
+    auth.uid(), v_nome, tg_op, tg_table_name,
+    coalesce((to_jsonb(new)->>'id'), (to_jsonb(old)->>'id')),
+    case when tg_op in ('UPDATE','DELETE') then to_jsonb(old) end,
+    case when tg_op in ('INSERT','UPDATE') then to_jsonb(new) end
+  );
+  return coalesce(new, old);
+end $$;
+
+-- Auditoria obrigatória em notas e frequência (proteção jurídica da escola)
+drop trigger if exists trg_auditoria_notas on public.notas;
+create trigger trg_auditoria_notas
+  after insert or update or delete on public.notas
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists trg_auditoria_frequencia on public.frequencia;
+create trigger trg_auditoria_frequencia
+  after insert or update or delete on public.frequencia
+  for each row execute function public.registrar_auditoria();
+
+drop trigger if exists trg_auditoria_alunos on public.alunos;
+create trigger trg_auditoria_alunos
+  after insert or update or delete on public.alunos
+  for each row execute function public.registrar_auditoria();
+
+-- Atualiza 'atualizado_em' automaticamente
+create or replace function public.tocar_atualizado_em()
+returns trigger language plpgsql as $$
+begin new.atualizado_em := now(); return new; end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['usuarios','cursos','disciplinas','turmas','alunos','professores','notas','registros_modulo']
+  loop
+    execute format('drop trigger if exists trg_touch_%1$s on public.%1$s', t);
+    execute format('create trigger trg_touch_%1$s before update on public.%1$s
+                    for each row execute function public.tocar_atualizado_em()', t);
+  end loop;
+end $$;
+
+
+-- ============================================================================
+-- PARTE 10B — FUNÇÕES DE APOIO À SEGURANÇA
+-- ============================================================================
+-- SECURITY DEFINER: rodam com privilégio elevado para poder consultar a tabela
+-- 'usuarios' sem cair em recursão infinita das próprias políticas de segurança.
+
+create or replace function public.papel_atual()
+returns papel_usuario
+language sql stable security definer set search_path = public as $$
+  select papel from public.usuarios where id = auth.uid() and ativo
+$$;
+
+create or replace function public.eh_admin()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce(public.papel_atual() = 'ADMIN', false)
+$$;
+
+-- Gestão = administração + secretaria (quem enxerga a escola inteira)
+create or replace function public.eh_gestao()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce(public.papel_atual() in ('ADMIN', 'SECRETARIA'), false)
+$$;
+
+create or replace function public.eh_professor()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce(public.papel_atual() = 'PROFESSOR', false)
+$$;
+
+create or replace function public.aluno_atual_id()
+returns text
+language sql stable security definer set search_path = public as $$
+  select id from public.alunos where usuario_id = auth.uid()
+$$;
+
+create or replace function public.professor_atual_id()
+returns text
+language sql stable security definer set search_path = public as $$
+  select id from public.professores where usuario_id = auth.uid()
+$$;
+
+-- O diário pertence ao professor logado?
+create or replace function public.meu_diario(p_diario_id text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.diarios d
+    where d.id = p_diario_id
+      and d.professor_id = public.professor_atual_id()
+  )
+$$;
+
+-- O diário está aberto para lançamento? (bloqueio por prazo/fechamento)
+create or replace function public.diario_aberto(p_diario_id text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.diarios d
+    where d.id = p_diario_id and d.fechado = false
+  )
+$$;
+
+-- IMPORTANTE: as funções abaixo evitam RECURSÃO INFINITA entre políticas.
+-- Uma política da tabela A não pode consultar a tabela B diretamente se a
+-- política de B consultar A de volta. Por serem SECURITY DEFINER, estas
+-- funções ignoram o RLS internamente e quebram esse ciclo.
+
+create or replace function public.sou_professor_da_turma(p_turma_id text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.diarios d
+    where d.turma_id = p_turma_id and d.professor_id = public.professor_atual_id()
+  )
+$$;
+
+create or replace function public.estou_matriculado(p_turma_id text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.matriculas m
+    where m.turma_id = p_turma_id and m.aluno_id = public.aluno_atual_id()
+  )
+$$;
+
+create or replace function public.turma_do_diario(p_diario_id text)
+returns text
+language sql stable security definer set search_path = public as $$
+  select turma_id from public.diarios where id = p_diario_id
+$$;
+
+create or replace function public.diario_da_aula(p_aula_id text)
+returns text
+language sql stable security definer set search_path = public as $$
+  select diario_id from public.aulas where id = p_aula_id
+$$;
+
+-- Visitante sem login não executa nada disso; quem fez login, sim.
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'papel_atual()', 'eh_admin()', 'eh_gestao()', 'eh_professor()',
+    'aluno_atual_id()', 'professor_atual_id()',
+    'meu_diario(text)', 'diario_aberto(text)',
+    'sou_professor_da_turma(text)', 'estou_matriculado(text)',
+    'turma_do_diario(text)', 'diario_da_aula(text)'
+  ]
+  loop
+    execute format('revoke execute on function public.%s from public', f);
+    execute format('grant  execute on function public.%s to authenticated', f);
+  end loop;
+end $$;
+
+
+-- ============================================================================
+-- PARTE 11 — SEGURANÇA (RLS): a parte mais importante do arquivo
+-- ============================================================================
+-- A partir daqui, NENHUMA linha é acessível sem passar por estas regras.
+-- Mesmo que alguém pegue a chave pública do site e chame a API na mão,
+-- o banco devolve apenas o que a pessoa tem direito de ver.
+
+alter table public.usuarios           enable row level security;
+alter table public.permissoes_modulo  enable row level security;
+alter table public.cursos             enable row level security;
+alter table public.modulos_curso      enable row level security;
+alter table public.disciplinas        enable row level security;
+alter table public.salas              enable row level security;
+alter table public.turmas             enable row level security;
+alter table public.alunos             enable row level security;
+alter table public.professores        enable row level security;
+alter table public.funcionarios       enable row level security;
+alter table public.matriculas         enable row level security;
+alter table public.diarios            enable row level security;
+alter table public.notas              enable row level security;
+alter table public.aulas              enable row level security;
+alter table public.frequencia         enable row level security;
+alter table public.faltas_diretas     enable row level security;
+alter table public.historico_escolar  enable row level security;
+alter table public.documentos_aluno   enable row level security;
+alter table public.faixas_conceito    enable row level security;
+alter table public.eventos_calendario enable row level security;
+alter table public.mensagens          enable row level security;
+alter table public.notificacoes       enable row level security;
+alter table public.importacoes        enable row level security;
+alter table public.registros_modulo   enable row level security;
+alter table public.configuracoes      enable row level security;
+alter table public.auditoria          enable row level security;
+
+-- ---------------------------------------------------------------- usuarios
+drop policy if exists p_usuarios_select on public.usuarios;
+create policy p_usuarios_select on public.usuarios for select
+  using (id = auth.uid() or public.eh_gestao() or public.eh_professor());
+
+drop policy if exists p_usuarios_update_proprio on public.usuarios;
+create policy p_usuarios_update_proprio on public.usuarios for update
+  using (id = auth.uid() or public.eh_gestao())
+  with check (id = auth.uid() or public.eh_gestao());
+
+-- TRAVA CONTRA ESCALADA DE PRIVILÉGIO
+-- A política acima deixa a pessoa editar a própria linha (nome, e-mail...).
+-- Sem esta trava, um aluno poderia trocar o próprio 'papel' para ADMIN e
+-- ganhar acesso a tudo. O gatilho abaixo impede isso no banco.
+create or replace function public.protege_campos_criticos()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not public.eh_gestao() then
+    if new.papel is distinct from old.papel then
+      raise exception 'Não é permitido alterar o papel do usuário.';
+    end if;
+    if new.ativo is distinct from old.ativo then
+      raise exception 'Não é permitido alterar o status de acesso.';
+    end if;
+    if new.login is distinct from old.login then
+      raise exception 'Não é permitido alterar o login.';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_protege_usuarios on public.usuarios;
+create trigger trg_protege_usuarios
+  before update on public.usuarios
+  for each row execute function public.protege_campos_criticos();
+-- (A criação de novos usuários já está restrita à gestão pela política
+--  p_usuarios_admin_all logo abaixo.)
+
+drop policy if exists p_usuarios_admin_all on public.usuarios;
+create policy p_usuarios_admin_all on public.usuarios for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ------------------------------------------------------- permissoes_modulo
+drop policy if exists p_permissoes_select on public.permissoes_modulo;
+create policy p_permissoes_select on public.permissoes_modulo for select
+  using (usuario_id = auth.uid() or public.eh_gestao());
+
+drop policy if exists p_permissoes_admin on public.permissoes_modulo;
+create policy p_permissoes_admin on public.permissoes_modulo for all
+  using (public.eh_admin()) with check (public.eh_admin());
+
+-- ------------------------------------- catálogos (todo logado lê, gestão escreve)
+do $$
+declare t text;
+begin
+  foreach t in array array['cursos','modulos_curso','disciplinas','salas','turmas','faixas_conceito','eventos_calendario']
+  loop
+    execute format('drop policy if exists p_%1$s_select on public.%1$s', t);
+    execute format('create policy p_%1$s_select on public.%1$s for select
+                    using (auth.uid() is not null)', t);
+    execute format('drop policy if exists p_%1$s_gestao on public.%1$s', t);
+    execute format('create policy p_%1$s_gestao on public.%1$s for all
+                    using (public.eh_gestao()) with check (public.eh_gestao())', t);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------ alunos
+-- Aluno vê apenas o próprio cadastro. Professor vê alunos das turmas dele.
+drop policy if exists p_alunos_select on public.alunos;
+create policy p_alunos_select on public.alunos for select
+  using (
+    public.eh_gestao()
+    or usuario_id = auth.uid()
+    or (public.eh_professor() and public.sou_professor_da_turma(alunos.turma_id))
+  );
+
+-- Aluno NUNCA edita o próprio cadastro. Só a gestão.
+drop policy if exists p_alunos_gestao on public.alunos;
+create policy p_alunos_gestao on public.alunos for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ------------------------------------------------------------- professores
+drop policy if exists p_professores_select on public.professores;
+create policy p_professores_select on public.professores for select
+  using (auth.uid() is not null);
+
+drop policy if exists p_professores_gestao on public.professores;
+create policy p_professores_gestao on public.professores for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ------------------------------------------------------------ funcionarios
+drop policy if exists p_funcionarios_admin on public.funcionarios;
+create policy p_funcionarios_admin on public.funcionarios for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- -------------------------------------------------------------- matriculas
+drop policy if exists p_matriculas_select on public.matriculas;
+create policy p_matriculas_select on public.matriculas for select
+  using (
+    public.eh_gestao()
+    or aluno_id = public.aluno_atual_id()
+    or (public.eh_professor() and public.sou_professor_da_turma(matriculas.turma_id))
+  );
+
+drop policy if exists p_matriculas_gestao on public.matriculas;
+create policy p_matriculas_gestao on public.matriculas for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ----------------------------------------------------------------- diarios
+drop policy if exists p_diarios_select on public.diarios;
+create policy p_diarios_select on public.diarios for select
+  using (
+    public.eh_gestao()
+    or professor_id = public.professor_atual_id()
+    or public.estou_matriculado(diarios.turma_id)
+  );
+
+drop policy if exists p_diarios_gestao on public.diarios;
+create policy p_diarios_gestao on public.diarios for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ------------------------------------------------------------------- NOTAS
+-- Esta é a regra central do sistema.
+drop policy if exists p_notas_select on public.notas;
+create policy p_notas_select on public.notas for select
+  using (
+    public.eh_gestao()
+    or aluno_id = public.aluno_atual_id()      -- aluno vê SÓ a própria nota
+    or public.meu_diario(diario_id)            -- professor vê só o diário dele
+  );
+
+-- Professor lança nota apenas no diário dele E somente se estiver aberto.
+drop policy if exists p_notas_insert on public.notas;
+create policy p_notas_insert on public.notas for insert
+  with check (
+    public.eh_gestao()
+    or (public.meu_diario(diario_id) and public.diario_aberto(diario_id))
+  );
+
+drop policy if exists p_notas_update on public.notas;
+create policy p_notas_update on public.notas for update
+  using (
+    public.eh_gestao()
+    or (public.meu_diario(diario_id) and public.diario_aberto(diario_id))
+  )
+  with check (
+    public.eh_gestao()
+    or (public.meu_diario(diario_id) and public.diario_aberto(diario_id))
+  );
+
+-- Apagar nota: só administrador. E fica registrado na auditoria.
+drop policy if exists p_notas_delete on public.notas;
+create policy p_notas_delete on public.notas for delete using (public.eh_admin());
+
+-- ------------------------------------------------------------------- aulas
+drop policy if exists p_aulas_select on public.aulas;
+create policy p_aulas_select on public.aulas for select
+  using (
+    public.eh_gestao()
+    or public.meu_diario(diario_id)
+    or public.estou_matriculado(public.turma_do_diario(aulas.diario_id))
+  );
+
+drop policy if exists p_aulas_escrita on public.aulas;
+create policy p_aulas_escrita on public.aulas for all
+  using (public.eh_gestao() or (public.meu_diario(diario_id) and public.diario_aberto(diario_id)))
+  with check (public.eh_gestao() or (public.meu_diario(diario_id) and public.diario_aberto(diario_id)));
+
+-- -------------------------------------------------------------- frequencia
+drop policy if exists p_frequencia_select on public.frequencia;
+create policy p_frequencia_select on public.frequencia for select
+  using (
+    public.eh_gestao()
+    or aluno_id = public.aluno_atual_id()
+    or public.meu_diario(public.diario_da_aula(frequencia.aula_id))
+  );
+
+drop policy if exists p_frequencia_escrita on public.frequencia;
+create policy p_frequencia_escrita on public.frequencia for all
+  using (
+    public.eh_gestao()
+    or (public.meu_diario(public.diario_da_aula(frequencia.aula_id))
+        and public.diario_aberto(public.diario_da_aula(frequencia.aula_id)))
+  )
+  with check (
+    public.eh_gestao()
+    or (public.meu_diario(public.diario_da_aula(frequencia.aula_id))
+        and public.diario_aberto(public.diario_da_aula(frequencia.aula_id)))
+  );
+
+-- ---------------------------------------------------------- faltas_diretas
+drop policy if exists p_faltas_select on public.faltas_diretas;
+create policy p_faltas_select on public.faltas_diretas for select
+  using (public.eh_gestao() or aluno_id = public.aluno_atual_id() or public.meu_diario(diario_id));
+
+drop policy if exists p_faltas_escrita on public.faltas_diretas;
+create policy p_faltas_escrita on public.faltas_diretas for all
+  using (public.eh_gestao() or (public.meu_diario(diario_id) and public.diario_aberto(diario_id)))
+  with check (public.eh_gestao() or (public.meu_diario(diario_id) and public.diario_aberto(diario_id)));
+
+-- --------------------------------------------------------------- histórico
+drop policy if exists p_historico_select on public.historico_escolar;
+create policy p_historico_select on public.historico_escolar for select
+  using (public.eh_gestao() or aluno_id = public.aluno_atual_id());
+
+drop policy if exists p_historico_gestao on public.historico_escolar;
+create policy p_historico_gestao on public.historico_escolar for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- -------------------------------------------------------------- documentos
+drop policy if exists p_documentos_select on public.documentos_aluno;
+create policy p_documentos_select on public.documentos_aluno for select
+  using (public.eh_gestao() or aluno_id = public.aluno_atual_id());
+
+-- Aluno pode ENVIAR o próprio documento, mas não apagar nem alterar status.
+drop policy if exists p_documentos_insert on public.documentos_aluno;
+create policy p_documentos_insert on public.documentos_aluno for insert
+  with check (public.eh_gestao() or aluno_id = public.aluno_atual_id());
+
+drop policy if exists p_documentos_gestao on public.documentos_aluno;
+create policy p_documentos_gestao on public.documentos_aluno for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- --------------------------------------------------------------- mensagens
+drop policy if exists p_mensagens_select on public.mensagens;
+create policy p_mensagens_select on public.mensagens for select
+  using (
+    public.eh_gestao()
+    or destinatario_id = auth.uid()
+    or remetente_id = auth.uid()
+    or (destino_grupo = 'TODOS_PROFESSORES' and public.eh_professor())
+  );
+
+drop policy if exists p_mensagens_insert on public.mensagens;
+create policy p_mensagens_insert on public.mensagens for insert
+  with check (remetente_id = auth.uid());
+
+drop policy if exists p_mensagens_gestao on public.mensagens;
+create policy p_mensagens_gestao on public.mensagens for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ------------------------------------------------------------ notificacoes
+drop policy if exists p_notificacoes_propria on public.notificacoes;
+create policy p_notificacoes_propria on public.notificacoes for all
+  using (usuario_id = auth.uid() or public.eh_gestao())
+  with check (usuario_id = auth.uid() or public.eh_gestao());
+
+-- ------------------------------------------------------------- importacoes
+drop policy if exists p_importacoes_gestao on public.importacoes;
+create policy p_importacoes_gestao on public.importacoes for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- -------------------------------------------------------- registros_modulo
+-- Financeiro e CRM: apenas gestão. Aluno vê só o que é dele (ex.: boletos).
+drop policy if exists p_registros_select on public.registros_modulo;
+create policy p_registros_select on public.registros_modulo for select
+  using (public.eh_gestao() or (aluno_id is not null and aluno_id = public.aluno_atual_id()));
+
+drop policy if exists p_registros_gestao on public.registros_modulo;
+create policy p_registros_gestao on public.registros_modulo for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ----------------------------------------------------------- configuracoes
+drop policy if exists p_config_select on public.configuracoes;
+create policy p_config_select on public.configuracoes for select
+  using (auth.uid() is not null);
+
+drop policy if exists p_config_gestao on public.configuracoes;
+create policy p_config_gestao on public.configuracoes for all
+  using (public.eh_gestao()) with check (public.eh_gestao());
+
+-- ---------------------------------------------------------------- auditoria
+-- Só leitura, e só para administrador. Ninguém edita nem apaga o histórico.
+drop policy if exists p_auditoria_select on public.auditoria;
+create policy p_auditoria_select on public.auditoria for select using (public.eh_admin());
+
+
+-- ============================================================================
+-- PARTE 11B — PRIVILÉGIOS: quem sequer pode tentar acessar
+-- ============================================================================
+-- Camada anterior ao RLS. 'anon' = visitante sem login: não recebe nada.
+-- 'authenticated' = quem fez login: pode tentar, e aí o RLS decide as linhas.
+
+grant usage on schema public to anon, authenticated;
+
+revoke all on all tables    in schema public from anon;
+revoke all on all sequences in schema public from anon;
+revoke all on all functions in schema public from anon;
+
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- Vale também para tabelas criadas no futuro
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public
+  grant usage, select on sequences to authenticated;
+alter default privileges in schema public
+  revoke all on tables from anon;
+
+-- A auditoria é somente leitura: nem a gestão pode adulterar o histórico.
+revoke insert, update, delete on public.auditoria from authenticated;
+
+
+-- ============================================================================
+-- PARTE 12 — ARQUIVOS (Storage)
+-- ============================================================================
+-- Dois "baldes" privados. Nenhum arquivo é público.
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('documentos-alunos', 'documentos-alunos', false, 5242880,
+   array['image/jpeg','image/png','image/webp','application/pdf']),
+  ('importacoes', 'importacoes', false, 10485760,
+   array['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+         'application/vnd.ms-excel','text/csv'])
+on conflict (id) do update
+  set public = false,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Documento do aluno fica em: documentos-alunos/<id_do_aluno>/arquivo.jpg
+-- O aluno só alcança a própria pasta.
+drop policy if exists p_storage_docs_select on storage.objects;
+create policy p_storage_docs_select on storage.objects for select
+  using (
+    bucket_id = 'documentos-alunos'
+    and (public.eh_gestao() or (storage.foldername(name))[1] = public.aluno_atual_id()::text)
+  );
+
+drop policy if exists p_storage_docs_insert on storage.objects;
+create policy p_storage_docs_insert on storage.objects for insert
+  with check (
+    bucket_id = 'documentos-alunos'
+    and (public.eh_gestao() or (storage.foldername(name))[1] = public.aluno_atual_id()::text)
+  );
+
+drop policy if exists p_storage_docs_delete on storage.objects;
+create policy p_storage_docs_delete on storage.objects for delete
+  using (bucket_id = 'documentos-alunos' and public.eh_gestao());
+
+drop policy if exists p_storage_import_gestao on storage.objects;
+create policy p_storage_import_gestao on storage.objects for all
+  using (bucket_id = 'importacoes' and public.eh_gestao())
+  with check (bucket_id = 'importacoes' and public.eh_gestao());
+
+
+-- ============================================================================
+-- PARTE 13 — DADOS INICIAIS MÍNIMOS
+-- ============================================================================
+
+insert into public.faixas_conceito (nota_min, nota_max, letra, descricao) values
+  (9.0, 10.0, 'A', 'Excelente'),
+  (8.0, 8.99, 'B', 'Bom'),
+  (7.0, 7.99, 'C', 'Regular'),
+  (0.0, 6.99, 'D', 'Insuficiente')
+on conflict do nothing;
+
+insert into public.configuracoes (chave, valor) values
+  ('periodo_atual', '"2026/2"'::jsonb),
+  ('periodos', '["2026/1","2026/2","2027/1","2027/2"]'::jsonb),
+  ('frequencia_minima', '75'::jsonb),
+  ('bloqueio_automatico', 'true'::jsonb)
+on conflict (chave) do nothing;
+
+
+-- ============================================================================
+-- FIM. Verificação rápida:
+--   select tablename, rowsecurity from pg_tables
+--   where schemaname = 'public' order by tablename;
+-- Todas as linhas devem mostrar rowsecurity = true.
+-- ============================================================================

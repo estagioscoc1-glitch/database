@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["src/vite-env.d.ts", "src/lib/supabase.ts", "src/lib/nuvem.ts", "src/lib/repositorios.ts",
+              "src/lib/espelhoLocal.ts", "src/context/AppContext.tsx", "src/App.tsx"]
+}

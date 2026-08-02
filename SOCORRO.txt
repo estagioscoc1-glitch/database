@@ -1,0 +1,98 @@
+========================================================================
+ SOCORRO — o que fazer quando algo travar
+ Portal Acadêmico COC
+========================================================================
+
+Guarde este arquivo. Ele resolve 90% dos problemas sem precisar de ninguém.
+
+
+------------------------------------------------------------------------
+1. O SITE NÃO ABRE / "CONEXÃO RECUSADA"
+------------------------------------------------------------------------
+
+É o problema mais comum. Significa que o servidor parou.
+
+COMO RESOLVER:
+
+  a) Aperte a tecla Windows + R (abre a caixa "Executar")
+  b) Cole exatamente isto e dê Enter:
+
+     cmd /k "cd /d C:\Users\andre\Desktop\PORTAL-ACADEMICO-COC-main\PORTAL-ACADEMICO-COC-main && npm run dev"
+
+  c) Abre uma janela preta. ESPERE aparecer "Local: http://localhost:3000"
+  d) NÃO FECHE essa janela. Enquanto ela estiver aberta, o portal funciona.
+  e) Volte no navegador e aperte F5
+
+IMPORTANTE: fechar a janela preta desliga o sistema para todo mundo.
+
+
+------------------------------------------------------------------------
+2. A TELA TRAVOU / FICOU BRANCA
+------------------------------------------------------------------------
+
+  a) Aperte Ctrl + Shift + R (recarrega ignorando o cache)
+  b) Se não resolver, feche a aba e abra http://localhost:3000 de novo
+  c) Se ainda assim travar, faça o passo 1 (religar o servidor)
+
+
+------------------------------------------------------------------------
+3. "NÃO FOI POSSÍVEL SALVAR NO SERVIDOR" (aviso laranja)
+------------------------------------------------------------------------
+
+  a) Confira se a janela preta ainda está aberta
+  b) Confira sua internet (o banco de dados fica na nuvem)
+  c) Aperte F5 e refaça a última ação
+  d) Se o aviso continuar, ANOTE o que você estava fazendo — isso é
+     informação valiosa para o conserto
+
+
+------------------------------------------------------------------------
+4. O PROFESSOR ENTRA E NÃO VÊ TURMA NENHUMA
+------------------------------------------------------------------------
+
+Não é defeito: falta atribuir as disciplinas a ele.
+
+  Cadastros Acadêmicos -> Turmas, Professores & Alunos
+  -> role até "Gerenciador de Acessos de Professores"
+  -> clique no professor -> marque as disciplinas dele
+
+Espere 5 segundos e peça para ele sair e entrar de novo.
+
+
+------------------------------------------------------------------------
+5. ESQUECI A SENHA DO ADMINISTRADOR
+------------------------------------------------------------------------
+
+Ninguém vê a senha de ninguém, nem eu. Só dá para redefinir:
+
+  Painel do Supabase -> Authentication -> Users
+  -> clique no seu usuário -> Reset password
+
+
+------------------------------------------------------------------------
+6. PRECISO DESLIGAR TUDO E LIGAR DE NOVO
+------------------------------------------------------------------------
+
+  a) Feche a janela preta (isso desliga)
+  b) Windows + R, cole e dê Enter:
+
+     cmd /c taskkill /F /IM node.exe
+
+  c) Faça o passo 1 para ligar de novo
+
+
+------------------------------------------------------------------------
+7. NADA DISSO RESOLVEU
+------------------------------------------------------------------------
+
+Antes de pedir ajuda, junte estas três informações — elas encurtam muito
+o conserto:
+
+  - O que você estava fazendo quando travou (a tela e o botão)
+  - Se apareceu alguma mensagem, o texto exato dela
+  - Uma foto da tela
+
+Os dados NÃO se perdem quando o sistema trava. Tudo que foi salvo está no
+banco na nuvem, não neste computador.
+
+========================================================================

@@ -1,0 +1,17 @@
+
+Disparando google.com [2800:3f0:4004:814::200e] com 32 bytes de dados:
+Resposta de 2800:3f0:4004:814::200e: tempo=84ms 
+
+Estat°sticas do Ping para 2800:3f0:4004:814::200e:
+    Pacotes: Enviados = 1, Recebidos = 1, Perdidos = 0 (0% de
+             perda),
+Aproximar um n£mero redondo de vezes em milissegundos:
+    M°nimo = 84ms, M†ximo = 84ms, MÇdia = 84ms
+   Sufixo DNS prim†rio . . . . . . . . . . . . : 
+   Lista de pesquisa de sufixo DNS . . . . . . : hitronhub.home
+   Sufixo DNS espec°fico de conex∆o. . . . . . : 
+   Sufixo DNS espec°fico de conex∆o. . . . . . : 
+   Sufixo DNS espec°fico de conex∆o. . . . . . : 
+   Sufixo DNS espec°fico de conex∆o. . . . . . : 
+   Sufixo DNS espec°fico de conex∆o. . . . . . : hitronhub.home
+   Servidores DNS. . . . . . . . . . . . . . . : 2804:14d:1:0:181:213:132:4
