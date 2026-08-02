@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -2606,6 +2606,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
     addSecurityLog('USUARIO_REMOVIDO', `Usuário ${userToDelete?.name || ''} (ID: ${id}) foi excluído do sistema.`, 'medium');
+    // Mesmo motivo do curso, turma e disciplina: sem isto, o aluno/professor
+    // excluído reaparecia em outro aparelho assim que a estrutura fosse
+    // recarregada, porque a sincronização automática nunca apaga sozinha.
+    // ADMIN e SECRETARIA não têm linha em nenhuma tabela (por isso não têm
+    // exclusão de banco correspondente aqui — não há nada pra apagar).
+    if (userToDelete?.role === UserRole.STUDENT) {
+      excluirAluno(id).then(res => {
+        if (!res.ok) {
+          addSecurityLog('SISTEMA_ERRO', `Falha ao excluir aluno ${id} do banco: ${res.erro}`, 'high');
+        }
+      });
+    } else if (userToDelete?.role === UserRole.TEACHER) {
+      excluirProfessor(id).then(res => {
+        if (!res.ok) {
+          addSecurityLog('SISTEMA_ERRO', `Falha ao excluir professor ${id} do banco: ${res.erro}`, 'high');
+        }
+      });
+    }
   };
 
   const unifyDuplicateStudents = (principalId: string, duplicateIds: string[]) => {
