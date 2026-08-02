@@ -475,6 +475,22 @@ export async function excluirTurma(id: string): Promise<ResultadoGravacao> {
   return { ok: true };
 }
 
+/** Mesma lógica do curso, para quando um aluno é excluído pela tela. */
+export async function excluirAluno(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('alunos').delete().eq('id', id);
+  if (error) return falha('excluir aluno', error);
+  return { ok: true };
+}
+
+/** Mesma lógica do curso, para quando um professor é excluído pela tela. */
+export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('professores').delete().eq('id', id);
+  if (error) return falha('excluir professor', error);
+  return { ok: true };
+}
+
 /* ==========================================================================
  * CALENDÁRIO ACADÊMICO
  *
