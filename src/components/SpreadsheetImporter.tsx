@@ -9,6 +9,23 @@ import { Upload, FileText, CheckCircle2, AlertCircle, Info, Download, Users, Boo
 import { motion } from 'motion/react';
 import * as XLSX from 'xlsx';
 
+/**
+ * Calcula o semestre "certo" a partir da data real.
+ *
+ * Regra: jan-jun (meses 1 a 6) = primeiro semestre, jul-dez (meses 7 a 12)
+ * = segundo semestre. Vale para qualquer ano, não só 2026.
+ *
+ * Isto é usado SÓ como sugestão inicial do dropdown "1. Semestre" do
+ * importador — não mexe no `currentPeriod` (período ativo/trava de diário),
+ * que continua sendo controlado manualmente pelo admin.
+ */
+function getSemestreAtual(data: Date = new Date()): string {
+  const ano = data.getFullYear();
+  const mes = data.getMonth() + 1; // getMonth() é 0-11
+  const semestre = mes <= 6 ? 1 : 2;
+  return `${ano}/${semestre}`;
+}
+
 interface ParsedStudent {
   name: string;
   enrollment: string;
@@ -48,13 +65,20 @@ export const SpreadsheetImporter: React.FC = () => {
    * Agora são dois passos: escolhe o semestre, e a lista de turmas passa a
    * mostrar só as daquele semestre.
    */
-  const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod);
+  // Sugestão inicial: semestre calculado pela data de hoje (não pelo
+  // `currentPeriod` salvo, que pode estar desatualizado há meses). O usuário
+  // continua livre para trocar no dropdown "1. Semestre".
+  const [selectedPeriod, setSelectedPeriod] = useState(() => getSemestreAtual());
 
   // Semestres que realmente têm turma cadastrada, do mais novo para o mais antigo.
+  // Sempre inclui também o período ativo (currentPeriod) e o período sugerido
+  // pela data de hoje, mesmo que ainda não tenham turma — assim eles aparecem
+  // como opção selecionável no dropdown.
   const periodosDisponiveis = React.useMemo(() => {
     const vistos = new Set<string>();
     for (const c of classes) vistos.add(`${c.year}/${c.semester}`);
     if (currentPeriod) vistos.add(currentPeriod);
+    vistos.add(getSemestreAtual());
     return Array.from(vistos).sort((a, b) => b.localeCompare(a));
   }, [classes, currentPeriod]);
 
@@ -102,7 +126,7 @@ export const SpreadsheetImporter: React.FC = () => {
       setParsedPreview(pendingImport.previewList);
       setStatus({
         type: 'success',
-        message: `[Semestre ${currentPeriod}] ${pendingImport.successMessage}`
+        message: `[Semestre ${selectedPeriod}] ${pendingImport.successMessage}`
       });
     } catch (err: any) {
       setStatus({
@@ -797,7 +821,7 @@ export const SpreadsheetImporter: React.FC = () => {
 
             <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 rounded-2xl mb-5 text-center">
               <p className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">
-                Tem certeza de que deseja importar esta turma para o semestre <span className="text-blue-700 dark:text-blue-400 underline font-black">{currentPeriod}</span>?
+                Tem certeza de que deseja importar esta turma para o semestre <span className="text-blue-700 dark:text-blue-400 underline font-black">{selectedPeriod}</span>?
               </p>
             </div>
 
@@ -814,14 +838,14 @@ export const SpreadsheetImporter: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Semestre Oficial:</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400">{currentPeriod}</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{selectedPeriod}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Total de Registros:</span>
                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pendingImport.itemsCount} itens</span>
               </div>
               <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                ✓ A turma e diários ficarão registrados no semestre <strong>{currentPeriod}</strong> e permanecerão <strong>100% liberados para edições de notas e faltas</strong>.
+                ✓ A turma e diários ficarão registrados no semestre <strong>{selectedPeriod}</strong> e permanecerão <strong>100% liberados para edições de notas e faltas</strong>.
               </div>
             </div>
 
