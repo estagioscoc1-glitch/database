@@ -967,7 +967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           try {
             const notas = await carregarNotas();
-            if (notas && !desmontado) setGrades(notas);
+            if (notas && !desmontado) { notasGravadasRef.current = new Map(notas.map(n => [n.id, JSON.stringify(n)] as [string, string])); setGrades(notas); }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar notas:', err?.message || err);
           }
