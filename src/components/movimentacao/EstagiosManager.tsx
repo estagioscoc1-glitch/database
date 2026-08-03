@@ -7,7 +7,7 @@ import {
 import { 
   getStageVacancies, saveStageVacancy, removeStageVacancy, saveStageEvaluation, 
   getStageEvaluations, getTeacherReceipts, saveTeacherReceipt,
-  getStageDefinitions, saveStageDefinition,
+  getStageDefinitions, saveStageDefinition, removeStageDefinition,
   getStageFields, saveStageField, removeStageField,
   getStageTeachers, saveStageTeacher, removeStageTeacher,
   getStageCronogramas, saveStageCronograma, removeStageCronograma
@@ -140,13 +140,7 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
 
   const selectedVacancy = (vacancies || []).find(v => v.id === selectedVacancyId) || vacancies[0];
 
-  const currentVacancyStudents = (selectedVacancy?.studentsAllocated && selectedVacancy.studentsAllocated.length > 0)
-    ? selectedVacancy.studentsAllocated
-    : [
-        { studentId: 'stu_1', studentName: 'Carlos Eduardo Silva', enrollmentNumber: '2026.1.ENF.089', status: 'EM_ANDAMENTO' },
-        { studentId: 'stu_2', studentName: 'Beatriz Lima Souza', enrollmentNumber: '2026.1.ENF.090', status: 'EM_ANDAMENTO' },
-        { studentId: 'stu_3', studentName: 'Juliana Mendes Rocha', enrollmentNumber: '2026.1.ENF.091', status: 'EM_ANDAMENTO' }
-      ];
+  const currentVacancyStudents = selectedVacancy?.studentsAllocated || [];
 
   // 1. Cadastrar Disciplina de Estágio
   const handleCreateDefinition = (e: React.FormEvent) => {
@@ -308,16 +302,16 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
     const newVac: StageVacancy = {
       id: `vac_${Date.now()}`,
       vacancyNumber: `Vaga #${(vacancies || []).length + 1}`,
-      companyName: selectedField?.companyName || 'Hospital Geral Oswaldo Cruz',
-      sector: selectedField?.sector || 'Ala de Internação e UTI',
-      supervisorName: selectedField?.supervisorName || 'Supervisão Local',
-      teacherId: selectedTeacher?.id || 'tch_01',
-      teacherName: selectedTeacher?.name || 'Prof. Carlos Eduardo',
-      teacherCouncilNumber: selectedTeacher?.councilNumber || 'COREN-PB 184.920',
-      courseId: selectedCourse?.id || selectedDef?.courseId || 'c1',
-      courseName: selectedCourse?.name || selectedDef?.courseName || 'Técnico em Enfermagem',
-      stageId: selectedDef?.id || 'stg_def_enf_1',
-      stageName: selectedDef?.stageName || 'Estágio Supervisão Hospitalar I',
+      companyName: selectedField?.companyName || '',
+      sector: selectedField?.sector || '',
+      supervisorName: selectedField?.supervisorName || '',
+      teacherId: selectedTeacher?.id || '',
+      teacherName: selectedTeacher?.name || '',
+      teacherCouncilNumber: selectedTeacher?.councilNumber || '',
+      courseId: selectedCourse?.id || selectedDef?.courseId || '',
+      courseName: selectedCourse?.name || selectedDef?.courseName || '',
+      stageId: selectedDef?.id || '',
+      stageName: selectedDef?.stageName || '',
       classId: vacSelectedClassIds[0],
       className: classNamesJoined || 'Turmas Selecionadas',
       maxStudents: Number(vacMaxStudents) || 15,
@@ -326,11 +320,7 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
       scheduleDaysTime: vacScheduleDays,
       totalHours: Number(selectedDef?.workloadHours) || Number(vacTotalHours) || 120,
       hourlyRate: Number(selectedDef?.teacherPayRate) || Number(vacHourlyRate) || 25.00,
-      studentsAllocated: [
-        { studentId: 'stu_1', studentName: 'Carlos Eduardo Silva', enrollmentNumber: '2026.1.ENF.089', status: 'EM_ANDAMENTO' },
-        { studentId: 'stu_2', studentName: 'Beatriz Lima Souza', enrollmentNumber: '2026.1.ENF.090', status: 'EM_ANDAMENTO' },
-        { studentId: 'stu_3', studentName: 'Juliana Mendes Rocha', enrollmentNumber: '2026.1.ENF.091', status: 'EM_ANDAMENTO' }
-      ],
+      studentsAllocated: [],
       accessLinkCode: `stg_token_${Math.random().toString(36).substring(2, 8)}`,
       status: 'EM_ANDAMENTO',
       createdAt: new Date().toISOString()
@@ -606,7 +596,19 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
               {(stageDefinitions || []).map(def => (
                 <div key={def.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                   <div className="space-y-1">
-                    <div className="font-black text-sm text-slate-900 dark:text-white">{def.stageName}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-black text-sm text-slate-900 dark:text-white">{def.stageName}</div>
+                      <button
+                        onClick={() => {
+                          removeStageDefinition(def.id);
+                          refreshAllData();
+                        }}
+                        className="p-1 text-rose-500 hover:bg-rose-50 rounded-lg cursor-pointer"
+                        title="Excluir Disciplina de Estágio"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                     <div className="text-xs text-slate-600 dark:text-slate-400 font-bold">
                       {def.courseName} • Carga Horária: {def.workloadHours}h • Média Mínima: {def.minPassingGrade}
                     </div>
