@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Search, Send, User as UserIcon, Users, MessageSquare, 
   ArrowLeft, Check, CheckCheck, MessageCircle, Sparkles, SendHorizontal, GraduationCap,
-  ChevronRight, FileText, Image as ImageIcon, Mic, Download
+  ChevronRight, FileText, Image as ImageIcon, Mic, Download, Trash2
 } from 'lucide-react';
 
 interface MessageCenterProps {
@@ -26,7 +26,7 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
   selectedContactId,
   setSelectedContactId
 }) => {
-  const { currentUser, users, messages, sendMessage, notifications, clearNotifications } = useApp();
+  const { currentUser, users, messages, sendMessage, notifications, clearNotifications, deleteMessage } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
@@ -405,8 +405,24 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                             key={msg.id}
                             className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                           >
-                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 px-1.5">
-                              {isMe ? 'Você' : msg.senderName}
+                            <div className="flex items-center gap-1.5 mb-0.5 px-1.5">
+                              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                                {isMe ? 'Você' : msg.senderName}
+                              </span>
+                              {isMe && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.STAFF) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm('Apagar este comunicado para sempre? Quem já recebeu deixa de vê-lo.')) {
+                                      deleteMessage(msg.id);
+                                    }
+                                  }}
+                                  title="Excluir comunicado"
+                                  className="text-slate-300 hover:text-red-500 dark:text-slate-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </div>
                             <div
                               className={`p-3 rounded-2xl max-w-[85%] text-xs font-semibold leading-relaxed shadow-sm relative space-y-2 ${
