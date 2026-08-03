@@ -931,7 +931,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // vem do código e ainda não subiu. Se aplicássemos o resultado vazio,
         // ela seria zerada antes de ter chance de ser gravada — e o portal
         // abriria sem nenhum curso, para sempre.
-        const estrutura = await carregarEstrutura();
+        // Cada chamada agora tem sua própria rede de proteção.
+        //
+        // Antes, todo este trecho rodava dentro de um único try/catch lá de
+        // fora: bastava UMA dessas chamadas falhar (rede lenta, uma tabela
+        // demorando a responder) para que NENHUMA das outras rodasse — e o
+        // portal caía no aviso genérico de "alterações não salvas", mesmo
+        // sem o professor ter alterado nada. Pior: como a falha interrompia
+        // o carregamento no meio, os diários do professor podiam nunca
+        // chegar a ser lidos, e o painel abria com "Diários Ativos: 0" sem
+        // motivo real.
+        let estrutura: Awaited<ReturnType<typeof carregarEstrutura>> | null = null;
+        try {
+          estrutura = await carregarEstrutura();
+        } catch (err: any) {
+          console.warn('[Portal] Falha ao carregar cursos/turmas/disciplinas:', err?.message || err);
+        }
 
         if (estrutura && !desmontado) {
           // Cada parte é avaliada SEPARADAMENTE.
@@ -949,22 +964,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const gestao = prev.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.STAFF);
             return [...gestao, ...estrutura.users];
           });
-          const notas = await carregarNotas();
-          if (notas && !desmontado) setGrades(notas);
-          const faltas = await carregarFaltas();
-          if (faltas && !desmontado) setDirectAbsences(faltas);
-          const aulas = await carregarAulas();
-          if (aulas && aulas.length > 0 && !desmontado) setAttendance(aulas as any);
-          const docs = await carregarDocumentosAluno();
-          if (docs && docs.length > 0 && !desmontado) {
-            setStudentDocuments(docs as any);
-            docs.forEach((d: any) => documentosGravadosRef.current.set(d.id, JSON.stringify(d)));
+
+          try {
+            const notas = await carregarNotas();
+            if (notas && !desmontado) setGrades(notas);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar notas:', err?.message || err);
           }
-          const msgs = await carregarMensagens();
-          if (msgs && msgs.length > 0 && !desmontado) {
-            setMessages(msgs as any);
-            msgs.forEach((m: any) => mensagensGravadasRef.current.add(m.id));
+
+          try {
+            const faltas = await carregarFaltas();
+            if (faltas && !desmontado) setDirectAbsences(faltas);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar faltas:', err?.message || err);
           }
+
+          try {
+            const aulas = await carregarAulas();
+            if (aulas && aulas.length > 0 && !desmontado) setAttendance(aulas as any);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar aulas:', err?.message || err);
+          }
+
+          try {
+            const docs = await carregarDocumentosAluno();
+            if (docs && docs.length > 0 && !desmontado) {
+              setStudentDocuments(docs as any);
+              docs.forEach((d: any) => documentosGravadosRef.current.set(d.id, JSON.stringify(d)));
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar documentos de alunos:', err?.message || err);
+          }
+
+          try {
+            const msgs = await carregarMensagens();
+            if (msgs && msgs.length > 0 && !desmontado) {
+              setMessages(msgs as any);
+              msgs.forEach((m: any) => mensagensGravadasRef.current.add(m.id));
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar mensagens:', err?.message || err);
+          }
+
           setHasReceivedInitialCloudSync(true);
           setCloudBackupStatus('success');
         }
