@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   BookOpen, Calendar, HelpCircle, BellRing, ClipboardList, CheckCircle2, 
@@ -141,6 +141,23 @@ export const TeacherDashboard: React.FC = () => {
   // É preferência de tela, não dado acadêmico: mora só no navegador, de
   // propósito. Em outro computador o professor vê uma vez e dispensa de novo.
   // ---------------------------------------------------------------------------
+  // O painel entra no ar antes de TODOS os dados chegarem. O `isLoading` do
+  // App já libera a tela depois da primeira leva, mas o retrato do estado
+  // (calendário e período) ainda está a caminho. Nesse intervalo o calendário
+  // é o padrão do código — prazos do semestre anterior, vencendo em poucos
+  // dias — e o aviso vermelho aparecia e sumia sozinho, rápido demais até
+  // para clicar. Foi exatamente o que o professor relatou.
+  //
+  // Só olhamos para o aviso depois que o período e as três datas de prazo
+  // ficarem parados por um instante. Se o carregamento demorar mais, o prazo
+  // reinicia junto — não é um tempo fixo cravado no escuro.
+  const [prazosAssentados, setPrazosAssentados] = useState<boolean>(false);
+  useEffect(() => {
+    setPrazosAssentados(false);
+    const t = setTimeout(() => setPrazosAssentados(true), 1500);
+    return () => clearTimeout(t);
+  }, [currentPeriod, s1Date, s2Date, defDate]);
+
   const assinaturaAviso = `${currentPeriod}|${activeAlerts.map(a => `${a.name}@${a.date}`).join(';')}`;
   const chaveAviso = `coc_aviso_prazo_${currentUser?.id || 'anon'}_${assinaturaAviso}`;
 
@@ -177,7 +194,7 @@ export const TeacherDashboard: React.FC = () => {
     <div id="teacher-dashboard-container" className="space-y-6">
 
       {/* Warning Popup Modal */}
-      {!avisoJaDispensado && hasApproachingDeadline && activeAlerts.length > 0 && (
+      {prazosAssentados && !avisoJaDispensado && hasApproachingDeadline && activeAlerts.length > 0 && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
