@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -183,9 +183,9 @@ interface AppContextType {
     attachmentType?: 'audio' | 'pdf' | 'image',
     attachmentName?: string
   ) => void;
+  deleteMessage: (id: string) => void;
   addNotification: (userId: string, content: string) => void;
   clearNotifications: (userId: string) => void;
-  deleteMessage: (messageId: string) => void;
   
   // Helpers
   getStudentAbsences: (studentId: string, subjectId: string, classId?: string) => { total: number, frequency: number };
@@ -676,16 +676,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [messages, setMessages] = useState<Message[]>(() => {
-    return safeJsonParse(safeLocalStorage.getItem('oc_messages'), [
-      {
-        id: 'msg_1',
-        senderName: 'Administração Pedagógica',
-        senderRole: UserRole.ADMIN,
-        recipientId: 'ALL_TEACHERS',
-        content: 'Olá professores, lembrem-se que o fechamento das notas de S1 deve ocorrer até o dia 05/07. Atenciosamente, Coordenação.',
-        date: '2026-06-28T09:00:00Z'
-      }
-    ]);
+    return safeJsonParse(safeLocalStorage.getItem('oc_messages'), []);
   });
 
   const [notifications, setNotifications] = useState<AcademicNotification[]>(() => {
@@ -694,11 +685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Security and backup states
   const [securityLogs, setSecurityLogs] = useState<any[]>(() => {
-    return safeJsonParse(safeLocalStorage.getItem('oc_security_logs'), [
-      { id: 'sec_1', timestamp: new Date(Date.now() - 3600000).toISOString(), eventType: 'SISTEMA', ipAddress: '186.230.41.12', details: 'Firewall de Aplicação da Web (WAF) inicializado e ativo.', severity: 'low' },
-      { id: 'sec_2', timestamp: new Date(Date.now() - 3000000).toISOString(), eventType: 'INTEGRIDADE', ipAddress: '186.230.41.12', details: 'Varredura automática: Todos os hashes de integridade batem com os dados originais.', severity: 'low' },
-      { id: 'sec_3', timestamp: new Date(Date.now() - 1200000).toISOString(), eventType: 'BACKUP_AUTO', ipAddress: 'Servidor Nuvem (AWS us-east-1)', details: 'Sincronização em nuvem resiliente efetuada com sucesso.', severity: 'low' }
-    ]);
+    return safeJsonParse(safeLocalStorage.getItem('oc_security_logs'), []);
   });
 
   const [cloudBackupStatus, setCloudBackupStatus] = useState<'idle' | 'syncing' | 'success' | 'error' | 'offline' | 'quota_exceeded'>('idle');
@@ -3372,19 +3359,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  /**
-   * Apaga um comunicado do painel (ex: um aviso de prazo já vencido que
-   * ficava sempre em destaque por ser o mais recente enviado ao grupo).
-   * Só quem enviou o comunicado (gestão) deveria chamar isto — a tela é
-   * quem decide mostrar ou não o botão, esta função só executa.
-   */
-  const deleteMessage = (messageId: string) => {
-    setMessages(prev => prev.filter(m => m.id !== messageId));
-    excluirMensagem(messageId).then(res => {
-      if (!res.ok) {
-        addSecurityLog('SISTEMA_ERRO', `Falha ao excluir mensagem ${messageId} do banco: ${res.erro}`, 'medium');
-      }
-    });
+  const deleteMessage = (id: string) => {
+    setMessages(prev => prev.filter(m => m.id !== id));
   };
 
   const addNotification = (userId: string, content: string) => {
@@ -4802,7 +4778,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dependencies, createDependencyEnrollment,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
-      toggleJournalStatus, sendMessage, addNotification, clearNotifications, deleteMessage,
+      toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
       getStudentAbsences, getStudentAttendanceGrid,
       importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports, undoHistoricalImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
