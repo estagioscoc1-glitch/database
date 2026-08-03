@@ -491,6 +491,21 @@ export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
   return { ok: true };
 }
 
+/**
+ * Apaga um comunicado/mensagem do banco.
+ *
+ * Usado quando a gestão exclui um aviso desatualizado (ex: um comunicado de
+ * prazo que já passou e ficava preso no topo do painel do professor, porque
+ * era sempre o mais recente do grupo "ALL_TEACHERS" e a tela não tinha como
+ * removê-lo).
+ */
+export async function excluirMensagem(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('mensagens').delete().eq('id', id);
+  if (error) return falha('excluir mensagem', error);
+  return { ok: true };
+}
+
 /* ==========================================================================
  * CALENDÁRIO ACADÊMICO
  *
