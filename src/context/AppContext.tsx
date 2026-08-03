@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -185,6 +185,7 @@ interface AppContextType {
   ) => void;
   addNotification: (userId: string, content: string) => void;
   clearNotifications: (userId: string) => void;
+  deleteMessage: (messageId: string) => void;
   
   // Helpers
   getStudentAbsences: (studentId: string, subjectId: string, classId?: string) => { total: number, frequency: number };
@@ -3371,6 +3372,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /**
+   * Apaga um comunicado do painel (ex: um aviso de prazo já vencido que
+   * ficava sempre em destaque por ser o mais recente enviado ao grupo).
+   * Só quem enviou o comunicado (gestão) deveria chamar isto — a tela é
+   * quem decide mostrar ou não o botão, esta função só executa.
+   */
+  const deleteMessage = (messageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    excluirMensagem(messageId).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao excluir mensagem ${messageId} do banco: ${res.erro}`, 'medium');
+      }
+    });
+  };
+
   const addNotification = (userId: string, content: string) => {
     const newNot: AcademicNotification = {
       id: `not_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -4786,7 +4802,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dependencies, createDependencyEnrollment,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
-      toggleJournalStatus, sendMessage, addNotification, clearNotifications,
+      toggleJournalStatus, sendMessage, addNotification, clearNotifications, deleteMessage,
       getStudentAbsences, getStudentAttendanceGrid,
       importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports, undoHistoricalImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
