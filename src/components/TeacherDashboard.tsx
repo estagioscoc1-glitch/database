@@ -14,6 +14,7 @@ import {
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
 import { motion } from 'motion/react';
+import { safeLocalStorage } from '../lib/safeStorage';
 
 export const TeacherDashboard: React.FC = () => {
   const { 
@@ -27,7 +28,9 @@ export const TeacherDashboard: React.FC = () => {
   const [isGradeWindowMaximized, setIsGradeWindowMaximized] = useState<boolean>(false);
   const [attendanceWindowState, setAttendanceWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
   const [isAttendanceWindowMaximized, setIsAttendanceWindowMaximized] = useState<boolean>(false);
-  const [showWarningModal, setShowWarningModal] = useState<boolean>(true);
+  // Guarda a assinatura do aviso de prazo que o professor já dispensou nesta sessão.
+  // A versão persistida fica no navegador (ver `avisoJaDispensado` mais abaixo).
+  const [avisoDispensadoNaSessao, setAvisoDispensadoNaSessao] = useState<string | null>(null);
 
   // Helper to calculate days remaining
   const getDaysRemaining = (targetDateStr: string, currentDateStr: string): number => {
@@ -123,6 +126,33 @@ export const TeacherDashboard: React.FC = () => {
     { name: 'Fechamento Geral Definitivo', days: defDays, date: defDate, active: defApproaching }
   ].filter(a => a.active);
 
+  // ---------------------------------------------------------------------------
+  // AVISO DE PRAZO: mostrar uma vez por prazo, não a cada login
+  //
+  // Antes, o modal reabria a cada carregamento da página: o botão "Entendido"
+  // só apagava um estado em memória. Nos 5 dias finais o professor levava o
+  // mesmo aviso em todo F5.
+  //
+  // Agora a dispensa é gravada no navegador com uma "assinatura" do aviso —
+  // período + quais prazos estão vencendo + em que datas. Se um prazo NOVO
+  // entrar na faixa dos 5 dias, a assinatura muda e o aviso volta a aparecer,
+  // que é justamente o que se quer. O que não volta é o mesmo aviso já lido.
+  //
+  // É preferência de tela, não dado acadêmico: mora só no navegador, de
+  // propósito. Em outro computador o professor vê uma vez e dispensa de novo.
+  // ---------------------------------------------------------------------------
+  const assinaturaAviso = `${currentPeriod}|${activeAlerts.map(a => `${a.name}@${a.date}`).join(';')}`;
+  const chaveAviso = `coc_aviso_prazo_${currentUser?.id || 'anon'}_${assinaturaAviso}`;
+
+  const avisoJaDispensado =
+    avisoDispensadoNaSessao === assinaturaAviso ||
+    safeLocalStorage.getItem(chaveAviso) === '1';
+
+  const dispensarAviso = () => {
+    safeLocalStorage.setItem(chaveAviso, '1');
+    setAvisoDispensadoNaSessao(assinaturaAviso);
+  };
+
   const formatDaysText = (days: number) => {
     if (days === 0) return 'encerra HOJE';
     if (days === 1) return 'encerra AMANHÃ';
@@ -147,7 +177,7 @@ export const TeacherDashboard: React.FC = () => {
     <div id="teacher-dashboard-container" className="space-y-6">
 
       {/* Warning Popup Modal */}
-      {showWarningModal && hasApproachingDeadline && activeAlerts.length > 0 && (
+      {!avisoJaDispensado && hasApproachingDeadline && activeAlerts.length > 0 && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
@@ -184,7 +214,7 @@ export const TeacherDashboard: React.FC = () => {
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowWarningModal(false)}
+                onClick={dispensarAviso}
                 className="w-full py-3 bg-red-600 hover:bg-red-750 text-white rounded-2xl text-xs font-bold shadow-lg shadow-red-600/20 transition-all cursor-pointer text-center"
               >
                 Entendido, vou realizar os lançamentos
@@ -200,6 +230,9 @@ export const TeacherDashboard: React.FC = () => {
         <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-blue-500/5 dark:bg-blue-500/3 rounded-full blur-2xl pointer-events-none"></div>
 
         <div>
+          <span className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase rounded-lg tracking-wider border border-blue-100 dark:border-blue-900/30">
+            Painel Docente Ativo • Período {currentPeriod}
+          </span>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight mt-1.5">
             Olá, {currentUser?.name || 'Professor(a)'}!
           </h2>
@@ -232,6 +265,12 @@ export const TeacherDashboard: React.FC = () => {
             <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Diários Ativos</span>
             <span className="block text-lg font-black text-blue-700 dark:text-blue-400 mt-0.5">
               {activeJournalsCount}
+            </span>
+          </div>
+          <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-150 dark:border-slate-800 rounded-2xl text-center min-w-[100px]">
+            <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Simulação</span>
+            <span className="block text-xs font-mono font-bold text-slate-700 dark:text-slate-300 mt-1.5">
+              {formatDateBR(simulatedDate)}
             </span>
           </div>
         </div>
