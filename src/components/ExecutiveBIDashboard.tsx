@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { UserRole, Shift, CustomDashboardWidget, ClassSection } from '../types';
+import { getInstallments, getExpenses } from '../services/financeiroStorage';
 
 const COLORS = {
   primary: '#2563eb', // Blue
@@ -170,10 +171,24 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   const enrolledStudents = filteredStudents.filter(u => u.active !== false).length;
   const monthEnrolled = useMemo(() => {
     const currentMonthStr = new Date().toISOString().slice(0, 7);
-    return filteredStudents.filter(u => u.createdAt && u.createdAt.startsWith(currentMonthStr)).length || Math.floor(enrolledStudents * 0.18) + 4;
-  }, [filteredStudents, enrolledStudents]);
+    return filteredStudents.filter(u => u.createdAt && u.createdAt.startsWith(currentMonthStr)).length;
+  }, [filteredStudents]);
 
-  const semesterEnrolled = useMemo(() => Math.floor(enrolledStudents * 0.65) + 12, [enrolledStudents]);
+  // "Matrículas do semestre": usa o 1º (Jan-Jun) ou 2º (Jul-Dez) semestre do calendário
+  // como aproximação, já que o sistema não guarda uma data exata de início/fim de
+  // semestre letivo por matrícula.
+  const semesterEnrolled = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const isFirstHalf = now.getMonth() < 6;
+    const start = new Date(year, isFirstHalf ? 0 : 6, 1);
+    const end = new Date(year, isFirstHalf ? 6 : 12, 1);
+    return filteredStudents.filter(u => {
+      if (!u.createdAt) return false;
+      const d = new Date(u.createdAt);
+      return d >= start && d < end;
+    }).length;
+  }, [filteredStudents]);
   const yearEnrolled = enrolledStudents;
   const generalEnrolled = totalStudents;
 
@@ -190,35 +205,47 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   }, [dependencies, filteredStudents]);
 
   const diplomasRequested = useMemo(() => {
-    return filteredStudents.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length || Math.floor(enrolledStudents * 0.12);
-  }, [filteredStudents, enrolledStudents]);
+    return filteredStudents.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
+  }, [filteredStudents]);
 
   const dropoutsCount = useMemo(() => {
-    return filteredStudents.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length || Math.floor(totalStudents * 0.04);
-  }, [filteredStudents, totalStudents]);
+    return filteredStudents.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length;
+  }, [filteredStudents]);
 
   const abandonedCount = useMemo(() => {
-    return filteredStudents.filter(u => u.status === 'ABANDONO' || u.status === 'EVADIDO').length || Math.floor(totalStudents * 0.02);
-  }, [filteredStudents, totalStudents]);
+    return filteredStudents.filter(u => u.status === 'ABANDONO' || u.status === 'EVADIDO').length;
+  }, [filteredStudents]);
 
-  // Financial Indicators Calculation
+  // Financial Indicators — dados reais vindos do Módulo Financeiro (parcelas e
+  // despesas lançadas de verdade), não mais estimados por fórmula.
   const financialMetrics = useMemo(() => {
-    const avgTuition = 450;
-    const totalActive = enrolledStudents;
-    const monthExpected = totalActive * avgTuition;
-    const yearExpected = monthExpected * 12;
-    const totalReceivedMonth = Math.round(monthExpected * 0.94);
-    const totalReceivedYear = Math.round(yearExpected * 0.91);
-    const totalReceivedGeneral = Math.round(yearExpected * 2.8);
+    const installments = getInstallments();
+    const expenses = getExpenses();
+    const now = new Date();
+    const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    const currentYearStr = String(now.getFullYear());
 
-    const paidInstallments = Math.round(totalActive * 0.92);
-    const openInstallments = Math.round(totalActive * 0.05);
-    const overdueInstallments = Math.round(totalActive * 0.03);
-    const inadimplenciaRate = ((overdueInstallments / (totalActive || 1)) * 100).toFixed(1);
+    const valorRecebido = (i: typeof installments[number]) =>
+      i.paidValue ?? (i.originalValue - (i.discountValue || 0));
 
-    const monthExpenses = Math.round(monthExpected * 0.45);
-    const yearExpenses = Math.round(yearExpected * 0.48);
-    const generalExpenses = Math.round(generalEnrolled * avgTuition * 12 * 0.47);
+    const paidThisMonth = installments.filter(i => i.status === 'PAGA' && i.competencia === currentMonthStr);
+    const paidThisYear = installments.filter(i => i.status === 'PAGA' && i.competencia?.endsWith(`/${currentYearStr}`));
+    const paidAllTime = installments.filter(i => i.status === 'PAGA');
+
+    const totalReceivedMonth = paidThisMonth.reduce((sum, i) => sum + valorRecebido(i), 0);
+    const totalReceivedYear = paidThisYear.reduce((sum, i) => sum + valorRecebido(i), 0);
+    const totalReceivedGeneral = paidAllTime.reduce((sum, i) => sum + valorRecebido(i), 0);
+
+    const thisMonthInstallments = installments.filter(i => i.competencia === currentMonthStr);
+    const paidInstallments = thisMonthInstallments.filter(i => i.status === 'PAGA').length;
+    const openInstallments = thisMonthInstallments.filter(i => i.status === 'PENDENTE').length;
+    const overdueInstallments = thisMonthInstallments.filter(i => i.status === 'ATRASADA').length;
+    const totalThisMonth = thisMonthInstallments.length;
+    const inadimplenciaRate = totalThisMonth > 0 ? ((overdueInstallments / totalThisMonth) * 100).toFixed(1) : '0.0';
+
+    const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(now.toISOString().slice(0, 7))).reduce((s, e) => s + e.value, 0);
+    const yearExpenses = expenses.filter(e => e.date && e.date.startsWith(currentYearStr)).reduce((s, e) => s + e.value, 0);
+    const generalExpenses = expenses.reduce((s, e) => s + e.value, 0);
 
     return {
       monthReceived: totalReceivedMonth,
@@ -232,23 +259,21 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       yearExpenses,
       generalExpenses
     };
-  }, [enrolledStudents, generalEnrolled]);
+  }, []);
 
-  // Charts Data Generation
-  const enrollmentEvolutionData = useMemo(() => [
-    { month: 'Jan', matriculas: Math.round(enrolledStudents * 0.45), canceladas: 2 },
-    { month: 'Fev', matriculas: Math.round(enrolledStudents * 0.72), canceladas: 3 },
-    { month: 'Mar', matriculas: Math.round(enrolledStudents * 0.88), canceladas: 1 },
-    { month: 'Abr', matriculas: Math.round(enrolledStudents * 0.92), canceladas: 4 },
-    { month: 'Mai', matriculas: Math.round(enrolledStudents * 0.95), canceladas: 2 },
-    { month: 'Jun', matriculas: Math.round(enrolledStudents * 0.98), canceladas: 1 },
-    { month: 'Jul', matriculas: enrolledStudents, canceladas: 2 },
-    { month: 'Ago', matriculas: Math.round(enrolledStudents * 1.05), canceladas: 3 },
-    { month: 'Set', matriculas: Math.round(enrolledStudents * 1.08), canceladas: 2 },
-    { month: 'Out', matriculas: Math.round(enrolledStudents * 1.10), canceladas: 1 },
-    { month: 'Nov', matriculas: Math.round(enrolledStudents * 1.12), canceladas: 2 },
-    { month: 'Dez', matriculas: Math.round(enrolledStudents * 1.15), canceladas: 4 },
-  ], [enrolledStudents]);
+  // Charts Data Generation — evolução real de matrículas por mês (ano atual),
+  // contando a data de cadastro de cada aluno. "Canceladas" fica em 0 porque
+  // o sistema ainda não guarda a data em que um aluno foi cancelado/desistiu
+  // (só o status atual) — mostrar um número aqui seria inventado.
+  const enrollmentEvolutionData = useMemo(() => {
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const year = new Date().getFullYear();
+    return monthNames.map((month, idx) => {
+      const monthStr = `${year}-${String(idx + 1).padStart(2, '0')}`;
+      const matriculas = filteredStudents.filter(u => u.createdAt && u.createdAt.startsWith(monthStr)).length;
+      return { month, matriculas, canceladas: 0 };
+    });
+  }, [filteredStudents]);
 
   const studentsByCourseData = useMemo(() => {
     return courses.map(c => {
@@ -256,7 +281,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       return {
         name: c.id.length <= 5 ? c.id : c.name.slice(0, 15),
         fullName: c.name,
-        alunos: count > 0 ? count : Math.floor(Math.random() * 15) + 8
+        alunos: count
       };
     });
   }, [courses, filteredStudents]);
@@ -278,26 +303,33 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         else if (userClass.shift === Shift.NOTURNO) shiftCounts.Noturno++;
         else if (userClass.shift === Shift.SABADO) shiftCounts.Sábado++;
         else shiftCounts.EAD++;
-      } else {
-        shiftCounts.Noturno++;
       }
+      // Aluno sem turma vinculada não entra em nenhum turno — antes caía
+      // sempre em "Noturno" por padrão, o que inflava esse turno à toa.
     });
 
     return [
-      { name: 'Matutino', value: shiftCounts.Matutino || 28 },
-      { name: 'Vespertino', value: shiftCounts.Vespertino || 14 },
-      { name: 'Noturno', value: shiftCounts.Noturno || 45 },
-      { name: 'Sábado', value: shiftCounts.Sábado || 12 },
-      { name: 'EAD', value: shiftCounts.EAD || 8 },
+      { name: 'Matutino', value: shiftCounts.Matutino },
+      { name: 'Vespertino', value: shiftCounts.Vespertino },
+      { name: 'Noturno', value: shiftCounts.Noturno },
+      { name: 'Sábado', value: shiftCounts.Sábado },
+      { name: 'EAD', value: shiftCounts.EAD },
     ];
   }, [filteredStudents, classes]);
 
-  const studentsBySemesterData = useMemo(() => [
-    { sem: '1º Sem/Mód', quantidade: Math.round(enrolledStudents * 0.32) + 5 },
-    { sem: '2º Sem/Mód', quantidade: Math.round(enrolledStudents * 0.28) + 4 },
-    { sem: '3º Sem/Mód', quantidade: Math.round(enrolledStudents * 0.22) + 3 },
-    { sem: '4º Sem/Mód', quantidade: Math.round(enrolledStudents * 0.18) + 2 },
-  ], [enrolledStudents]);
+  // Alunos por semestre/módulo — agora conta o campo real `semester` de cada
+  // aluno, em vez de repartir o total por percentuais inventados.
+  const studentsBySemesterData = useMemo(() => {
+    const counts: Record<number, number> = {};
+    filteredStudents.forEach(u => {
+      const sem = u.semester || 1;
+      counts[sem] = (counts[sem] || 0) + 1;
+    });
+    return Object.keys(counts)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(sem => ({ sem: `${sem}º Sem/Mód`, quantidade: counts[sem] }));
+  }, [filteredStudents]);
 
   const studentStatusDistribution = useMemo(() => [
     { name: 'Ativos', val: enrolledStudents, fill: '#10b981' },
@@ -308,35 +340,35 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     { name: 'Abandono', val: abandonedCount, fill: '#ef4444' },
   ], [enrolledStudents, diplomasRequested, internshipCount, dependencyCount, dropoutsCount, abandonedCount]);
 
-  const revenueVsExpensesData = useMemo(() => [
-    { mes: 'Jan', receitas: 125000, despesas: 58000 },
-    { mes: 'Fev', receitas: 138000, despesas: 62000 },
-    { mes: 'Mar', receitas: 142000, despesas: 61000 },
-    { mes: 'Abr', receitas: 139000, despesas: 59000 },
-    { mes: 'Mai', receitas: 145000, despesas: 64000 },
-    { mes: 'Jun', receitas: 151000, despesas: 63000 },
-    { mes: 'Jul', receitas: 148000, despesas: 60000 },
-  ], []);
+  // Receitas x despesas por mês — soma real das parcelas pagas (por
+  // competência) e das despesas lançadas no Módulo Financeiro, ano atual.
+  const monthlyFinancialSeries = useMemo(() => {
+    const installments = getInstallments();
+    const expenses = getExpenses();
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const year = new Date().getFullYear();
+    return monthNames.map((mes, idx) => {
+      const competencia = `${String(idx + 1).padStart(2, '0')}/${year}`;
+      const monthStr = `${year}-${String(idx + 1).padStart(2, '0')}`;
+      const receitas = installments
+        .filter(i => i.status === 'PAGA' && i.competencia === competencia)
+        .reduce((s, i) => s + (i.paidValue ?? (i.originalValue - (i.discountValue || 0))), 0);
+      const despesas = expenses
+        .filter(e => e.date && e.date.startsWith(monthStr))
+        .reduce((s, e) => s + e.value, 0);
+      return { mes, receitas, despesas, entradas: receitas, saidas: despesas, saldo: receitas - despesas };
+    });
+  }, []);
+  const revenueVsExpensesData = monthlyFinancialSeries;
+  const monthlyCashflowData = monthlyFinancialSeries;
 
-  const monthlyCashflowData = useMemo(() => [
-    { mes: 'Jan', entradas: 125000, saidas: 58000, saldo: 67000 },
-    { mes: 'Fev', entradas: 138000, saidas: 62000, saldo: 76000 },
-    { mes: 'Mar', entradas: 142000, saidas: 61000, saldo: 81000 },
-    { mes: 'Abr', entradas: 139000, saidas: 59000, saldo: 80000 },
-    { mes: 'Mai', entradas: 145000, saidas: 64000, saldo: 81000 },
-    { mes: 'Jun', entradas: 151000, saidas: 63000, saldo: 88000 },
-    { mes: 'Jul', entradas: 148000, saidas: 60000, saldo: 88000 },
-  ], []);
-
+  // Diplomas/certificados emitidos por mês — o sistema não guarda a data em
+  // que cada diploma foi emitido (só o status atual do aluno), então não dá
+  // pra montar uma evolução mensal real. Mostramos só o total atual, sem
+  // inventar uma distribuição mês a mês.
   const diplomasIssuedData = useMemo(() => [
-    { mes: 'Jan', diplomas: 12, certificados: 18 },
-    { mes: 'Fev', diplomas: 15, certificados: 22 },
-    { mes: 'Mar', diplomas: 8, certificados: 14 },
-    { mes: 'Abr', diplomas: 20, certificados: 31 },
-    { mes: 'Mai', diplomas: 18, certificados: 25 },
-    { mes: 'Jun', diplomas: 25, certificados: 40 },
-    { mes: 'Jul', diplomas: 19, certificados: 28 },
-  ], []);
+    { mes: 'Total', diplomas: diplomasRequested, certificados: diplomasRequested },
+  ], [diplomasRequested]);
 
   // Operational Counters
   const totalTeachers = users.filter(u => u.role === UserRole.TEACHER).length;
@@ -345,14 +377,30 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   const totalSubjects = subjects.length;
   const totalClasses = classes.length;
   const totalActiveJournals = classes.filter(c => !c.closedDefinitive).length;
-  const totalHistoricosIssued = Math.floor(enrolledStudents * 1.4) + 18;
-  const totalCertificadosIssued = Math.floor(enrolledStudents * 0.8) + 12;
-  const totalDocsRegistered = studentDocuments.length || (totalStudents * 4);
-  const totalImports = 24;
+  // Históricos e certificados emitidos: o sistema ainda não registra cada
+  // emissão individualmente, então não há como contar de verdade. Ficam em
+  // 0 em vez de um número estimado, até essa emissão passar a ser
+  // registrada em algum lugar (ex: uma tabela de documentos emitidos).
+  const totalHistoricosIssued = 0;
+  const totalCertificadosIssued = 0;
+  const totalDocsRegistered = studentDocuments.length;
+  const totalImports = 0;
   const totalSystemUsers = users.length;
 
-  // Smart Alerts List
+  // Smart Alerts List — cada contador agora reflete dado real; alertas sem
+  // nenhuma ocorrência real simplesmente não aparecem na lista (antes,
+  // vários tinham um "mínimo garantido" que inventava pendência mesmo
+  // quando não havia nenhuma).
   const smartAlerts = useMemo(() => {
+    const pendingDocsCount = studentDocuments.filter(d => d.status === 'PENDENTE').length;
+    const classesWithoutJournal = classes.filter(c => !c.code).length;
+    // "Diários pendentes de fechamento" e "estágios vencendo em 30 dias"
+    // ficam em 0: o sistema não guarda data de vencimento do estágio nem um
+    // indicador confiável de diário pendente ainda, então mostrar um
+    // número aqui seria chute, não dado real.
+    const pendingJournalsCount = 0;
+    const expiringInternships = 0;
+
     return [
       {
         id: 'alt_1',
@@ -367,7 +415,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         title: 'Documentos Pendentes',
         desc: 'Existem alunos sem entrega completa de RG/Histórico de Ensino Médio',
         type: 'amber',
-        count: Math.floor(totalStudents * 0.08) + 2,
+        count: pendingDocsCount,
         actionText: 'Ver Pendências'
       },
       {
@@ -375,7 +423,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         title: 'Professores com Diários Pendentes',
         desc: 'Diários com fecho de notas ou frequências pendentes de digitação',
         type: 'amber',
-        count: Math.max(1, Math.floor(totalTeachers * 0.2)),
+        count: pendingJournalsCount,
         actionText: 'Notificar Professores'
       },
       {
@@ -383,7 +431,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         title: 'Turmas Sem Diário Criado',
         desc: 'Salas cadastradas que ainda não vincularam disciplinas para o semestre',
         type: 'info',
-        count: classes.filter(c => !c.code).length || 1,
+        count: classesWithoutJournal,
         actionText: 'Criar Diários'
       },
       {
@@ -399,7 +447,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         title: 'Estágios Vencendo em 30 Dias',
         desc: 'Contratos de estágio com encerramento previsto para este mês',
         type: 'info',
-        count: Math.max(2, Math.floor(internshipCount * 0.3)),
+        count: expiringInternships,
         actionText: 'Renovar Contratos'
       },
       {
@@ -410,30 +458,59 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         count: diplomasRequested,
         actionText: 'Expedir Diplomas'
       }
-    ];
-  }, [financialMetrics, totalStudents, totalTeachers, classes, dependencyCount, internshipCount, diplomasRequested]);
+    ].filter(alert => alert.count > 0);
+  }, [financialMetrics, studentDocuments, classes, internships, dependencyCount, diplomasRequested]);
 
-  // Today's Agenda / Events
-  const todaySchedule = useMemo(() => [
-    { time: '08:00', event: 'Início do Período de Matrículas do 2º Semestre', category: 'Acadêmico', icon: 'Calendar' },
-    { time: '10:30', event: 'Reunião de Alinhamento do Conselho de Classe', category: 'Administrativo', icon: 'Briefcase' },
-    { time: '14:00', event: 'Fechamento de Lote de Certificados de Estágio', category: 'Estágio', icon: 'Award' },
-    { time: '16:30', event: 'Vencimento da 1ª Parcela das Mensalidades', category: 'Financeiro', icon: 'DollarSign' },
-  ], []);
+  // Today's Agenda / Events — eventos reais do calendário acadêmico do dia
+  // de hoje. Se não houver nenhum evento cadastrado pra hoje, a lista fica
+  // vazia (antes mostrava 4 eventos fixos, sempre os mesmos, todo santo dia).
+  const todaySchedule = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const categoryIcon: Record<string, string> = {
+      CLOSING_S1: 'Calendar',
+      CLOSING_S2: 'Calendar',
+      DEFINITIVE_CLOSING: 'Briefcase',
+      HOLIDAY: 'Calendar',
+      EXAM: 'Award',
+      INFO: 'Calendar',
+    };
+    return (calendarEvents || [])
+      .filter(ev => ev.date === todayStr)
+      .map(ev => ({
+        time: '',
+        event: ev.title,
+        category: ev.type || 'Acadêmico',
+        icon: categoryIcon[ev.type as string] || 'Calendar'
+      }));
+  }, [calendarEvents]);
 
-  // Course Rankings
+  // Course Rankings — evasão e formandos calculados a partir do status real
+  // de cada aluno do curso; inadimplência calculada a partir das parcelas
+  // reais em atraso daquele curso no mês, não mais sorteada aleatoriamente.
   const courseRankings = useMemo(() => {
+    const installments = getInstallments();
+    const now = new Date();
+    const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
     return courses.map(c => {
-      const totalInCourse = filteredStudents.filter(u => u.courseId === c.id).length || 15;
-      const dropouts = Math.floor(totalInCourse * 0.05);
-      const grads = Math.floor(totalInCourse * 0.22);
+      const studentsInCourse = filteredStudents.filter(u => u.courseId === c.id);
+      const totalInCourse = studentsInCourse.length;
+      const dropouts = studentsInCourse.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length;
+      const grads = studentsInCourse.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
+
+      const courseInstallmentsThisMonth = installments.filter(i => i.courseId === c.id && i.competencia === currentMonthStr);
+      const overdueInCourse = courseInstallmentsThisMonth.filter(i => i.status === 'ATRASADA').length;
+      const inadimplencia = courseInstallmentsThisMonth.length > 0
+        ? ((overdueInCourse / courseInstallmentsThisMonth.length) * 100).toFixed(1)
+        : '0.0';
+
       return {
         id: c.id,
         name: c.name,
         total: totalInCourse,
-        evasaoRate: ((dropouts / totalInCourse) * 100).toFixed(1),
+        evasaoRate: totalInCourse > 0 ? ((dropouts / totalInCourse) * 100).toFixed(1) : '0.0',
         formandos: grads,
-        inadimplencia: (Math.random() * 4 + 2).toFixed(1)
+        inadimplencia
       };
     }).sort((a, b) => b.total - a.total);
   }, [courses, filteredStudents]);
