@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, carregarPeriodoAtual, salvarPeriodoAtual } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -698,7 +698,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [failedAttemptsMap, setFailedAttemptsMap] = useState<Record<string, { count: number; lockoutUntil: number | null }>>({});
 
-  const [currentPeriod, setCurrentPeriod] = useState<string>(() => {
+  const [currentPeriod, setCurrentPeriodLocal] = useState<string>(() => {
     return safeLocalStorage.getItem('oc_current_period') || '2026/1';
   });
 
@@ -842,7 +842,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
       if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
       if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
-      if (state.currentPeriod) { setCurrentPeriod(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
+      if (state.currentPeriod) { setCurrentPeriodLocal(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
       if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
@@ -967,7 +967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           try {
             const notas = await carregarNotas();
-            if (notas && !desmontado) { notasGravadasRef.current = new Map(notas.map(n => [n.id, JSON.stringify(n)] as [string, string])); setGrades(notas); }
+            if (notas && !desmontado) setGrades(notas);
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar notas:', err?.message || err);
           }
@@ -1109,6 +1109,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar o calendário:', err?.message || err);
+          }
+        }
+
+        // PERÍODO LETIVO ATUAL — mesma lógica do calendário: vem de uma
+        // tabela de leitura pública, não do retrato geral (que só a gestão
+        // consegue ler). É esta leitura que faltava para professor e aluno
+        // saberem o período certo — sem ela, cada navegador ficava com
+        // qualquer valor salvo localmente (ou o padrão do código), o que
+        // fazia lançamentos de nota/falta/aula mirarem no diário do período
+        // errado.
+        if (perfil && !desmontado) {
+          try {
+            const periodoDoServidor = await carregarPeriodoAtual();
+            if (periodoDoServidor && !desmontado) {
+              setCurrentPeriodLocal(periodoDoServidor.periodoAtual);
+              safeLocalStorage.setItem('oc_current_period', periodoDoServidor.periodoAtual);
+              if (periodoDoServidor.periodos.length > 0) {
+                setPeriods(periodoDoServidor.periodos);
+                safeLocalStorage.setItem('oc_periods', JSON.stringify(periodoDoServidor.periodos));
+              }
+            } else if (periodoDoServidor === null &&
+                       (perfil.papel === 'ADMIN' || perfil.papel === 'SECRETARIA')) {
+              // Tabela nova, ainda sem linha: a gestão semeia com o valor
+              // que este navegador já tinha, pra existir uma resposta única
+              // no servidor a partir de agora.
+              await salvarPeriodoAtual(currentPeriod, periods);
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar o período letivo atual:', err?.message || err);
           }
         }
 
@@ -3221,6 +3250,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Troca o período letivo atual e grava na tabela pública `config_sistema`.
+  //
+  // Antes, trocar o período só atualizava o estado local e, no máximo,
+  // entrava no retrato geral — que só a administração consegue LER de volta.
+  // Todo professor e aluno ficava sem saber que o período tinha mudado até
+  // limpar o navegador ou logar num aparelho novo.
+  const setCurrentPeriod = (period: string) => {
+    setCurrentPeriodLocal(period);
+    safeLocalStorage.setItem('oc_current_period', period);
+    salvarPeriodoAtual(period, periods).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao gravar o período atual no banco: ${res.erro}`, 'high');
+      }
+    });
+  };
+
   // Admin DB controls
   const wipeAllData = () => {
     // Keep only administrative users
@@ -4424,7 +4469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (payload.calendarEvents) { setCalendarEvents(payload.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(payload.calendarEvents)); }
       if (payload.messages) { setMessages(payload.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(payload.messages)); }
       if (payload.notifications) { setNotifications(payload.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(payload.notifications)); }
-      if (payload.currentPeriod) { setCurrentPeriod(payload.currentPeriod); safeLocalStorage.setItem('oc_current_period', payload.currentPeriod); }
+      if (payload.currentPeriod) { setCurrentPeriodLocal(payload.currentPeriod); safeLocalStorage.setItem('oc_current_period', payload.currentPeriod); }
       if (payload.periods) { setPeriods(payload.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(payload.periods)); }
       if (payload.simulatedDate) { setSimulatedDate(payload.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', payload.simulatedDate); }
       if (payload.autoLockEnabled !== undefined) { setAutoLockEnabled(payload.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', payload.autoLockEnabled ? 'true' : 'false'); }
@@ -4473,7 +4518,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
       if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
       if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
-      if (state.currentPeriod) { setCurrentPeriod(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
+      if (state.currentPeriod) { setCurrentPeriodLocal(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
       if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
