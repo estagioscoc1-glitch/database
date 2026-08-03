@@ -491,21 +491,6 @@ export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
   return { ok: true };
 }
 
-/**
- * Apaga um comunicado/mensagem do banco.
- *
- * Usado quando a gestão exclui um aviso desatualizado (ex: um comunicado de
- * prazo que já passou e ficava preso no topo do painel do professor, porque
- * era sempre o mais recente do grupo "ALL_TEACHERS" e a tela não tinha como
- * removê-lo).
- */
-export async function excluirMensagem(id: string): Promise<ResultadoGravacao> {
-  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('mensagens').delete().eq('id', id);
-  if (error) return falha('excluir mensagem', error);
-  return { ok: true };
-}
-
 /* ==========================================================================
  * CALENDÁRIO ACADÊMICO
  *
@@ -581,6 +566,61 @@ export async function salvarEventosCalendario(
 
   if (error) {
     console.error('[Banco] gravar calendário:', error.message);
+    return { ok: false, erro: error.message };
+  }
+  return { ok: true };
+}
+
+/**
+ * Período letivo atual e lista de períodos disponíveis.
+ *
+ * Fica numa tabela própria, de leitura aberta a qualquer pessoa logada —
+ * diferente do retrato geral (que só a gestão pode ler). É essa leitura
+ * pública que faltava: sem ela, o navegador do professor nunca descobria o
+ * período certo, ficava preso no valor padrão do código, e todo lançamento
+ * dele ia para um diário do período errado (que não existe e que ele não
+ * tem permissão de criar).
+ */
+export async function carregarPeriodoAtual(): Promise<{ periodoAtual: string; periodos: string[] } | null> {
+  if (!supabaseConfigurado) return null;
+
+  const { data, error } = await supabase
+    .from('config_sistema')
+    .select('periodo_atual, periodos_disponiveis')
+    .eq('id', 'principal')
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[Banco] carregar período atual:', error.message);
+    return null;
+  }
+  if (!data) return null;
+
+  return {
+    periodoAtual: (data as any).periodo_atual,
+    periodos: (data as any).periodos_disponiveis ?? [],
+  };
+}
+
+/** Só a gestão consegue gravar (a regra do banco recusa qualquer outro papel). */
+export async function salvarPeriodoAtual(
+  periodoAtual: string,
+  periodos: string[]
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { error } = await supabase.from('config_sistema').upsert(
+    {
+      id: 'principal',
+      periodo_atual: periodoAtual,
+      periodos_disponiveis: periodos,
+      atualizado_em: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  );
+
+  if (error) {
+    console.error('[Banco] gravar período atual:', error.message);
     return { ok: false, erro: error.message };
   }
   return { ok: true };
