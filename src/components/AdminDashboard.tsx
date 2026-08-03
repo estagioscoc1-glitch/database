@@ -126,7 +126,7 @@ const areNamesSimilar = (name1: string, name2: string): boolean => {
 export const AdminDashboard: React.FC = () => {
   const { 
     users, courses, classes, subjects, grades, attendance, calendarEvents, messages,
-    sendMessage, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
+    sendMessage, deleteMessage, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
     gerarAcessosDosAlunos, contarAlunosSemAcesso, mostrarAviso, pedirConfirmacao,
     getStudentAbsences, importStudents,
     securityLogs, cloudBackupStatus, lastCloudBackupTime, addSecurityLog,
@@ -3417,9 +3417,23 @@ export const AdminDashboard: React.FC = () => {
                           <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Destinatário:</span>
                           <p className="font-black text-slate-850 dark:text-slate-200">{recipientName}</p>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 px-2 py-0.5 rounded-lg font-mono">
-                          {new Date(msg.date).toLocaleDateString('pt-BR')} {new Date(msg.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 px-2 py-0.5 rounded-lg font-mono">
+                            {new Date(msg.date).toLocaleDateString('pt-BR')} {new Date(msg.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Excluir este comunicado? Ele vai sumir do painel de todos os destinatários.')) {
+                                deleteMessage(msg.id);
+                              }
+                            }}
+                            className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer shrink-0"
+                            title="Excluir Comunicado"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       
                       {msg.content && (
