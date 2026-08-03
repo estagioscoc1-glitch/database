@@ -170,107 +170,11 @@ const defaultOfficialTemplates: OfficialTemplate[] = [
   }
 ];
 
-const defaultEvents: EventMinicourse[] = [
-  {
-    id: 'evt_01',
-    title: 'Minicurso: Suporte Básico de Vida e Reanimação Cardiopulmonar (SBV/RCP)',
-    date: '2026-08-15',
-    time: '08:00 - 12:00',
-    workloadHours: 8,
-    location: 'Auditório Principal - Bloco A',
-    instructor: 'Enf. Profª. Dra. Mariana Silva',
-    description: 'Capacitação prática com manequins de reanimação de alta fidelidade e uso de DEA.',
-    feeValue: 35.00,
-    certificateTemplateHtml: `<div style="border: 10px double #1e3a8a; padding: 30px; text-align: center; font-family: Georgia, serif;">
-      <h1 style="color: #1e3a8a; font-size: 28px;">CERTIFICADO DE PARTICIPAÇÃO</h1>
-      <p style="margin-top: 30px; font-size: 16px; line-height: 1.8;">Certificamos que <strong>{NOME_ALUNO}</strong>, matrícula <strong>{MATRICULA}</strong>, participou com êxito do minicurso <strong>{NOME_EVENTO}</strong> realizado em {DATA_EVENTO}, com carga horária total de <strong>{CARGA_HORARIA} horas</strong>.</p>
-      <div style="margin-top: 60px; display: flex; justify-content: space-around;">
-        <div>___________________________<br>Instrutor(a) Responsável</div>
-        <div>___________________________<br>Direção Acadêmica</div>
-      </div>
-    </div>`,
-    createdAt: new Date().toISOString(),
-    createdBy: 'Secretaria'
-  }
-];
+const defaultEvents: EventMinicourse[] = [];
 
-const defaultStageDefinition: StageDefinition[] = [
-  {
-    id: 'stg_def_enf_1',
-    courseId: 'c1',
-    courseName: 'Técnico em Enfermagem',
-    stageName: 'Estágio Supervisão Hospitalar I - Clínica Médica e Cirúrgica',
-    workloadHours: 120,
-    description: 'Acompanhamento direto no leito, procedimentos invasivos e administração de medicamentos.',
-    minPassingGrade: 60,
-    maxGrade: 100,
-    studentPrice: 150.00,
-    teacherPayRate: 45.00,
-    paymentMethodInfo: 'Cobrança via Boleto/Pix na matrícula do estágio. Pagamento ao docente via PIX/Recibo por aluno.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'stg_def_rad_1',
-    courseId: 'c2',
-    courseName: 'Técnico em Radiologia',
-    stageName: 'Estágio Prático de Radiologia Hospitalar e Tomografia',
-    workloadHours: 100,
-    description: 'Posicionamento radiográfico, operação de mesa e câmara escura.',
-    minPassingGrade: 60,
-    maxGrade: 100,
-    studentPrice: 180.00,
-    teacherPayRate: 50.00,
-    paymentMethodInfo: 'Taxa única de estágio supervisionado.',
-    createdAt: new Date().toISOString()
-  }
-];
+const defaultStageDefinition: StageDefinition[] = [];
 
-const defaultStageVacancies: StageVacancy[] = [
-  {
-    id: 'vac_001',
-    vacancyNumber: 'Vaga 001',
-    companyName: 'Hospital Geral Oswaldo Cruz',
-    sector: 'UTI e Pró-Socorro',
-    className: 'Turma ENF-2026-A',
-    courseId: 'c1',
-    courseName: 'Técnico em Enfermagem',
-    stageId: 'stg_def_enf_1',
-    stageName: 'Estágio Supervisão Hospitalar I - Clínica Médica e Cirúrgica',
-    teacherId: 'usr_t1',
-    teacherName: 'Prof. Carlos Eduardo',
-    teacherCouncilNumber: 'COREN-PB 184.920',
-    maxStudents: 10,
-    enrolledStudentIds: ['stu_1', 'stu_2', 'stu_3'],
-    studentsAllocated: [
-      { studentId: 'stu_1', studentName: 'Carlos Eduardo Silva', enrollmentNumber: '2026.1.ENF.089', status: 'EM_ANDAMENTO' },
-      { studentId: 'stu_2', studentName: 'Beatriz Lima Souza', enrollmentNumber: '2026.1.ENF.090', status: 'EM_ANDAMENTO' },
-      { studentId: 'stu_3', studentName: 'Juliana Mendes Rocha', enrollmentNumber: '2026.1.ENF.091', status: 'EM_ANDAMENTO' }
-    ],
-    totalHours: 120,
-    hourlyRate: 25.00,
-    startDate: '2026-08-01',
-    endDate: '2026-09-15',
-    scheduleDaysTime: 'Segunda e Quarta - 07:00 às 12:00',
-    location: 'Hospital Geral Oswaldo Cruz - Ala Sul',
-    status: 'EM_ANDAMENTO',
-    evaluationFormTemplateHtml: `<div style="font-family: Arial, sans-serif; padding: 20px;">
-      <h2 style="text-align: center;">FICHA DE AVALIAÇÃO DE ESTÁGIO SUPERVISIONADO</h2>
-      <p><strong>Aluno:</strong> {NOME_ALUNO} | <strong>Matrícula:</strong> {MATRICULA}</p>
-      <p><strong>Estágio:</strong> {NOME_ESTAGIO} | <strong>Local:</strong> {LOCAL}</p>
-      <p><strong>Preceptor:</strong> {NOME_PROFESSOR} ({CONSELHO})</p>
-      <hr style="margin: 15px 0;">
-      <h3>CRITÉRIOS DE AVALIAÇÃO (0 - 100):</h3>
-      <ul>
-        <li>1. Pontualidade e Assiduidade</li>
-        <li>2. Apresentação Pessoal e Postura Ética</li>
-        <li>3. Conhecimento Técnico-Científico</li>
-        <li>4. Execução de Procedimentos Práticos</li>
-        <li>5. Relacionamento Interpessoal e Trabalho em Equipe</li>
-      </ul>
-    </div>`,
-    createdAt: new Date().toISOString()
-  }
-];
+const defaultStageVacancies: StageVacancy[] = [];
 
 const defaultStageReqConfig: StageRequirementConfig = {
   id: 'stg_req_default',
@@ -559,6 +463,11 @@ export function saveStageDefinition(def: StageDefinition): void {
   localStorage.setItem(KEYS.STAGE_DEFINITIONS, JSON.stringify(list));
 }
 
+export function removeStageDefinition(id: string): void {
+  const list = getStageDefinitions().filter(d => d.id !== id);
+  localStorage.setItem(KEYS.STAGE_DEFINITIONS, JSON.stringify(list));
+}
+
 export function getStageVacancies(): StageVacancy[] {
   const data = localStorage.getItem(KEYS.STAGE_VACANCIES);
   if (!data) {
@@ -653,34 +562,7 @@ export const addEventParticipant = (eventId: string, participant: EventParticipa
 };
 
 // Stage Fields (Campos de Estágio / Hospitais / Clínicas)
-const defaultStageFields: StageField[] = [
-  {
-    id: 'fld_01',
-    companyName: 'Hospital Geral Oswaldo Cruz',
-    cnpj: '12.345.678/0001-90',
-    address: 'Av. Epitácio Pessoa, 1500 - João Pessoa/PB',
-    sector: 'UTI, Pronto Socorro e Ala Cirúrgica',
-    supervisorName: 'Dra. Cláudia Vasconcelos',
-    phone: '(83) 3244-1000',
-    email: 'estagios@hospitaloswaldocruz.com.br',
-    maxCapacity: 30,
-    status: 'ATIVO',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'fld_02',
-    companyName: 'Unidade Básica de Saúde Saúde da Família',
-    cnpj: '98.765.432/0001-10',
-    address: 'Rua das Acácias, 220 - Bairro dos Estados',
-    sector: 'Vacinação, Pré-Natal e Triagem',
-    supervisorName: 'Enf. Marcus Vinícius',
-    phone: '(83) 3218-5050',
-    email: 'ubs.saude@prefeitura.gov.br',
-    maxCapacity: 15,
-    status: 'ATIVO',
-    createdAt: new Date().toISOString()
-  }
-];
+const defaultStageFields: StageField[] = [];
 
 export function getStageFields(): StageField[] {
   const data = localStorage.getItem(KEYS.STAGE_FIELDS);
@@ -705,30 +587,7 @@ export function removeStageField(id: string): void {
 }
 
 // Stage Teachers (Professores de Estágio)
-const defaultStageTeachers: StageTeacher[] = [
-  {
-    id: 'tch_01',
-    name: 'Prof. Carlos Eduardo',
-    email: 'carlos.eduardo@oswaldocruz.edu.br',
-    phone: '(83) 98888-1122',
-    councilNumber: 'COREN-PB 184.920',
-    specialty: 'Enfermagem UTI e Emergência',
-    pixKey: 'carlos.eduardo@gmail.com',
-    status: 'ATIVO',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'tch_02',
-    name: 'Profª. Dra. Mariana Silva',
-    email: 'mariana.silva@oswaldocruz.edu.br',
-    phone: '(83) 99911-3344',
-    councilNumber: 'COREN-PB 210.450',
-    specialty: 'Saúde da Família e Infectologia',
-    pixKey: '09876543210',
-    status: 'ATIVO',
-    createdAt: new Date().toISOString()
-  }
-];
+const defaultStageTeachers: StageTeacher[] = [];
 
 export function getStageTeachers(): StageTeacher[] {
   const data = localStorage.getItem(KEYS.STAGE_TEACHERS);
@@ -753,40 +612,7 @@ export function removeStageTeacher(id: string): void {
 }
 
 // Stage Cronogramas (Cronograma de Liberação de Estágios)
-const defaultStageCronogramas: StageCronograma[] = [
-  {
-    id: 'crono_01',
-    title: 'Liberação de Vagas de Estágio Hospitalar - 2026.2',
-    courseName: 'Técnico em Enfermagem',
-    stageName: 'Estágio Supervisão Hospitalar I',
-    className: 'Turma ENF-2026-A',
-    companyName: 'Hospital Geral Oswaldo Cruz',
-    releaseDate: '2026-08-01',
-    startDate: '2026-08-10',
-    endDate: '2026-09-30',
-    shift: 'MANHA',
-    vacanciesCount: 15,
-    status: 'LIBERADO',
-    observations: 'Escolha de vagas disponível via portal do aluno mediante quitação da taxa de estágio e documentação ok.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'crono_02',
-    title: 'Liberação de Estágio em Radiologia - Módulo 2',
-    courseName: 'Técnico em Radiologia',
-    stageName: 'Estágio Prático de Radiologia Hospitalar',
-    className: 'Turma RAD-2026-B',
-    companyName: 'Centro de Diagnóstico por Imagem',
-    releaseDate: '2026-08-20',
-    startDate: '2026-09-01',
-    endDate: '2026-10-15',
-    shift: 'TARDE',
-    vacanciesCount: 10,
-    status: 'AGUARDANDO_LIBERACAO',
-    observations: 'Aguardando validação do termo de convênio e dosímetro individual.',
-    createdAt: new Date().toISOString()
-  }
-];
+const defaultStageCronogramas: StageCronograma[] = [];
 
 export function getStageCronogramas(): StageCronograma[] {
   const data = localStorage.getItem(KEYS.STAGE_CRONOGRAMAS);
