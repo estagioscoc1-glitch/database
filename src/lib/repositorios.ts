@@ -484,6 +484,30 @@ export async function excluirAluno(id: string): Promise<ResultadoGravacao> {
 }
 
 /** Mesma lógica do curso, para quando um professor é excluído pela tela. */
+/**
+ * Apaga um comunicado do banco.
+ *
+ * O `.select()` no fim é essencial: sem ele, uma exclusão barrada pela
+ * segurança do banco volta SEM erro e com zero linhas apagadas — e o portal
+ * acreditava que tinha dado certo. A mensagem sumia da tela, continuava no
+ * servidor, e voltava na sincronização seguinte. Silêncio, não recusa.
+ */
+export async function excluirMensagem(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { data, error } = await supabase
+    .from('mensagens')
+    .delete()
+    .eq('id', id)
+    .select('id');
+
+  if (error) return falha('excluir mensagem', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar este comunicado — ele continua lá.' };
+  }
+  return { ok: true };
+}
+
 export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
   const { error } = await supabase.from('professores').delete().eq('id', id);
