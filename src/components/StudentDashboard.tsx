@@ -82,7 +82,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
   // Filter student notifications and messages
   const studentNotifications = notifications.filter(n => n.userId === activeStudent.id);
-  const studentMessages = messages.filter(m => m.recipientId === activeStudent.id);
+  // MENSAGENS DO ALUNO: ACEITAR OS DOIS IDENTIFICADORES
+  //
+  // A pessoa tem dois números: o da FICHA (`std_...`, que é o `activeStudent.id`)
+  // e o da CONTA DE LOGIN (`contaId`). As mensagens são endereçadas à CONTA —
+  // a coluna `destinatario_id` aponta para `usuarios`.
+  //
+  // Comparando só com o id da ficha, a mensagem enviada para um aluno nunca
+  // aparecia para ele: estava no banco, correta, endereçada à pessoa certa, e
+  // a tela procurava por outro endereço. Sem erro nenhum.
+  const studentMessages = messages.filter(m =>
+    m.recipientId === activeStudent.id ||
+    (!!activeStudent.contaId && m.recipientId === activeStudent.contaId)
+  );
 
   return (
     <div id="student-dashboard-container" className="space-y-6">
