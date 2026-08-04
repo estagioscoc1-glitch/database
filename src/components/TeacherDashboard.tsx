@@ -187,7 +187,14 @@ export const TeacherDashboard: React.FC = () => {
   const targetSubject = selectedSubject;
 
   // Filter messages for teachers
-  const teacherMessages = messages.filter(m => m.recipientId === 'ALL_TEACHERS' || m.recipientId === currentUser?.id);
+  // Aceita os dois identificadores da mesma pessoa: o da ficha (`prof_...`) e o
+  // da conta de login (`contaId`). A mensagem individual é gravada com o da
+  // conta — sem esta segunda comparação, ela nunca aparecia no painel.
+  const teacherMessages = messages.filter(m =>
+    m.recipientId === 'ALL_TEACHERS' ||
+    m.recipientId === currentUser?.id ||
+    (!!currentUser?.contaId && m.recipientId === currentUser.contaId)
+  );
   const teacherNotifications = notifications.filter(n => n.userId === currentUser?.id);
 
   return (
