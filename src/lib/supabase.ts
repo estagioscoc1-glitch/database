@@ -261,8 +261,21 @@ export async function montarUsuario(perfil: PerfilUsuario): Promise<User> {
     name: perfil.nome,
     username: perfil.login,
     email: perfil.email,
-    role: paraUserRole(perfil.papel), contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id,
+    role: paraUserRole(perfil.papel),
     active: perfil.ativo,
+
+    // GUARDA O ID DA CONTA DE LOGIN ANTES QUE ELE SE PERCA.
+    //
+    // Logo abaixo, para aluno e professor, o `base.id` é trocado pelo id da
+    // FICHA — e é assim que o resto do sistema trabalha. Só que as mensagens
+    // são endereçadas à CONTA (`mensagens.destinatario_id` aponta para
+    // `usuarios`), não à ficha.
+    //
+    // Sem guardar este segundo número, a tela do aluno procurava as mensagens
+    // dele pelo id da ficha e nunca achava nada: a mensagem existia no banco,
+    // correta, endereçada à pessoa certa, e simplesmente não aparecia. Sem
+    // erro nenhum na tela.
+    contaId: perfil.id,
   };
 
   if (base.role === UserRole.STUDENT) {
