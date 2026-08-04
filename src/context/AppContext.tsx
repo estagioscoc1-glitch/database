@@ -886,6 +886,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Agora: sem sessão, o portal simplesmente espera o login.
         const sessao = await sessaoAtual();
         if (!sessao) {
+          // SEM SESSÃO NO SERVIDOR, NINGUÉM ESTÁ LOGADO — NEM NA TELA.
+          //
+          // Faltava limpar aqui o usuário guardado no navegador. O portal abria
+          // mostrando "Administrador", com todos os menus à mão, enquanto o
+          // banco recusava tudo com "permission denied": para ele não havia
+          // ninguém. A pessoa entrava sem digitar senha, via a tela de admin e
+          // lançava dados que não chegavam a lugar nenhum — só o aviso laranja
+          // de "alterações não salvas" denunciava.
+          //
+          // Numa secretaria com computador compartilhado isso é pior ainda:
+          // qualquer um que abrisse o navegador via a tela da administração.
+          //
+          // O mesmo cuidado já existia logo abaixo, para sessão sem perfil.
+          // Este caminho — sessão inexistente ou expirada — passava direto.
+          if (safeLocalStorage.getItem('oc_current_user')) {
+            addSecurityLog('SESSAO_INVALIDA', 'Sessão expirada ou ausente. Acesso local encerrado.', 'high');
+          }
+          setCurrentUser(null);
+          safeLocalStorage.removeItem('oc_current_user');
           protegerEstadoMinimo();
           setCloudBackupStatus('offline');
           setIsLoading(false);
@@ -972,12 +991,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               //
               // O efeito de gravação considera "pendente" toda nota cuja
               // assinatura não esteja em `notasGravadasRef`. Esse mapa só era
-              // preenchido depois de GRAVAR — nunca depois de LER. A cada
-              // sincronização o app achava que as ~2.000 notas eram novidade e
-              // regravava todas; cada gravação avisava o banco, que chamava a
-              // sincronização de novo. A auditoria registrou 102.174 UPDATEs em
-              // seis dias — e a nota recém-digitada era atropelada por esse
-              // rodízio, regravada em branco por cima.
+              // preenchido depois de GRAVAR — nunca depois de LER. A auditoria
+              // registrou 102.174 UPDATEs em seis dias, e a nota recém-digitada
+              // era atropelada por esse rodízio, regravada em branco por cima.
               notasGravadasRef.current = new Map(
                 notas.map(n => [n.id, JSON.stringify(n)] as [string, string])
               );
@@ -3462,10 +3478,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteMessage = (id: string) => {
     // Só tira da tela DEPOIS que o banco confirmar que apagou.
-    //
-    // Antes sumia da tela na hora e o banco nem ficava sabendo. A pessoa via a
-    // mensagem sumir, ficava tranquila, e no dia seguinte ela estava de volta.
-    // Pior que não apagar é parecer que apagou.
     excluirMensagem(id).then(res => {
       if (res.ok) {
         setMessages(prev => prev.filter(m => m.id !== id));
