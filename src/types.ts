@@ -27,7 +27,7 @@ export enum CalendarEventType {
   INFO = 'INFO'
 }
 
-export type PermissionModule = 
+export type PermissionModule =
   | 'dashboard'
   | 'cadastros'
   | 'matriculas'
@@ -105,6 +105,22 @@ export interface User {
   courseId?: string;
   status?: string;
   createdAt?: string;
+
+  /**
+   * Id da CONTA DE LOGIN da pessoa (a linha dela em `usuarios`).
+   *
+   * Aluno e professor têm DOIS identificadores: o da ficha (`std_...`,
+   * `prof_...`) e o da conta de login. O `id` acima guarda o da ficha, porque
+   * é o que o resto do sistema usa.
+   *
+   * As mensagens, porém, são endereçadas à CONTA — a coluna `destinatario_id`
+   * aponta para `usuarios`. Sem guardar esse segundo número aqui, a tela do
+   * aluno procurava as mensagens dele pelo id da ficha e nunca achava nada:
+   * a mensagem existia, correta, endereçada à pessoa certa, e simplesmente
+   * não aparecia. Nenhum erro na tela.
+   */
+  contaId?: string;
+
   assignedJournals?: { classId: string, subjectId: string }[];
   staffPermissions?: StaffPermissions;
 }
@@ -162,7 +178,7 @@ export interface GradeRecord {
   av6?: number | null;
   recS2?: number | null;
   s2: number; // S2 calculated
-  
+
   extra?: number | null; // EX
   conselho?: number | null; // CS
   afc?: number | null; // AFC (Avaliação Final de Competência)
@@ -273,4 +289,3 @@ export interface CustomDashboardWidget {
   position: number;
   description?: string;
 }
-
