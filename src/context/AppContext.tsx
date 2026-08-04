@@ -35,7 +35,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, carregarPeriodoAtual, salvarPeriodoAtual } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -967,7 +967,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           try {
             const notas = await carregarNotas();
-            if (notas && !desmontado) setGrades(notas);
+            if (notas && !desmontado) {
+              // O QUE ACABOU DE VIR DO BANCO NÃO PRECISA VOLTAR PARA O BANCO.
+              //
+              // O efeito de gravação considera "pendente" toda nota cuja
+              // assinatura não esteja em `notasGravadasRef`. Esse mapa só era
+              // preenchido depois de GRAVAR — nunca depois de LER. A cada
+              // sincronização o app achava que as ~2.000 notas eram novidade e
+              // regravava todas; cada gravação avisava o banco, que chamava a
+              // sincronização de novo. A auditoria registrou 102.174 UPDATEs em
+              // seis dias — e a nota recém-digitada era atropelada por esse
+              // rodízio, regravada em branco por cima.
+              notasGravadasRef.current = new Map(
+                notas.map(n => [n.id, JSON.stringify(n)] as [string, string])
+              );
+              setGrades(notas);
+            }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar notas:', err?.message || err);
           }
@@ -3446,7 +3461,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteMessage = (id: string) => {
-    setMessages(prev => prev.filter(m => m.id !== id));
+    // Só tira da tela DEPOIS que o banco confirmar que apagou.
+    //
+    // Antes sumia da tela na hora e o banco nem ficava sabendo. A pessoa via a
+    // mensagem sumir, ficava tranquila, e no dia seguinte ela estava de volta.
+    // Pior que não apagar é parecer que apagou.
+    excluirMensagem(id).then(res => {
+      if (res.ok) {
+        setMessages(prev => prev.filter(m => m.id !== id));
+      } else {
+        addSecurityLog('SISTEMA_ERRO', `Não foi possível excluir a mensagem ${id}: ${res.erro}`, 'medium');
+      }
+    });
   };
 
   const addNotification = (userId: string, content: string) => {
