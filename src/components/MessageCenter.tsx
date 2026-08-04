@@ -96,8 +96,19 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
 
     return messages
       .filter(m => {
-        const isCurrentSender = m.senderName.toUpperCase() === currentUser.name.toUpperCase() && m.recipientId === selectedContact.id;
-        const isCurrentRecipient = m.recipientId === currentUser.id && m.senderName.toUpperCase() === selectedContact.name.toUpperCase();
+        // OS DOIS IDENTIFICADORES DA MESMA PESSOA
+        //
+        // A mensagem é gravada com o id da CONTA DE LOGIN (`contaId`), porque a
+        // coluna `destinatario_id` aponta para `usuarios`. Já a tela trabalha
+        // com o id da FICHA (`std_...`, `prof_...`). Comparando só com a ficha,
+        // a conversa aparecia vazia mesmo com a mensagem no banco, correta.
+        const paraMim = (id: string) =>
+          id === currentUser.id || (!!currentUser.contaId && id === currentUser.contaId);
+        const paraOContato = (id: string) =>
+          id === selectedContact.id || (!!selectedContact.contaId && id === selectedContact.contaId);
+
+        const isCurrentSender = m.senderName.toUpperCase() === currentUser.name.toUpperCase() && paraOContato(m.recipientId);
+        const isCurrentRecipient = paraMim(m.recipientId) && m.senderName.toUpperCase() === selectedContact.name.toUpperCase();
         
         // Handle coordinates/broadcasts (e.g. ALL_TEACHERS sent by admins)
         const isAdminToAllTeachers = selectedContact.role === UserRole.ADMIN && currentUser.role === UserRole.TEACHER && m.recipientId === 'ALL_TEACHERS' && m.senderName.toUpperCase() === selectedContact.name.toUpperCase();
