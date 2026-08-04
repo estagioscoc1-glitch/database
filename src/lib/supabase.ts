@@ -261,7 +261,7 @@ export async function montarUsuario(perfil: PerfilUsuario): Promise<User> {
     name: perfil.nome,
     username: perfil.login,
     email: perfil.email,
-    role: paraUserRole(perfil.papel),
+    role: paraUserRole(perfil.papel), contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id, contaId: perfil.id,
     active: perfil.ativo,
   };
 
