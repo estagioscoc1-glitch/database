@@ -621,10 +621,44 @@ export const AdminDashboard: React.FC = () => {
 
     const enrollment = singleStudentEnrollment.trim();
 
-    const exists = users.some(u => u.enrollment === enrollment);
-    if (exists) {
-      mostrarAviso('Matrícula já usada', `Já existe um usuário cadastrado com a matrícula ${enrollment}.`);
-      return;
+    // MATRÍCULA REPETIDA NEM SEMPRE É ERRO — MUITAS VEZES É O MESMO ALUNO.
+    //
+    // Antes esta tela recusava qualquer matrícula já existente. A intenção era
+    // impedir duas pessoas diferentes com o mesmo número, e isso continua
+    // valendo. Só que a mesma trava impedia o que a escola faz todo semestre:
+    // o aluno cursa 2026/2, passa, e é matriculado em 2027/1. Ele não é um
+    // aluno novo — é o mesmo, com boletim separado em cada semestre.
+    //
+    // Agora a recusa acontece só quando ele JÁ ESTÁ naquela turma. Em qualquer
+    // outra turma, é matrícula adicional: o cadastro de 2026/2 permanece
+    // intacto, com as notas dele, e nasce um novo em 2027/1.
+    const jaCadastrado = users.find(u => u.enrollment === enrollment);
+    const turmaDestino = classes.find(c => c.id === selectedClassIdForStudents);
+
+    if (jaCadastrado) {
+      const jaTemNotaNestaTurma = grades.some(
+        g => g.studentId === jaCadastrado.id && g.classId === selectedClassIdForStudents
+      );
+      if (jaTemNotaNestaTurma || jaCadastrado.classId === selectedClassIdForStudents) {
+        mostrarAviso(
+          'Aluno já está nesta turma',
+          `${jaCadastrado.name} (matrícula ${enrollment}) já está matriculado(a) em ${turmaDestino?.name || 'nesta turma'}.`
+        );
+        return;
+      }
+      // Nome diferente com a mesma matrícula quase sempre é engano de digitação
+      // — e seguir em frente juntaria duas pessoas num cadastro só.
+      const mesmoNome =
+        jaCadastrado.name?.trim().toUpperCase() === singleStudentName.trim().toUpperCase();
+      if (!mesmoNome) {
+        mostrarAviso(
+          'Matrícula já usada por outra pessoa',
+          `A matrícula ${enrollment} pertence a ${jaCadastrado.name}.\n\n` +
+          `Se for a mesma pessoa, escreva o nome exatamente como está acima. ` +
+          `Se for outra pessoa, use outro número de matrícula.`
+        );
+        return;
+      }
     }
 
     if (enrollment.length < 4) {
@@ -639,6 +673,22 @@ export const AdminDashboard: React.FC = () => {
     };
 
     importStudents([newStudent], selectedClassIdForStudents);
+
+    // Aluno que já existia já tem conta. Tentar criar de novo devolveria erro
+    // de login duplicado e assustaria a secretaria à toa — a matrícula nova
+    // deu certo, só a conta é que já estava lá desde o primeiro semestre.
+    if (jaCadastrado) {
+      setSingleStudentEnrollment('');
+      setSingleStudentName('');
+      mostrarAviso(
+        'Matrícula adicional criada',
+        `${newStudent.name} (matrícula ${enrollment}) foi matriculado(a) também em ` +
+        `${turmaDestino?.name || 'nova turma'} (${turmaDestino?.year}/${turmaDestino?.semester}).\n\n` +
+        `As matrículas anteriores continuam intactas, cada uma com o boletim do seu semestre.\n\n` +
+        `O acesso dele(a) continua o mesmo: usuário ${enrollment}.`
+      );
+      return;
+    }
 
     // Conta de acesso do aluno: entra com a MATRÍCULA nos dois campos e é
     // obrigado a trocar a senha antes de usar o portal.
