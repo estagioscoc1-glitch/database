@@ -415,18 +415,43 @@ export async function publicarEstrutura(dados: {
   // atual e dependência, sem distinção.
   const idsDeAluno = new Set(alunos.map(a => a.id));
   const porTurmaId = new Map(turmasValidas.map(t => [t.id, t]));
+  const periodoDaTurma = (id?: string | null) => {
+    const t = id ? porTurmaId.get(id) : undefined;
+    return t ? `${t.year ?? ''}|${t.semester ?? ''}` : null;
+  };
 
   const matriculasPorChave = new Map<string, { aluno_id: string; turma_id: string }>();
+  const turmaAtualDoAluno = new Map<string, string>();
 
   for (const a of alunos) {
     if (a.classId && turmaIds.has(a.classId)) {
       matriculasPorChave.set(`${a.id}|${a.classId}`, { aluno_id: a.id, turma_id: a.classId });
+      turmaAtualDoAluno.set(a.id, a.classId);
     }
   }
 
+  // NOTA NUMA TURMA NÃO BASTA PARA SER MATRÍCULA VÁLIDA — DEPENDE DO SEMESTRE.
+  //
+  // Aceitar toda turma com nota quebrava a TRANSFERÊNCIA: ela apaga a matrícula
+  // antiga no banco, mas as notas da turma de origem continuam existindo, e a
+  // sincronização recriava a matrícula três segundos depois. O aluno voltava a
+  // aparecer nas duas turmas, e o professor antigo continuava enxergando ele.
+  //
+  // A regra que separa os dois casos é o semestre:
+  //   - outra turma no MESMO semestre  -> é transferência, não acumula;
+  //   - turma de OUTRO semestre        -> é o histórico dele, mantém;
+  //   - dependência                    -> sempre mantém, é paralela por natureza.
   for (const g of grades ?? []) {
     if (!g.classId || !g.studentId) continue;
     if (!turmaIds.has(g.classId) || !idsDeAluno.has(g.studentId)) continue;
+
+    const turma = porTurmaId.get(g.classId);
+    const atual = turmaAtualDoAluno.get(g.studentId);
+
+    if (turma && !turma.isDependency && atual && g.classId !== atual) {
+      if (periodoDaTurma(g.classId) === periodoDaTurma(atual)) continue;   // turma de origem
+    }
+
     matriculasPorChave.set(`${g.studentId}|${g.classId}`, {
       aluno_id: g.studentId,
       turma_id: g.classId,
