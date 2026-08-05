@@ -20,7 +20,8 @@ import { safeLocalStorage } from '../lib/safeStorage';
 import {
   saveStateToCloud, loadStateFromCloud, SystemStatePayload,
   uploadBackupToStorage, listBackupsFromStorage, deleteBackupFromStorage, StorageBackupFile,
-  bancoDisponivel, isPermissionError, assinarMudancas
+  bancoDisponivel, isPermissionError, assinarMudancas,
+  registrarFalhaDeGravacao, limparFalhaDeGravacao
 } from '../lib/nuvem';
 import {
   supabase,
@@ -1661,14 +1662,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const res = await publicarEstrutura({ courses, subjects, classes, users, currentPeriod, grades });
         if (res.ok) {
           ultimaEstruturaRef.current = assinatura;
+          limparFalhaDeGravacao();
           addSecurityLog('ESTRUTURA_PUBLICADA', 'Cursos, turmas, disciplinas, professores e alunos sincronizados.', 'low');
         } else {
           setCloudBackupStatus('error');
+          // O motivo precisa CHEGAR NA TELA. Indo só para o log de segurança,
+          // a secretaria via o aviso laranja aceso e nenhuma explicação.
+          registrarFalhaDeGravacao(res.erro || 'Falha ao gravar cursos, turmas, professores ou alunos.');
           addSecurityLog('ESTRUTURA_FALHA', `Falha ao sincronizar a estrutura: ${res.erro}`, 'high');
         }
       } catch (err: any) {
         console.error('[Portal] Falha ao publicar estrutura:', err);
         setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(err?.message || String(err));
       } finally {
         publicandoRef.current = false;
       }
@@ -3540,7 +3546,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           role: UserRole.STUDENT,
           enrollment: std.enrollment,
           active: true,
-          classId: cls.id
+          classId: cls.id,
+          // O CURSO VINHA VAZIO EM TODO ALUNO MATRICULADO PELA TELA.
+          //
+          // Só a turma era preenchida. Em `publicarEstrutura`, `curso_id` vira
+          // NULL quando `courseId` não existe — e ficava NULL para sempre.
+          // Boletim e diário funcionavam (chegam pela turma), mas relatório,
+          // filtro por curso e declaração saíam vazios.
+          courseId: cls.courseId
         };
         newUsers.push(newStud);
       } else {
