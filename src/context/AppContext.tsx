@@ -1551,6 +1551,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (gravou) {
           ultimoEstadoGravadoRef.current = assinatura;
           setLastCloudBackupTime(new Date().toISOString());
+          // Mesmo motivo do laço da estrutura: quem acende também tem que
+          // saber apagar, senão a faixa vira paisagem.
+          setCloudBackupStatus('success');
+          limparFalhaDeGravacao();
         } else {
           setCloudBackupStatus('error');
         }
@@ -1662,6 +1666,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const res = await publicarEstrutura({ courses, subjects, classes, users, currentPeriod, grades });
         if (res.ok) {
           ultimaEstruturaRef.current = assinatura;
+          // O AVISO LARANJA PRECISA SABER APAGAR, NÃO SÓ ACENDER.
+          //
+          // Antes, os dois laços de gravação só chamavam `setCloudBackupStatus`
+          // no caso de falha. Uma falha passageira — rede oscilando, ou os
+          // minutos em que o site esteve no ar pela metade — acendia a faixa e
+          // ela ficava acesa para sempre, mesmo com tudo voltando a gravar
+          // normalmente. A secretaria via "alterações não salvas" o dia inteiro
+          // sem ter nada por salvar, e aprendia a ignorar o aviso. No dia em
+          // que a falha fosse real, ninguém ia olhar.
+          setCloudBackupStatus('success');
           limparFalhaDeGravacao();
           addSecurityLog('ESTRUTURA_PUBLICADA', 'Cursos, turmas, disciplinas, professores e alunos sincronizados.', 'low');
         } else {
