@@ -133,6 +133,23 @@ export function motivoDaUltimaFalha(): string {
   return ultimoMotivoDeFalha;
 }
 
+/**
+ * O aviso laranja acendia SEM MOTIVO quando quem falhava era a gravação nas
+ * tabelas (cursos, turmas, alunos), e não o retrato de estado. Esta variável
+ * só era escrita aqui dentro; a falha da estrutura ia parar apenas no log de
+ * segurança, que ninguém abre. Pior: o banner podia exibir um motivo velho,
+ * de outro problema já resolvido.
+ *
+ * `publicarEstrutura` agora reporta por aqui.
+ */
+export function registrarFalhaDeGravacao(motivo: string): void {
+  ultimoMotivoDeFalha = motivo;
+}
+
+export function limparFalhaDeGravacao(): void {
+  ultimoMotivoDeFalha = '';
+}
+
 /* ------------------------------------------------- estado geral do portal */
 
 /**

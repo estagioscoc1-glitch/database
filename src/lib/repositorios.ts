@@ -256,6 +256,20 @@ export async function publicarEstrutura(dados: {
 
   const { courses, subjects, classes, users, currentPeriod, grades } = dados;
 
+  // UM ERRO NUMA TABELA NÃO PODE MAIS CALAR TODAS AS SEGUINTES.
+  //
+  // Cada bloco abaixo terminava com `return r`. A ordem é cursos, disciplinas,
+  // turmas, professores, alunos, matrículas, diários — então um CPF repetido
+  // num professor fazia alunos, matrículas e diários pararem de ser gravados.
+  // Como o intervalo de 3 segundos repete os MESMOS dados, ele falhava igual
+  // para sempre, e na tela havia só o aviso laranja.
+  //
+  // Agora tudo que pode ser gravado é gravado, e no fim o portal informa TUDO
+  // o que ficou de fora. Só os cursos continuam sendo parada obrigatória:
+  // disciplinas, turmas e alunos apontam para eles por chave estrangeira, e
+  // sem o curso nada mais entra mesmo.
+  const erros: string[] = [];
+
   // --- cursos
   if (courses.length) {
     const r = await upsertEmLotes('cursos', courses.map(c => ({
@@ -272,7 +286,7 @@ export async function publicarEstrutura(dados: {
         turnos: Array.from(new Set((c.shifts ?? []).map(s => paraTurnoBanco(s as string)))),
         ativo: c.active !== false && c.status !== 'INATIVO',
       })), 'id', 'gravar cursos');
-    if (!r.ok) return r;
+    if (!r.ok) return r;   // sem curso, nada mais entra (chave estrangeira)
   }
 
   // --- disciplinas (dependem de curso)
@@ -286,7 +300,7 @@ export async function publicarEstrutura(dados: {
         modulo: s.module ?? 1,
         carga_horaria: s.workload ?? 0,
       })), 'id', 'gravar disciplinas');
-    if (!r.ok) return r;
+    if (!r.ok) erros.push(r.erro || 'disciplinas');
   }
 
   // --- turmas (dependem de curso)
@@ -307,29 +321,42 @@ export async function publicarEstrutura(dados: {
         fechada_definitivo: !!c.closedDefinitive,
         eh_dependencia: !!c.isDependency,
       })), 'id', 'gravar turmas');
-    if (!r.ok) return r;
+    if (!r.ok) erros.push(r.erro || 'turmas');
   }
 
   // --- professores
   const professores = users.filter(u => u.role === UserRole.TEACHER);
   if (professores.length) {
     const cpfsVistos = new Set<string>();
+    // MATRÍCULA TAMBÉM É ÚNICA NO BANCO, e isso faltava aqui.
+    //
+    // O CPF já tinha esta proteção; a matrícula não. E a matrícula era gerada
+    // por contagem de professores, então repetia sozinha assim que alguém era
+    // excluído. Uma repetida derrubava a gravação de TODOS os professores.
+    // Repetida vira NULL: fica um professor sem matrícula (visível e fácil de
+    // corrigir na tela) em vez de nenhum professor gravado.
+    const matriculasVistas = new Set<string>();
     const r = await upsertEmLotes('professores', professores.map(p => {
         // CPF é único no banco. Repetido vira NULL em vez de derrubar a gravação inteira.
         let cpf = texto(p.cpf);
         if (cpf && cpfsVistos.has(cpf)) cpf = null;
         if (cpf) cpfsVistos.add(cpf);
+
+        let matricula = texto(p.enrollment);
+        if (matricula && matriculasVistas.has(matricula)) matricula = null;
+        if (matricula) matriculasVistas.add(matricula);
+
         return {
           id: p.id,
           nome: p.name,
-          matricula: texto(p.enrollment),
+          matricula,
           cpf,
           email: texto(p.email),
           telefone: texto(p.phone),
           situacao: p.active === false ? 'INATIVO' : 'ATIVO',
         };
       }), 'id', 'gravar professores');
-    if (!r.ok) return r;
+    if (!r.ok) erros.push(r.erro || 'professores');
   }
 
   // --- alunos
@@ -363,31 +390,96 @@ export async function publicarEstrutura(dados: {
     }
     if (linhas.length) {
       const r = await upsertEmLotes('alunos', linhas, 'id', 'gravar alunos');
-      if (!r.ok) return r;
+      if (!r.ok) erros.push(r.erro || 'alunos');
     }
   }
 
   // --- matrículas (aluno na turma)
-  const matriculas = alunos
-    .filter(a => a.classId && turmaIds.has(a.classId))
-    .map(a => ({ aluno_id: a.id, turma_id: a.classId as string }));
-  if (matriculas.length) {
-    const r = await upsertEmLotes('matriculas', matriculas, 'aluno_id,turma_id', 'gravar matrículas', true);
-    if (!r.ok) return r;
+  //
+  // UM ALUNO PODE ESTAR EM VÁRIAS TURMAS AO MESMO TEMPO. É A REGRA DA ESCOLA.
+  //
+  // Ele cursa 2026/1, depois 2026/2, depois 2027/1 — e precisa manter cadastro
+  // e boletim SEPARADOS de cada semestre. Também pode cursar uma dependência em
+  // paralelo com a turma normal. A tabela `matriculas` sempre suportou isso
+  // (a chave é aluno + turma), mas aqui as matrículas saíam SÓ de `classId`,
+  // que é um campo único: uma turma por aluno, e ponto.
+  //
+  // Pior: logo abaixo havia uma limpeza que apagava toda matrícula do aluno em
+  // qualquer OUTRA turma. Matricular no semestre novo não somava — TRANSFERIA.
+  // O semestre anterior perdia a matrícula, o aluno deixava de enxergar aquele
+  // diário (a regra `estou_matriculado` do banco depende dela) e o boletim
+  // antigo sumia para ele. Na tela da secretaria continuava tudo lá.
+  //
+  // Agora a matrícula é reconstruída também pelas NOTAS: se o aluno tem nota
+  // numa turma, ele cursa aquela turma. Vale para semestre passado, semestre
+  // atual e dependência, sem distinção.
+  const idsDeAluno = new Set(alunos.map(a => a.id));
+  const porTurmaId = new Map(turmasValidas.map(t => [t.id, t]));
 
-    // TRANSFERÊNCIA: remove a matrícula da turma ANTIGA.
+  const matriculasPorChave = new Map<string, { aluno_id: string; turma_id: string }>();
+
+  for (const a of alunos) {
+    if (a.classId && turmaIds.has(a.classId)) {
+      matriculasPorChave.set(`${a.id}|${a.classId}`, { aluno_id: a.id, turma_id: a.classId });
+    }
+  }
+
+  for (const g of grades ?? []) {
+    if (!g.classId || !g.studentId) continue;
+    if (!turmaIds.has(g.classId) || !idsDeAluno.has(g.studentId)) continue;
+    matriculasPorChave.set(`${g.studentId}|${g.classId}`, {
+      aluno_id: g.studentId,
+      turma_id: g.classId,
+    });
+  }
+
+  const todasAsMatriculas = [...matriculasPorChave.values()];
+
+  if (todasAsMatriculas.length) {
+    const r = await upsertEmLotes('matriculas', todasAsMatriculas, 'aluno_id,turma_id', 'gravar matrículas', true);
+    if (!r.ok) erros.push(r.erro || 'matrículas');
+
+    // LIMPEZA DE TRANSFERÊNCIA — AGORA SÓ DENTRO DO MESMO SEMESTRE.
     //
-    // Sem isto, o aluno transferido continuava matriculado nas duas turmas ao
-    // mesmo tempo no banco — aparecia na lista da turma de origem e na de
-    // destino, e o professor antigo continuava enxergando os dados dele.
-    for (const m of matriculas) {
+    // Transferência é mudar de turma DENTRO de um semestre: o aluno saiu do
+    // matutino e foi para o noturno, e não pode aparecer nos dois. Isso
+    // continua sendo limpo.
+    //
+    // O que esta limpeza NÃO pode mais fazer é apagar matrícula de OUTRO
+    // semestre. Era exatamente isso que transformava "matriculei no semestre
+    // novo" em "transferi o aluno".
+    const legitimasPorAluno = new Map<string, Set<string>>();
+    for (const m of todasAsMatriculas) {
+      const atual = legitimasPorAluno.get(m.aluno_id) ?? new Set<string>();
+      atual.add(m.turma_id);
+      legitimasPorAluno.set(m.aluno_id, atual);
+    }
+
+    for (const [alunoId, turmasDoAluno] of legitimasPorAluno) {
+      // Semestres em que este aluno tem matrícula legítima. Só neles a limpeza
+      // pode agir — nos outros ela não tem informação suficiente para julgar.
+      const periodos = new Set<string>();
+      for (const tid of turmasDoAluno) {
+        const t = porTurmaId.get(tid);
+        if (t) periodos.add(`${t.year ?? ''}|${t.semester ?? ''}`);
+      }
+      if (!periodos.size) continue;
+
+      const aRemover = turmasValidas
+        .filter(t => periodos.has(`${t.year ?? ''}|${t.semester ?? ''}`))
+        .filter(t => !turmasDoAluno.has(t.id))
+        .map(t => t.id);
+
+      if (!aRemover.length) continue;
+
+      const lista = `(${aRemover.map(t => `"${t}"`).join(',')})`;
       const { error } = await supabase
         .from('matriculas')
         .delete()
-        .eq('aluno_id', m.aluno_id)
-        .neq('turma_id', m.turma_id);
+        .eq('aluno_id', alunoId)
+        .in('turma_id', aRemover.length ? aRemover : ['__nenhuma__']);
       if (error) {
-        console.warn('[Banco] limpar matrícula antiga:', error.message);
+        console.warn('[Banco] limpar matrícula antiga:', error.message, lista);
         break;   // não é motivo para abortar a publicação inteira
       }
     }
@@ -432,7 +524,14 @@ export async function publicarEstrutura(dados: {
 
   if (diarios.length) {
     const r = await upsertEmLotes('diarios', diarios, 'id', 'gravar diários');
-    if (!r.ok) return r;
+    if (!r.ok) erros.push(r.erro || 'diários');
+  }
+
+  if (erros.length) {
+    // Sem duplicar a mesma mensagem várias vezes: um CPF repetido costuma
+    // derrubar mais de um bloco e o aviso na tela ficaria ilegível.
+    const unicos = [...new Set(erros)];
+    return { ok: false, erro: unicos.join(' | ') };
   }
 
   return { ok: true };
@@ -512,6 +611,48 @@ export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
   const { error } = await supabase.from('professores').delete().eq('id', id);
   if (error) return falha('excluir professor', error);
+  return { ok: true };
+}
+
+/**
+ * Liga ou desliga o ACESSO de uma conta, pelo login.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * Remover ou inativar um funcionário na tela mexia só na lista do navegador.
+ * A conta em `usuarios` continuava intacta, e `email_por_login` só exige
+ * `u.ativo` — ou seja, a pessoa desligada sumia da lista da secretaria e
+ * continuava entrando no portal, com permissão de secretaria, indefinidamente.
+ * Ninguém percebia, porque na tela ela já não aparecia.
+ *
+ * A gestão pode escrever em `usuarios` (política `p_usuarios_admin_all`), e o
+ * gatilho `protege_campos_criticos` só barra quem NÃO é gestão. Então esta
+ * gravação é permitida vindo da secretaria e recusada vinda de qualquer outro.
+ *
+ * Devolve `ok: false` quando nada foi alterado — login errado ou sem permissão.
+ * Quem chamar PRECISA avisar o usuário: falhar em silêncio aqui é deixar um
+ * ex-funcionário com acesso.
+ */
+export async function definirAcessoDaConta(
+  login: string,
+  ativo: boolean
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const alvo = (login ?? '').trim();
+  if (!alvo) return { ok: false, erro: 'Login não informado.' };
+
+  const { data, error } = await supabase
+    .from('usuarios')
+    .update({ ativo })
+    .ilike('login', alvo)
+    .select('id');
+
+  if (error) return falha(`${ativo ? 'reativar' : 'desativar'} acesso de ${alvo}`, error);
+  if (!data || data.length === 0) {
+    // 200 com zero linhas é a falha silenciosa mais perigosa deste sistema:
+    // o comando "funciona" e não altera nada.
+    return { ok: false, erro: `Nenhuma conta com o login "${alvo}" foi alterada.` };
+  }
   return { ok: true };
 }
 
@@ -1451,11 +1592,18 @@ export async function carregarEstrutura(): Promise<{
   if (!supabaseConfigurado) return null;
 
   const [rCursos, rDisc, rTurmas, rProf, rAlunos, rDiarios] = await Promise.all([
-    supabase.from('cursos').select('*'),
-    supabase.from('disciplinas').select('*'),
-    supabase.from('turmas').select('*'),
-    supabase.from('professores').select('*'),
-    supabase.from('alunos').select('*'),
+    supabase.from('cursos').select('*').order('nome'),
+    supabase.from('disciplinas').select('*').order('curso_id').order('modulo').order('nome'),
+    // ORDEM FIXA, DE PROPÓSITO.
+    //
+    // Sem `order`, o Postgres devolve na ordem física das linhas — que muda
+    // conforme a tabela é atualizada. Como a tela usava "a primeira turma do
+    // período" para corrigir escolhas inválidas, o destino do aluno mudava de
+    // um dia para o outro sem ninguém mexer em nada. Foi o que fez a pendência
+    // "turma errada na matrícula" parecer aleatória por semanas.
+    supabase.from('turmas').select('*').order('ano').order('semestre').order('curso_id').order('modulo').order('nome'),
+    supabase.from('professores').select('*').order('nome'),
+    supabase.from('alunos').select('*').order('nome'),
     supabase.from('diarios').select('professor_id, turma_id, disciplina_id'),
   ]);
 
