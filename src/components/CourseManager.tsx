@@ -60,6 +60,25 @@ export const CourseManager: React.FC = () => {
       return;
     }
 
+    // CÓDIGO REPETIDO APAGAVA O CURSO EXISTENTE, SEM AVISO NENHUM.
+    //
+    // `addCourse` remove da lista quem tem o mesmo id e põe o novo no lugar; o
+    // upsert por id regrava a linha no banco. Cadastrar "ENF_EAD" de novo
+    // trocava o nome e a carga do curso real, e as turmas, disciplinas e alunos
+    // dele passavam a pertencer a outro curso. A tela dizia "cadastrado com
+    // sucesso".
+    if (!editingCourse) {
+      const codigo = idCode.trim().toUpperCase();
+      if (codigo && courses.some(c => c.id === codigo)) {
+        const existente = courses.find(c => c.id === codigo);
+        setFeedbackMsg({
+          type: 'error',
+          text: `O código ${codigo} já pertence ao curso "${existente?.name}". Escolha outro código, ou feche esta janela e use o botão Editar naquele curso.`,
+        });
+        return;
+      }
+    }
+
     if (editingCourse) {
       updateCourse({
         ...editingCourse,
@@ -81,7 +100,10 @@ export const CourseManager: React.FC = () => {
         status,
         active: status === 'ATIVO'
       });
-      setFeedbackMsg({ type: 'success', text: `Curso "${created.name}" cadastrado com sucesso e propagado para todo o sistema!` });
+      // A mensagem não promete mais gravação no banco: ela aparece ANTES de
+      // qualquer ida ao servidor. A publicação acontece no tique seguinte, e
+      // pode falhar — quando falha, o aviso laranja do topo é que denuncia.
+      setFeedbackMsg({ type: 'success', text: `Curso "${created.name}" criado. Ele está sendo enviado ao servidor — se o aviso laranja do topo aparecer, o envio falhou.` });
     }
 
     setTimeout(() => {

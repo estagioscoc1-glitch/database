@@ -5,7 +5,7 @@ import { PERMISSION_MODULES, getDefaultStaffPermissions } from '../utils/permiss
 import { Users, UserPlus, Shield, Key, Copy, Check, Search, Edit2, Trash2, Lock, Eye, PlusCircle, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { criarAcesso } from '../lib/supabase';
-import { criarAcessoDeUmDocente } from '../lib/repositorios';
+import { criarAcessoDeUmDocente, definirAcessoDaConta } from '../lib/repositorios';
 
 export const StaffManager: React.FC = () => {
   const { staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions } = useApp();
@@ -92,6 +92,23 @@ export const StaffManager: React.FC = () => {
         permissions
       };
       updateStaffMember(updated);
+
+      // ATIVO/INATIVO PRECISA VALER NO SERVIDOR, NÃO SÓ NA LISTA.
+      //
+      // Marcar um funcionário como INATIVO mexia apenas no navegador. A conta
+      // continuava ativa em `usuarios` e a pessoa entrava normalmente no dia
+      // seguinte, com permissão de secretaria.
+      if (editingStaff.active !== active && editingStaff.username) {
+        const r = await definirAcessoDaConta(editingStaff.username, active);
+        if (!r.ok) {
+          setFeedback({
+            type: 'error',
+            text: `Os dados foram atualizados, mas o ACESSO de ${name} NÃO foi ${active ? 'reativado' : 'bloqueado'} no servidor. A pessoa ${active ? 'ainda não consegue' : 'ainda consegue'} entrar. Motivo: ${r.erro}`,
+          });
+          return;
+        }
+      }
+
       setFeedback({ type: 'success', text: `Dados de ${name} atualizados com sucesso!` });
       setTimeout(() => {
         setShowAddModal(false);
@@ -356,10 +373,29 @@ export const StaffManager: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`Deseja remover o funcionário ${staff.name}?`)) {
-                              deleteStaffMember(staff.id);
+                          onClick={async () => {
+                            if (!confirm(`Deseja remover o funcionário ${staff.name}?\n\nO acesso dele ao portal será bloqueado.`)) return;
+
+                            // BLOQUEIA O ACESSO ANTES DE TIRAR DA LISTA.
+                            //
+                            // Nesta ordem de propósito: se a gravação falhar, a
+                            // pessoa continua na lista e a secretaria vê o
+                            // problema. Ao contrário, o funcionário sumiria da
+                            // tela e continuaria entrando no portal — sem
+                            // ninguém para notar.
+                            if (staff.username) {
+                              const r = await definirAcessoDaConta(staff.username, false);
+                              if (!r.ok) {
+                                alert(
+                                  `O funcionário NÃO foi removido.\n\n` +
+                                  `Não foi possível bloquear o acesso de ${staff.name} no servidor, ` +
+                                  `e removê-lo da lista deixaria a conta ativa sem ninguém vendo.\n\n` +
+                                  `Motivo: ${r.erro}`
+                                );
+                                return;
+                              }
                             }
+                            deleteStaffMember(staff.id);
                           }}
                           className="p-1.5 text-slate-400 hover:text-red-600 rounded-xl transition-all cursor-pointer"
                         >

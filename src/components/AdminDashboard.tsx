@@ -463,7 +463,16 @@ export const AdminDashboard: React.FC = () => {
 
     setClassName('');
     setClassCode('');
-    alert(`Nova Turma cadastrada com sucesso para o período ${currentPeriod}! Diários gerados automaticamente.`);
+    // A MENSAGEM ANTIGA PROMETIA DIÁRIO E NÃO HAVIA DIÁRIO NENHUM.
+    //
+    // `publicarEstrutura` só cria um diário quando o par turma+disciplina tem
+    // professor designado ou nota lançada — de propósito, senão o produto
+    // cartesiano derruba a gravação por tempo esgotado. Turma nova nasce sem
+    // diário, e a secretaria ficava esperando algo que nunca ia aparecer.
+    alert(
+      `Nova Turma cadastrada para o período ${currentPeriod}.\n\n` +
+      `Os diários aparecem quando você atribuir as disciplinas a um professor.`
+    );
   };
 
   const handleCreateSubject = (e: React.FormEvent) => {
@@ -530,8 +539,20 @@ export const AdminDashboard: React.FC = () => {
       : `prof_${baseDoLogin}`;
 
     const uniqueId = teachRole === UserRole.ADMIN ? `admin_${Date.now()}` : `prof_${Date.now()}`;
+
+    // MATRÍCULA DO PROFESSOR: MAIOR JÁ USADA + 1, NUNCA A CONTAGEM.
+    //
+    // Antes era `1000 + activeTeachers.length + 1`. Como é a CONTAGEM, bastava
+    // excluir um professor para o próximo receber uma matrícula que já existia.
+    // E `professores.matricula` é UNIQUE no banco: o erro 23505 derrubava a
+    // publicação inteira da estrutura, e alunos, matrículas e diários paravam
+    // de ser gravados a partir dali — em silêncio, só com o aviso laranja.
+    const maiorMatricula = activeTeachers.reduce((maior, t) => {
+      const n = Number(t.enrollment);
+      return Number.isFinite(n) && n > maior ? n : maior;
+    }, 1000);
     const enrollment = teachRole === UserRole.TEACHER
-      ? (1000 + activeTeachers.length + 1).toString()
+      ? String(maiorMatricula + 1)
       : undefined;
 
     // 1) Cadastro da pessoa (vai para a tabela de professores).
@@ -1804,7 +1825,19 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
                 >
                   <option value="" disabled>Selecione uma turma...</option>
-                  {classes.map(cl => (
+                  {/* SÓ AS TURMAS DO PERÍODO ATUAL.
+                      Antes esta lista trazia `classes` inteiro — as 601 turmas,
+                      de 2024 a 2028, com nomes quase idênticos entre si. E logo
+                      abaixo há um efeito que, ao perceber uma turma fora do
+                      período corrente, TROCA a escolha sozinho pela primeira
+                      turma do período — sem avisar. Quem escolhesse
+                      "Enfermagem 1º matutino 2026/1" via o aluno cair em outra
+                      turma qualquer, e o destino errado mudava de um dia para o
+                      outro, porque a leitura das turmas não pedia ordem nenhuma
+                      ao banco. Era a pendência "turma errada na matrícula".
+                      Com a lista filtrada, não há mais escolha inválida a
+                      corrigir, e a correção silenciosa nunca dispara. */}
+                  {activePeriodClasses.map(cl => (
                     <option key={cl.id} value={cl.id}>
                       Período: {cl.year}/{cl.semester} | {cl.code ? `[${cl.code}] ` : ''}{cl.name}
                     </option>
