@@ -646,6 +646,31 @@ export const AdminDashboard: React.FC = () => {
         );
         return;
       }
+
+      // MESMO SEMESTRE, OUTRA TURMA, NÃO É MATRÍCULA NOVA — É TRANSFERÊNCIA.
+      //
+      // Sem esta checagem, escolher a turma errada por engano deixava o aluno
+      // matriculado nas duas ao mesmo tempo, aparecendo em dois diários, sem
+      // nenhum aviso. Matrícula em semestre diferente continua liberada: é o
+      // caso do aluno que passa de 2026/2 para 2027/1 e precisa dos dois
+      // boletins.
+      const turmaAtual = classes.find(c => c.id === jaCadastrado.classId);
+      const mesmoSemestre =
+        turmaAtual && turmaDestino &&
+        turmaAtual.year === turmaDestino.year &&
+        turmaAtual.semester === turmaDestino.semester &&
+        !turmaDestino.isDependency;
+
+      if (mesmoSemestre) {
+        mostrarAviso(
+          'Aluno já tem turma neste semestre',
+          `${jaCadastrado.name} já está em ${turmaAtual?.name} em ${turmaDestino?.year}/${turmaDestino?.semester}.\n\n` +
+          `Para mudar de turma dentro do mesmo semestre, use a tela de Transferência de Aluno — ` +
+          `ela move o histórico junto.\n\n` +
+          `Esta tela serve para matricular em um semestre diferente, aí sim as duas matrículas convivem.`
+        );
+        return;
+      }
       // Nome diferente com a mesma matrícula quase sempre é engano de digitação
       // — e seguir em frente juntaria duas pessoas num cadastro só.
       const mesmoNome =
