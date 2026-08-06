@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
+import { ContentRegistry } from './ContentRegistry';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
 
@@ -23,7 +24,7 @@ export const TeacherDashboard: React.FC = () => {
     currentPeriod, simulatedDate
   } = useApp();
 
-  const [journalView, setJournalView] = useState<'grades' | 'attendance'>('grades');
+  const [journalView, setJournalView] = useState<'grades' | 'attendance' | 'content'>('grades');
   const [gradeWindowState, setGradeWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
   const [isGradeWindowMaximized, setIsGradeWindowMaximized] = useState<boolean>(false);
   const [attendanceWindowState, setAttendanceWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
@@ -646,10 +647,23 @@ export const TeacherDashboard: React.FC = () => {
               >
                 Frequência (Chamadas)
               </button>
+              <button
+                type="button"
+                onClick={() => setJournalView('content')}
+                className={`flex-1 py-2 text-center text-xs font-bold rounded-xl transition-all ${
+                  journalView === 'content'
+                    ? 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                Conteúdo Programático
+              </button>
             </div>
 
             {/* Active view */}
-            {journalView === 'grades' ? (
+            {journalView === 'content' ? (
+              <ContentRegistry turma={targetClass} disciplina={targetSubject} />
+            ) : journalView === 'grades' ? (
               gradeWindowState === 'closed' ? (
                 <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
                   <div className="p-3.5 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 rounded-full w-12.5 h-12.5 flex items-center justify-center mx-auto shadow-sm">
