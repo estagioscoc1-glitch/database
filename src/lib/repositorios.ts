@@ -664,12 +664,32 @@ export async function publicarEstrutura(dados: {
     const [turmaId, disciplinaId] = par.split('|');
     const turma = porTurma.get(turmaId);
     if (!turma || !disciplinaIds.has(disciplinaId)) continue;   // ignora referências órfãs
+
+    // O PERÍODO DO DIÁRIO É O DA TURMA, NÃO O QUE ESTÁ SELECIONADO NA TELA.
+    //
+    // Antes vinha de `currentPeriod`. Com a tela em 2026/2, uma turma de 2025/2
+    // ganhava um diário carimbado 2026/2 — e o `id`, calculado com o mesmo
+    // período, também. Trocar o período letivo reescrevia o carimbo de diários
+    // antigos, e a linha passava a discordar de si mesma: `id` terminando em
+    // `_2027_1` com a coluna `periodo` dizendo `2026/1`.
+    //
+    // O estrago vinha depois. Na volta ao período anterior, o sistema calculava
+    // o id correto, não achava a linha (que estava com o id torto) e tentava
+    // INSERIR outra — batendo em `unique (turma_id, disciplina_id, periodo)`.
+    // A publicação inteira travava com "duplicate key", a cada três segundos,
+    // para sempre. Era o erro que acendia o aviso laranja sem explicação.
+    //
+    // Uma turma pertence a um semestre e só a ele. O diário dela também.
+    const periodoDaTurma = (turma.year && turma.semester)
+      ? `${turma.year}/${turma.semester}`
+      : currentPeriod;
+
     diarios.push({
-      id: idDiario(turmaId, disciplinaId, currentPeriod),
+      id: idDiario(turmaId, disciplinaId, periodoDaTurma),
       turma_id: turmaId,
       disciplina_id: disciplinaId,
       professor_id: professorDoDiario.get(par) ?? null,
-      periodo: currentPeriod,
+      periodo: periodoDaTurma,
       fechado: !!turma.closedDefinitive,
     });
   }
