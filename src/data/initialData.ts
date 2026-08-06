@@ -188,12 +188,17 @@ const generateInitialClasses = (): ClassSection[] => {
     INC: 'Instrumentação Cirúrgica'
   };
 
+  // TURNOS QUE A ESCOLA REALMENTE OFERECE.
+  //
+  // O turno de SÁBADO saiu daqui: a escola não tem sábado, e cada turno na
+  // lista multiplica o total de turmas geradas por 13 (as combinações de curso
+  // e módulo). Ele continua existindo no sistema — uma turma de sábado pode ser
+  // criada à mão pela secretaria a qualquer momento.
   const shifts = [
     { shift: Shift.MATUTINO, suffix: 'MAT' },
     { shift: Shift.VESPERTINO, suffix: 'VESP' },
     { shift: Shift.NOTURNO, suffix: 'NOT' },
-    { shift: Shift.EAD, suffix: 'EAD' },
-    { shift: Shift.SABADO, suffix: 'HIBR' }
+    { shift: Shift.EAD, suffix: 'EAD' }
   ];
 
   const getShiftLabel = (sh: Shift): string => {
@@ -207,17 +212,23 @@ const generateInitialClasses = (): ClassSection[] => {
     }
   };
 
-  // Generate for all academic periods as requested
+  // SÓ O SEMESTRE EM CURSO. ANTES ERAM NOVE.
+  //
+  // Esta lista tinha 2024/2 até 2028/2. Nove períodos × 13 combinações de curso
+  // e módulo × 5 turnos = 585 turmas, criadas do nada toda vez que o portal
+  // abria — e regravadas no banco pela sincronização automática. A escola tem
+  // cerca de vinte.
+  //
+  // O estrago não era só o número. A tela de matrícula listava as 585 com nomes
+  // quase idênticos, separados apenas pelo período no começo da linha, e havia
+  // uma correção silenciosa que trocava a escolha inválida pela "primeira turma
+  // do período" — que mudava de um dia para o outro. Foi a origem da pendência
+  // "selecionei Enfermagem e o aluno caiu em Radiologia".
+  //
+  // Turmas dos próximos semestres são criadas pela secretaria quando o semestre
+  // chegar, com os cursos e turnos que existirem de fato naquele momento.
   const periods = [
-    { year: 2024, semester: 2 },
-    { year: 2025, semester: 1 },
-    { year: 2025, semester: 2 },
-    { year: 2026, semester: 1 },
-    { year: 2026, semester: 2 },
-    { year: 2027, semester: 1 },
-    { year: 2027, semester: 2 },
-    { year: 2028, semester: 1 },
-    { year: 2028, semester: 2 }
+    { year: 2026, semester: 2 }
   ];
 
   periods.forEach(({ year, semester }) => {
