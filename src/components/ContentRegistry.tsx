@@ -51,6 +51,16 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
     [courses, turma?.courseId]
   );
 
+  // O PERÍODO É O DA TURMA, NÃO O SELECIONADO NA TELA.
+  //
+  // O diário é identificado por turma + disciplina + período. Usando o período
+  // da tela, abrir o conteúdo de uma turma de 2025/2 com a tela em 2026/2
+  // apontaria para um diário que não é o dela — gravando no lugar errado, ou
+  // criando um diário carimbado com o semestre errado.
+  const periodoDaTurma = (turma?.year && turma?.semester)
+    ? `${turma.year}/${turma.semester}`
+    : currentPeriod;
+
   const turnoLegivel = (s?: string) => {
     if (!s) return '';
     if (s === 'SÁBADO') return 'SÁBADO';
@@ -74,7 +84,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
     setErro('');
     setPagina(0);
 
-    carregarConteudoProgramatico(turma.id, disciplina.id, currentPeriod)
+    carregarConteudoProgramatico(turma.id, disciplina.id, periodoDaTurma)
       .then(res => {
         if (cancelado) return;
         // `null` significa que o diário ainda não existe no servidor — o
@@ -91,7 +101,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
       });
 
     return () => { cancelado = true; };
-  }, [turma?.id, disciplina?.id, currentPeriod]);
+  }, [turma?.id, disciplina?.id, periodoDaTurma]);
 
   /* --------------------------------------------------------------- gravação */
 
@@ -104,7 +114,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
     setEstado('salvando');
     setErro('');
     const r = await salvarConteudoProgramatico(
-      turma.id, disciplina.id, currentPeriod, linhasRef.current
+      turma.id, disciplina.id, periodoDaTurma, linhasRef.current
     );
     if (r.ok) {
       setEstado('salvo');
@@ -117,7 +127,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
       setEstado('erro');
       setErro(r.erro || 'Não foi possível salvar.');
     }
-  }, [turma?.id, disciplina?.id, currentPeriod]);
+  }, [turma?.id, disciplina?.id, periodoDaTurma]);
 
   const alterar = (indice: number, campo: keyof LinhaDeConteudo, valor: string) => {
     setLinhas(anterior => {
