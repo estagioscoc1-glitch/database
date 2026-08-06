@@ -567,7 +567,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   //
   // Agora a lógica é invertida: apaga tudo, EXCETO o que precisa sobreviver.
   // Assim nenhum prefixo novo passa despercebido no futuro.
-  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v10') {
+  // A MARCA SOBE PARA 'v11' PORQUE O SISTEMA FOI ZERADO PARA ENTRAR EM PRODUÇÃO.
+  //
+  // Existem TRÊS cópias dos dados: o banco, este armazenamento do navegador, e
+  // o retrato `portal_estado.json` no Storage. Limpar só o banco não adianta:
+  // ao abrir o portal, o navegador reenvia o que tinha guardado e a
+  // sincronização regrava tudo em três segundos. Foi o que fez as 601 turmas
+  // de demonstração voltarem depois de cada limpeza.
+  //
+  // Subir esta marca faz cada navegador apagar a própria cópia sozinho, na
+  // primeira vez que abrir o portal — inclusive as máquinas da secretaria, sem
+  // ninguém precisar mexer em configuração do Chrome em cada uma.
+  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v11') {
     const preservar = (chave: string) =>
       chave === 'oc_ls_version' ||
       chave === 'oc_dark_mode' ||        // preferência de tema
@@ -580,7 +591,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (chave && !preservar(chave)) paraRemover.push(chave);
     }
     paraRemover.forEach(k => safeLocalStorage.removeItem(k));
-    safeLocalStorage.setItem('oc_ls_version', 'v10');
+    safeLocalStorage.setItem('oc_ls_version', 'v11');
   }
 
   const [precisaTrocarSenha, setPrecisaTrocarSenha] = useState<boolean>(false);
