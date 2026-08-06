@@ -313,13 +313,16 @@ function MainAppLayout() {
                   neste navegador e serão enviadas assim que a conexão voltar.
                   <strong> Não feche o navegador nem limpe os dados do site até este aviso sumir.</strong>
                 </p>
-                {/* O motivo exato, para não precisar abrir o console do navegador. */}
-                {motivoDaUltimaFalha() && (
-                  <p className="text-[11px] text-amber-700 dark:text-amber-500 bg-amber-100/60 dark:bg-amber-950/40 rounded-lg px-2.5 py-1.5 mt-1.5 font-mono leading-snug">
-                    <strong className="font-sans font-bold not-italic">Motivo: </strong>
-                    {motivoDaUltimaFalha()}
-                  </p>
-                )}
+                {/* O motivo exato, para não precisar abrir o console do navegador.
+                    Quando nenhum caminho registrou motivo, o aviso NÃO fica mudo:
+                    um aviso sem explicação é indistinguível de um aviso quebrado,
+                    e a secretaria não tem como saber se deve parar de trabalhar
+                    ou seguir em frente. Dizer "não sabemos qual" é informação. */}
+                <p className="text-[11px] text-amber-700 dark:text-amber-500 bg-amber-100/60 dark:bg-amber-950/40 rounded-lg px-2.5 py-1.5 mt-1.5 font-mono leading-snug">
+                  <strong className="font-sans font-bold not-italic">Motivo: </strong>
+                  {motivoDaUltimaFalha() ||
+                    'não informado por esta parte do sistema. Recarregue a página (F5): se o aviso não voltar, era uma falha passageira.'}
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
