@@ -213,6 +213,133 @@ function falha(contexto: string, error: any): ResultadoGravacao {
   return { ok: false, erro: msg };
 }
 
+/* ------------------------------------------- registro de conteúdo programático */
+
+export interface LinhaDeConteudo {
+  data: string;
+  conteudo: string;
+  observacoes: string;
+}
+
+/** Linhas por página impressa. Vem do formulário em papel da secretaria. */
+export const LINHAS_POR_PAGINA = 27;
+/** Páginas por disciplina. */
+export const PAGINAS_DE_CONTEUDO = 10;
+export const TOTAL_DE_LINHAS = LINHAS_POR_PAGINA * PAGINAS_DE_CONTEUDO;
+
+/**
+ * Grava o registro de conteúdo programático de um diário.
+ *
+ * Segue exatamente o caminho do cabeçalho do diário — HTTP direto, com tempo
+ * limite e `return=representation` — e pelo mesmo motivo: a biblioteca do
+ * Supabase ficava pendurada aqui sem dado, sem erro e sem exceção, deixando a
+ * tela em "Salvando..." para sempre.
+ *
+ * Linhas totalmente vazias são descartadas antes de gravar. Um formulário
+ * recém-aberto tem 270 linhas em branco; guardá-las seria escrever 270 objetos
+ * vazios a cada tecla digitada.
+ */
+export async function salvarConteudoProgramatico(
+  classId: string,
+  subjectId: string,
+  periodo: string,
+  linhas: LinhaDeConteudo[]
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  if (!classId || !subjectId) return { ok: false, erro: 'Turma ou disciplina não informada.' };
+
+  const diario = idDiario(classId, subjectId, periodo);
+
+  // A POSIÇÃO DA LINHA IMPORTA E PRECISA SOBREVIVER.
+  //
+  // O professor escreve na linha 40 e deixa as anteriores em branco de
+  // propósito — são aulas que ainda não aconteceram. Guardar só as
+  // preenchidas, sem dizer ONDE estavam, faria tudo subir para o topo quando
+  // recarregasse. O índice viaja junto com o conteúdo.
+  const preenchidas = linhas
+    .map((l, i) => ({ i, ...l }))
+    .filter(l => (l.data || '').trim() || (l.conteudo || '').trim() || (l.observacoes || '').trim())
+    .map(l => ({
+      i: l.i,
+      data: (l.data || '').trim(),
+      conteudo: (l.conteudo || '').trim(),
+      observacoes: (l.observacoes || '').trim(),
+    }));
+
+  const r = await chamarBancoDireto(`diarios?id=eq.${encodeURIComponent(diario)}`, {
+    metodo: 'PATCH',
+    corpo: { conteudo_programatico: { versao: 1, linhas: preenchidas } },
+  });
+
+  if (!r.ok) {
+    const motivo = (r.erro || '').toLowerCase();
+    if (motivo.includes('row-level security') || r.status === 403) {
+      return { ok: false, erro: 'Este diário não é seu ou já está fechado para lançamentos.' };
+    }
+    if (motivo.includes('column') && motivo.includes('does not exist')) {
+      return {
+        ok: false,
+        erro: 'O banco ainda não tem o campo do conteúdo programático. Rode o arquivo supabase/17_conteudo_programatico.sql.',
+      };
+    }
+    return { ok: false, erro: r.erro };
+  }
+
+  // 200 com zero linhas é sucesso aparente sem nada gravado — é assim que as
+  // regras de acesso recusam. Tratar como falha é o que impede a tela de
+  // dizer "salvo" quando nada saiu do lugar.
+  if (r.dados.length === 0) {
+    return {
+      ok: false,
+      erro: `o diário deste período ainda não existe no servidor, ou você não tem permissão para alterá-lo. ` +
+            `(código do diário: ${diario})`,
+    };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Lê o registro de conteúdo programático.
+ *
+ * Devolve sempre o formulário completo, com as linhas em branco no lugar
+ * certo — a tela não precisa saber que o banco guarda só o que foi preenchido.
+ */
+export async function carregarConteudoProgramatico(
+  classId: string,
+  subjectId: string,
+  periodo: string
+): Promise<LinhaDeConteudo[] | null> {
+  if (!supabaseConfigurado || !classId || !subjectId) return null;
+
+  const id = idDiario(classId, subjectId, periodo);
+  const r = await chamarBancoDireto(
+    `diarios?id=eq.${encodeURIComponent(id)}&select=conteudo_programatico`,
+    { tempoLimite: 10000 }
+  );
+
+  if (!r.ok || r.dados.length === 0) return null;
+
+  const vazias = (): LinhaDeConteudo[] =>
+    Array.from({ length: TOTAL_DE_LINHAS }, () => ({ data: '', conteudo: '', observacoes: '' }));
+
+  const bruto = (r.dados[0] as any)?.conteudo_programatico;
+  if (!bruto || !Array.isArray(bruto.linhas)) return vazias();
+
+  const linhas = vazias();
+  for (const l of bruto.linhas) {
+    const i = Number(l?.i);
+    if (!Number.isInteger(i) || i < 0 || i >= TOTAL_DE_LINHAS) continue;
+    linhas[i] = {
+      data: String(l.data ?? ''),
+      conteudo: String(l.conteudo ?? ''),
+      observacoes: String(l.observacoes ?? ''),
+    };
+  }
+  return linhas;
+}
+
+
 /**
  * Grava em lotes pequenos.
  *
