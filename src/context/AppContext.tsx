@@ -1195,6 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               alunoId: alunoIdAqui,
               aoFalhar: (msg) => {
                 setCloudBackupStatus('error');
+                registrarFalhaDeGravacao(msg || 'Falha ao salvar dados no servidor.');
                 addSecurityLog('ESPELHO_FALHA', `Falha ao salvar dados no servidor: ${msg}`, 'high');
               },
             });
@@ -1211,6 +1212,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           console.error('[Nuvem] Falha na sincronização:', err?.message || err);
           setCloudBackupStatus('error');
+          // Este é o caminho que acende o aviso para o PROFESSOR ao entrar —
+          // ele não passa pelos laços de gestão, então ficava aceso e mudo.
+          registrarFalhaDeGravacao(err?.message || 'Falha ao sincronizar com o banco em nuvem.');
           addSecurityLog('SINC_NUVEM_FALHA', 'Falha ao sincronizar com o banco em nuvem.', 'medium');
         }
       } finally {
@@ -1332,6 +1336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (falhas > 0) {
         // Falha de gravação NUNCA fica em silêncio: acende o aviso na tela.
         setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhas} lançamento(s) de nota não gravado(s). ${ultimoErro}`);
         addSecurityLog('GRAVACAO_NOTA_FALHA', `${falhas} lançamento(s) não gravado(s). ${ultimoErro}`, 'high');
       } else {
         setCloudBackupStatus('success');
@@ -1406,6 +1411,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (falhas > 0) {
         setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhas} aula(s) de chamada não gravada(s). ${ultimoErro}`);
         addSecurityLog('GRAVACAO_AULA_FALHA', `${falhas} aula(s) não gravada(s). ${ultimoErro}`, 'high');
       }
       if (pendentes.length > 60 && falhas < pendentes.length) setRodadaDeGravacao(n => n + 1);
