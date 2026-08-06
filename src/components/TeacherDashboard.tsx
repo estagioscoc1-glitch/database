@@ -28,6 +28,11 @@ export const TeacherDashboard: React.FC = () => {
   const [gradeWindowState, setGradeWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
   const [isGradeWindowMaximized, setIsGradeWindowMaximized] = useState<boolean>(false);
   const [attendanceWindowState, setAttendanceWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
+  // O conteúdo programático abre em janela própria, igual às notas e à
+  // frequência: são 27 linhas de digitação por página e, embutido na aba, o
+  // professor rolava a tela inteira do painel para chegar na linha 20.
+  const [contentWindowOpen, setContentWindowOpen] = useState<boolean>(false);
+  const [isContentWindowMaximized, setIsContentWindowMaximized] = useState<boolean>(false);
   const [isAttendanceWindowMaximized, setIsAttendanceWindowMaximized] = useState<boolean>(false);
   // Guarda a assinatura do aviso de prazo que o professor já dispensou nesta sessão.
   // A versão persistida fica no navegador (ver `avisoJaDispensado` mais abaixo).
@@ -662,7 +667,24 @@ export const TeacherDashboard: React.FC = () => {
 
             {/* Active view */}
             {journalView === 'content' ? (
-              <ContentRegistry turma={targetClass} disciplina={targetSubject} />
+              <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
+                <div className="p-3.5 bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 rounded-full w-12.5 h-12.5 flex items-center justify-center mx-auto shadow-sm">
+                  <BookOpen className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm sm:text-base">Registro de Conteúdo Programático</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    São 10 páginas de 27 linhas. Abra a janela para preencher com espaço e imprimir.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setContentWindowOpen(true); setIsContentWindowMaximized(false); }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-blue-500/20 transition-all inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <ExternalLink className="h-4 w-4" /> Lançar Conteúdo (Abrir Janela)
+                </button>
+              </div>
             ) : journalView === 'grades' ? (
               gradeWindowState === 'closed' ? (
                 <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4">
@@ -831,6 +853,51 @@ export const TeacherDashboard: React.FC = () => {
       </div>
 
       {/* Grade Journal Floating Window Window System */}
+      {contentWindowOpen && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 no-print" onClick={() => setContentWindowOpen(false)} />
+          <div
+            className={`fixed z-50 bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col no-print ${
+              isContentWindowMaximized
+                ? 'inset-0 rounded-none'
+                : 'inset-4 sm:inset-8 lg:inset-x-24 lg:inset-y-10 rounded-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <BookOpen className="h-4 w-4 text-blue-600 shrink-0" />
+                <span className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate">
+                  Conteúdo Programático: {targetSubject?.name || 'Disciplina'} — {targetClass?.name || 'Turma'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsContentWindowMaximized(!isContentWindowMaximized)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  title={isContentWindowMaximized ? 'Restaurar Tamanho' : 'Maximizar (Tela Cheia)'}
+                >
+                  {isContentWindowMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{isContentWindowMaximized ? 'Restaurar' : 'Maximizar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContentWindowOpen(false)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-900"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+            {/* A rolagem fica AQUI, não na página inteira: fechar a janela
+                devolve o professor exatamente onde ele estava no painel. */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <ContentRegistry turma={targetClass} disciplina={targetSubject} />
+            </div>
+          </div>
+        </>
+      )}
+
       {(gradeWindowState === 'open' || gradeWindowState === 'minimized') && (
         <>
           {/* Backdrop (Only when open and not maximized to dim the page) */}

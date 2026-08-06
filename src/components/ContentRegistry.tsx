@@ -213,7 +213,11 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
 <html lang="pt-BR"><head><meta charset="utf-8">
 <title>Conteúdo Programático — ${escapar(turma?.name || '')} — ${escapar(disciplina?.name || '')}</title>
 <style>
-  @page { size: A4 portrait; margin: 10mm; }
+  /* PAISAGEM, NÃO RETRATO.
+     Em retrato, a coluna do conteúdo ministrado fica estreita e a frase do
+     professor quebra em três linhas, estourando a altura da linha e jogando
+     conteúdo para a página seguinte. Deitada, a mesma frase cabe numa linha. */
+  @page { size: A4 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #000; margin: 0; }
   .pagina { page-break-after: always; }
@@ -230,8 +234,8 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
   .grade th, .grade td { border: 1px solid #000; padding: 3px 5px; }
   .grade th { background: #e8e8e8; font-size: 8.5pt; text-align: left; }
   .grade td { height: 20px; vertical-align: top; word-break: break-word; }
-  .c-data { width: 12%; }
-  .c-cont { width: 58%; }
+  .c-data { width: 9%; }
+  .c-cont { width: 61%; }
   .c-obs  { width: 30%; }
   .rodape { margin-top: 14px; font-size: 8pt; }
   .rodape td { padding-top: 16px; text-align: center; vertical-align: bottom; }
