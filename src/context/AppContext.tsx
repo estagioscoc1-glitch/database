@@ -1335,7 +1335,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Lotes pequenos para não travar a interface em importações grandes.
       for (const nota of pendentes.slice(0, 150)) {
-        const res = await salvarNota(nota, currentPeriod, professorId);
+        // O PERÍODO VEM DA TURMA DA NOTA, NÃO DO QUE ESTÁ SELECIONADO NA TELA.
+        //
+        // Mesmo motivo do carimbo do diário: corrigir uma nota de 2025/2 com a
+        // tela em 2026/2 criava um diário carimbado 2026/2 para uma turma de
+        // 2025/2, que colidia com o diário verdadeiro e travava a gravação.
+        const turmaDaNota = classes.find(c => c.id === nota.classId);
+        const periodoDaNota = (turmaDaNota?.year && turmaDaNota?.semester)
+          ? `${turmaDaNota.year}/${turmaDaNota.semester}`
+          : currentPeriod;
+        const res = await salvarNota(nota, periodoDaNota, professorId);
         if (res.ok) {
           notasGravadasRef.current.set(nota.id, JSON.stringify(nota));
         } else {
