@@ -438,8 +438,13 @@ function MainAppLayout() {
         </div>
       )}
 
-      {/* Modern Floating Interactive Helper Bot */}
-      <HelperBot />
+      {/* ASSISTENTE FLUTUANTE DESLIGADO POR ORA.
+          Decisão da escola até a entrada em produção: o balão "Dúvidas? Fale
+          comigo!" cobre a coluna de ações do diário — os botões de Notas e
+          Faltas de uma das linhas ficam atrás dele.
+          Nada foi apagado: o componente segue em src/components/HelperBot.tsx
+          e volta descomentando a linha abaixo. */}
+      {/* <HelperBot /> */}
     </div>
   );
 }
