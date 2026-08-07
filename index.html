@@ -1,7 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      TRADUÇÃO AUTOMÁTICA DESLIGADA — NÃO É PREFERÊNCIA, É ESTABILIDADE.
+
+      A página declarava lang="en" sendo escrita em português. O Chrome via o
+      descompasso e traduzia sozinho. O resultado não era só texto estranho
+      ("LYnx EDU" virava "Lince EDU", "Funcionários do Sistema" virava "não
+      faça Sistema"): o tradutor SUBSTITUI nós do HTML, e o React, ao tentar
+      atualizar um nó que já foi trocado, quebra com
+
+          Failed to execute 'insertBefore' on 'Node'
+
+      e derruba a tela inteira. Acontecia justamente ao salvar frequência, que
+      é quando muita linha muda de uma vez.
+
+      lang correto + translate="no" + a marca abaixo impedem isso em qualquer
+      máquina, sem depender de alguém configurar o navegador.
+    -->
+    <meta name="google" content="notranslate" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
