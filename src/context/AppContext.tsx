@@ -3139,7 +3139,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { renamed: renamedList, unified: unifiedList };
   };
 
-  const computeCalculatedGrade = (record: GradeRecord): GradeRecord => {
+  const computeCalculatedGrade = (record: GradeRecord, forcarRecalculo = false): GradeRecord => {
     // HISTÓRICO NÃO SE RECALCULA
     //
     // Os mapas de notas importados são documento oficial já fechado e
@@ -3149,7 +3149,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sem esta saída, o portal refazia a conta e gravava 100 no lugar de 104:
     // o sistema alteraria sozinho um boletim já emitido. Registro histórico
     // entra como está e só muda se alguém editar de propósito.
-    if (record.isHistoricalImport) {
+    // NOTA IMPORTADA: IMUNE AO RECÁLCULO AUTOMÁTICO, OBEDIENTE À EDIÇÃO MANUAL.
+    //
+    // São duas coisas diferentes que passavam por aqui iguais:
+    //
+    //   - recálculo AUTOMÁTICO (ao abrir a tela, ao mudar qualquer estado):
+    //     não pode tocar no histórico. Zerava S1, porque a conta soma AV1+AV2+
+    //     AV3 e o mapa antigo só tem o total; e reescrevia "F. NOTA" como
+    //     "NÃO APTO", que é outro significado.
+    //
+    //   - edição EXPLÍCITA da secretaria (lançar a nota que faltava, abonar
+    //     falta): PRECISA recalcular, senão o número entra e o aluno continua
+    //     reprovado, que é o oposto da intenção de quem clicou.
+    //
+    // Recalcular aqui é seguro: `calculateS1` devolve o S1 guardado quando não
+    // há AV1/AV2/AV3, então o total do mapa antigo sobrevive à conta.
+    if (record.isHistoricalImport && !forcarRecalculo) {
       return record;
     }
 
@@ -3231,7 +3246,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return prev.map(g => {
             if (g.id === id) {
               const merged = { ...g, ...updates };
-              return computeCalculatedGrade(merged);
+              // Edição explícita: recalcula mesmo em nota importada.
+              return computeCalculatedGrade(merged, true);
             }
             return g;
           });
@@ -3476,6 +3492,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }, {} as { [studentId: string]: 'P' | 'F' })
     };
     setAttendance(prev => prev.map(s => s.id === session.id ? uppercaseSession : s));
+    revisarResultadoPorFrequencia(uppercaseSession);
+  };
+
+  /**
+   * Refaz o RESULTADO das notas afetadas por uma chamada que acabou de ser
+   * editada — inclusive as importadas de mapa antigo.
+   *
+   * POR QUE ISTO PRECISOU EXISTIR
+   *
+   * O efeito que reage a mudanças de frequência ignora nota importada, e com
+   * razão: ele roda a cada mudança de estado e reescreveria o histórico
+   * sozinho. Só que isso também travava o caso legítimo — a secretaria abona
+   * uma falta, o aluno passa a ter presença suficiente, e o rótulo continuava
+   * "REP. FALTAS" para sempre.
+   *
+   * A diferença entre os dois casos não é o dado, é a intenção: aqui alguém
+   * clicou em salvar naquela chamada. Por isso o recálculo é restrito às notas
+   * daquela turma e daquela disciplina, e mexe apenas em `result` — nota,
+   * conceito e pontuação do mapa antigo continuam intocados.
+   */
+  const revisarResultadoPorFrequencia = (session: AttendanceSession) => {
+    if (!session?.classId || !session?.subjectId) return;
+    setGrades(prev => {
+      let mudou = false;
+      const novo = prev.map(g => {
+        if (g.classId !== session.classId || g.subjectId !== session.subjectId) return g;
+        const { frequency } = getStudentAbsencesInternal(
+          g.studentId, g.subjectId, g.classId, attendance, subjects
+        );
+        const resultado = getStudentResult(g, frequency);
+        if (resultado === g.result) return g;
+        mudou = true;
+        return { ...g, result: resultado };
+      });
+      return mudou ? novo : prev;
+    });
   };
 
   const addAttendanceSession = (session: Omit<AttendanceSession, 'id'>) => {
@@ -3489,6 +3541,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }, {} as { [studentId: string]: 'P' | 'F' })
     };
     setAttendance(prev => [...prev, newSession]);
+    revisarResultadoPorFrequencia(newSession);
   };
 
   // S1/S2 journal closing toggling
