@@ -3289,10 +3289,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Fallback if studentId cannot be determined
         const exists = prev.some(g => g.id === id);
         if (exists) {
-          return prev.map(g => g.id === id ? computeCalculatedGrade({ ...g, ...updates, afc: newAfcVal }) : g);
+          return prev.map(g => g.id === id ? computeCalculatedGrade({ ...g, ...updates, afc: newAfcVal }, true) : g);
         } else {
           const newRecord = createDefaultGradeRecord(id, { ...updates, afc: newAfcVal });
-          return [...prev, computeCalculatedGrade(newRecord)];
+          return [...prev, computeCalculatedGrade(newRecord, true)];
         }
       }
 
@@ -3310,7 +3310,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const merged = g.id === id 
             ? { ...g, ...updates, afc: newAfcVal }
             : { ...g, afc: newAfcVal };
-          return computeCalculatedGrade(merged);
+          // O AFC TEM CAMINHO PRÓPRIO, e ele também é edição explícita.
+          //
+          // A primeira correção só alcançou o caminho comum. Lançar AFC numa
+          // nota importada continuava entrando sem somar: o número aparecia no
+          // campo e a Pontuação Final ficava parada. É o caminho separado
+          // porque o AFC se propaga para todas as disciplinas do módulo.
+          return computeCalculatedGrade(merged, true);
         }
         return g;
       });
@@ -3332,7 +3338,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               subjectId: sub.id,
               afc: newAfcVal
             });
-            newRecordsToAppend.push(computeCalculatedGrade(defaultRec));
+            newRecordsToAppend.push(computeCalculatedGrade(defaultRec, true));
           }
         });
 
@@ -3491,8 +3497,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return acc;
       }, {} as { [studentId: string]: 'P' | 'F' })
     };
-    setAttendance(prev => prev.map(s => s.id === session.id ? uppercaseSession : s));
-    revisarResultadoPorFrequencia(uppercaseSession);
+    // A REVISÃO PRECISA DA FREQUÊNCIA NOVA, NÃO DA ANTIGA.
+    //
+    // `setAttendance` é assíncrono: chamar a revisão logo depois fazia a conta
+    // rodar sobre a lista de chamadas de ANTES do abono. O resultado não mudava
+    // e parecia que a correção não tinha funcionado. A lista nova é montada
+    // aqui e passada adiante.
+    setAttendance(prev => {
+      const atualizada = prev.map(s => s.id === session.id ? uppercaseSession : s);
+      revisarResultadoPorFrequencia(uppercaseSession, atualizada);
+      return atualizada;
+    });
   };
 
   /**
@@ -3512,14 +3527,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * daquela turma e daquela disciplina, e mexe apenas em `result` — nota,
    * conceito e pontuação do mapa antigo continuam intocados.
    */
-  const revisarResultadoPorFrequencia = (session: AttendanceSession) => {
+  const revisarResultadoPorFrequencia = (
+    session: AttendanceSession,
+    chamadasAtualizadas: AttendanceSession[]
+  ) => {
     if (!session?.classId || !session?.subjectId) return;
     setGrades(prev => {
       let mudou = false;
       const novo = prev.map(g => {
         if (g.classId !== session.classId || g.subjectId !== session.subjectId) return g;
         const { frequency } = getStudentAbsencesInternal(
-          g.studentId, g.subjectId, g.classId, attendance, subjects
+          g.studentId, g.subjectId, g.classId, chamadasAtualizadas, subjects
         );
         const resultado = getStudentResult(g, frequency);
         if (resultado === g.result) return g;
@@ -3540,8 +3558,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return acc;
       }, {} as { [studentId: string]: 'P' | 'F' })
     };
-    setAttendance(prev => [...prev, newSession]);
-    revisarResultadoPorFrequencia(newSession);
+    setAttendance(prev => {
+      const atualizada = [...prev, newSession];
+      revisarResultadoPorFrequencia(newSession, atualizada);
+      return atualizada;
+    });
   };
 
   // S1/S2 journal closing toggling
