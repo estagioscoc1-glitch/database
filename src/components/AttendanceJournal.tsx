@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import { UserRole } from '../types';
 import { Calendar, Save, AlertCircle, Printer, Lock, ClipboardList, Info, HelpCircle } from 'lucide-react';
 import { PrintModal } from './PrintModal';
 import { safeLocalStorage } from '../lib/safeStorage';
@@ -67,11 +68,20 @@ const JournalDateInput: React.FC<JournalDateInputProps> = ({
 export const AttendanceJournal: React.FC = () => {
   const { 
     users, classes, subjects, attendance, grades,
-    activeClassId, activeSubjectId, currentUser, getStudentAbsences,
+    activeClassId, activeSubjectId, currentUser, getStudentAbsences, updateStudentAbsences,
     saveAttendanceSession, addAttendanceSession,
     isClassDefinitiveLocked, autoLockEnabled, simulatedDate, calendarEvents,
     currentPeriod
   } = useApp();
+
+  // SÓ A GESTÃO ABONA FALTA.
+  //
+  // O professor registra o que aconteceu na aula — presença e falta — e para
+  // ele o caminho continua sendo as bolinhas de cada data. Alterar o TOTAL é
+  // ato administrativo: apaga o rastro do que foi registrado dia a dia e muda
+  // o resultado do aluno. Isso é da secretaria.
+  const podeEditarTotalDeFaltas =
+    currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.STAFF;
 
   const [printDoc, setPrintDoc] = useState<{ type: 'boletim' | 'boletim_sala' | 'diario_notas' | 'diario_freq' | 'mapa_notas' } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved'>('idle');
@@ -849,10 +859,37 @@ export const AttendanceJournal: React.FC = () => {
                     })}
 
                     {/* Stats columns at the end */}
+                    {/* TOTAL DE FALTAS — EDITÁVEL, SÓ PARA A GESTÃO.
+                        Era só um número na tela. As faltas vindas dos mapas
+                        antigos são um TOTAL, e enquanto esse total existe o
+                        sistema ignora as bolinhas de presença — então não havia
+                        como abonar falta de aluno importado por lugar nenhum.
+                        O professor continua sem acesso: quem abona é a
+                        secretaria, e diário encerrado não se altera. */}
                     <td className="py-2 px-4 text-center w-[90px] min-w-[90px] max-w-[90px] font-black font-mono border-l border-slate-150 dark:border-slate-800">
-                      <span className={absStats.total > 0 ? (isOverLimit ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400') : 'text-slate-400'}>
-                        {absStats.total}
-                      </span>
+                      {podeEditarTotalDeFaltas && targetSubject ? (
+                        <input
+                          type="number"
+                          min={0}
+                          defaultValue={absStats.total}
+                          onBlur={(e) => {
+                            const novoTotal = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+                            if (novoTotal === absStats.total) return;
+                            updateStudentAbsences(stud.id, targetSubject.id, activeClassId!, novoTotal);
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          title="Total de faltas. Altere para abonar; o resultado é recalculado ao sair do campo."
+                          className={`w-14 text-center font-black font-mono rounded-md border px-1 py-1 outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-900 ${
+                            absStats.total > 0
+                              ? (isOverLimit ? 'border-red-400 text-red-600 dark:text-red-400' : 'border-amber-300 text-amber-600 dark:text-amber-400')
+                              : 'border-slate-200 text-slate-400 dark:border-slate-700'
+                          }`}
+                        />
+                      ) : (
+                        <span className={absStats.total > 0 ? (isOverLimit ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400') : 'text-slate-400'}>
+                          {absStats.total}
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 px-4 text-right w-[110px] min-w-[110px] max-w-[110px]">
                       <div className="flex flex-col items-end gap-0.5">
