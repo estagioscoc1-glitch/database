@@ -1420,8 +1420,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let ultimoErro = '';
 
       for (const aula of pendentes.slice(0, 60)) {
+        // O PERÍODO VEM DA TURMA DA AULA, NÃO DO QUE ESTÁ SELECIONADO NA TELA.
+        //
+        // Último lugar com o mesmo defeito das notas e dos diários. Com a tela
+        // em 2025/2, uma chamada de turma de 2026/2 procurava o diário no
+        // semestre errado, não achava, e falhava com "não foi possível
+        // localizar o diário" — a cada três segundos, para sempre, porque os
+        // mesmos dados eram tentados de novo.
+        const turmaDaAula = classes.find(c => c.id === aula.classId);
+        const periodoDaAula = (turmaDaAula?.year && turmaDaAula?.semester)
+          ? `${turmaDaAula.year}/${turmaDaAula.semester}`
+          : currentPeriod;
         const res = await salvarAula(
-          aula.classId, aula.subjectId, currentPeriod,
+          aula.classId, aula.subjectId, periodoDaAula,
           { id: aula.id, date: aula.date, lessonsCount: aula.lessonsCount, topic: aula.topic, records: aula.records },
           professorId
         );
@@ -1520,7 +1531,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const alvo = grades.find(g => `${g.classId}_${g.subjectId}` === resto && g.studentId === studentId);
         if (!alvo || !podeGravarNoDiario(alvo.classId, alvo.subjectId)) continue;
 
-        const res = await salvarFaltas(alvo.classId, alvo.subjectId, studentId, total, currentPeriod);
+        // Mesma regra: a falta pertence ao semestre da turma.
+        const turmaDaFalta = classes.find(c => c.id === alvo.classId);
+        const periodoDaFalta = (turmaDaFalta?.year && turmaDaFalta?.semester)
+          ? `${turmaDaFalta.year}/${turmaDaFalta.semester}`
+          : currentPeriod;
+        const res = await salvarFaltas(alvo.classId, alvo.subjectId, studentId, total, periodoDaFalta);
         if (res.ok) faltasGravadasRef.current.set(chave, total);
         else falhas++;
       }
