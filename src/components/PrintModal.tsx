@@ -946,7 +946,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           <td className="py-1 text-center border-r border-black font-black font-mono bg-blue-50/40 text-blue-955">{grade ? grade.pf.toFixed(1) : '-'}</td>
                           <td className="py-1 text-center border-r border-black font-black text-[9px]">{grade ? grade.concept : '-'}</td>
                           <td className={`py-1 px-2 text-right border-r border-black font-black ${grade?.result?.includes('APTO') ? 'text-emerald-700' : grade?.result === 'DISPENSADO' ? 'text-purple-700' : grade?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'}`}>
-                            {grade ? (grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result) : 'Pendente'}
+                            {/* "F. NOTA" É IMPRESSO COMO "NÃO APTO", NÃO COMO "REP. FALTAS".
+                                O documento traduzia toda situação de nota faltando para
+                                "REP. FALTAS" — em cinco lugares. Saía reprovado por falta
+                                em linha com ZERO faltas, o que é informação errada num
+                                papel que a escola entrega ao aluno. Reprovação por falta é
+                                calculada pela frequência e continua aparecendo quando é o
+                                caso; o que muda é parar de chamar nota faltando de falta. */}
+                            {grade ? (grade.result === 'F. NOTA' ? 'NÃO APTO' : grade.result) : 'Pendente'}
                           </td>
                         </tr>
                       );
@@ -1156,7 +1163,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{absences.total}</td>
                       <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score ? score.concept : 'D'}</td>
                       <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${score?.result?.includes('APTO') ? 'text-emerald-700' : score?.result === 'DISPENSADO' ? 'text-purple-700' : score?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'}`}>
-                        {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
+                        {score ? (score.result === 'F. NOTA' ? 'NÃO APTO' : score.result) : 'Pendente'}
                       </td>
                     </tr>
                   );
@@ -1508,7 +1515,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                               <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${
                                 score?.result?.includes('APTO') ? 'text-emerald-700' : score?.result === 'DISPENSADO' ? 'text-purple-700' : score?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'
                               }`}>
-                                {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
+                                {score ? (score.result === 'F. NOTA' ? 'NÃO APTO' : score.result) : 'Pendente'}
                               </td>
                             </tr>
                           );
@@ -1596,7 +1603,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                       <td className={`py-1 px-1.5 text-right border-r border-black font-black text-[8.5px] ${
                                         score?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                       }`}>
-                                        {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
+                                        {score ? (score.result === 'F. NOTA' ? 'NÃO APTO' : score.result) : 'Pendente'}
                                       </td>
                                     </tr>
                                   );
@@ -1885,7 +1892,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                 <td className={`py-1 px-2 text-right border-r border-black font-black ${
                                   grade?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                 }`}>
-                                  {grade ? (grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result) : 'Pendente'}
+                                  {grade ? (grade.result === 'F. NOTA' ? 'NÃO APTO' : grade.result) : 'Pendente'}
                                 </td>
                               </tr>
                             );
