@@ -2106,10 +2106,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateStudentAbsences = (studentId: string, subjectId: string, classId: string, total: number) => {
     const key = `${classId}_${subjectId}_${studentId}`;
-    setDirectAbsences(prev => ({
-      ...prev,
-      [key]: total
-    }));
+    const limpo = Math.max(0, Math.trunc(total || 0));
+    setDirectAbsences(prev => ({ ...prev, [key]: limpo }));
+
+    // ABONAR FALTA PRECISA MUDAR O RESULTADO NA HORA.
+    //
+    // Esta função existia e não era chamada por tela nenhuma — o total de
+    // faltas vindo dos mapas antigos não tinha como ser corrigido. E, mesmo
+    // sendo chamada, ela só trocava o número: o rótulo continuava "REP. FALTAS"
+    // porque nada refazia a conta.
+    //
+    // A frequência é recalculada aqui com o total NOVO, sem esperar o estado
+    // ser aplicado — `setDirectAbsences` é assíncrono e a conta sairia com o
+    // valor de antes do abono.
+    const disciplina = subjects.find(sub => sub.id === subjectId);
+    const cargaHoraria = disciplina ? disciplina.workload : 80;
+    const frequencia = cargaHoraria === 0
+      ? 100
+      : Math.max(0, ((cargaHoraria - limpo) / cargaHoraria) * 100);
+
+    setGrades(prev => {
+      let mudou = false;
+      const novo = prev.map(g => {
+        if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classId) return g;
+        const resultado = getStudentResult(g, frequencia);
+        if (resultado === g.result) return g;
+        mudou = true;
+        return { ...g, result: resultado };
+      });
+      return mudou ? novo : prev;
+    });
   };
 
   // Absences Helper for components
