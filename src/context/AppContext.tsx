@@ -1916,9 +1916,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updatedDirectAbsences = { ...directAbsences };
       let absencesChanged = false;
       Object.keys(directAbsences).forEach(key => {
-        const parts = key.split('_');
-        if (parts.length === 3 && parts[1] === wrongSubj.id) {
-          const newKey = `${parts[0]}_${correctSubj.id}_${parts[2]}`;
+        const partes = separarChaveDeFalta(key);
+        if (partes && partes.subjectId === wrongSubj.id) {
+          const newKey = `${partes.classId}_${correctSubj.id}_${partes.studentId}`;
           updatedDirectAbsences[newKey] = directAbsences[key];
           delete updatedDirectAbsences[key];
           absencesChanged = true;
@@ -1947,9 +1947,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const allSubjectIds = new Set(subjects.map(s => s.id));
 
       Object.keys(directAbsences).forEach(key => {
-        const parts = key.split('_');
-        if (parts.length === 3) {
-          const [classId, subjId, studentId] = parts;
+        const partes = separarChaveDeFalta(key);
+        if (partes) {
+          const { classId, subjectId: subjId, studentId } = partes;
           if (!allSubjectIds.has(subjId)) {
             // Find if this class belongs to 'ENF' or 'ENF_EAD' or similar
             const targetClass = classes.find(c => c.id === classId);
@@ -2078,6 +2078,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [attendance, conceptRanges, subjects]);
 
   // Absences Internal Helper
+  /**
+   * Separa a chave `${classId}_${subjectId}_${studentId}` em suas três partes.
+   *
+   * POR QUE ISTO PRECISOU EXISTIR
+   *
+   * Seis lugares do sistema separavam essa chave contando underscores: uns
+   * exigiam exatamente três pedaços (`parts.length === 3`), outros cortavam no
+   * primeiro ou no último. Só funciona enquanto NENHUM identificador tiver
+   * underscore — e os do sistema têm: `class_enf_m1_noturno_2025_2`,
+   * `enf_m1_anatomia`, `aluno_25201012`.
+   *
+   * O sintoma era sempre silencioso, nunca um erro na tela: a falta abonada
+   * voltava sozinha, a unificação de disciplinas duplicadas não movia nada, a
+   * limpeza de turmas antigas não limpava. Tudo parecia funcionar e não fazia
+   * nada.
+   *
+   * A separação aqui não conta separadores: procura os identificadores REAIS
+   * de turma e disciplina que existem no sistema. Devolve null quando a chave
+   * não corresponde a nada — e quem chama decide o que fazer, em vez de seguir
+   * com pedaços errados.
+   */
+  const separarChaveDeFalta = (
+    chave: string
+  ): { classId: string; subjectId: string; studentId: string } | null => {
+    for (const turma of classes) {
+      const prefixoTurma = `${turma.id}_`;
+      if (!chave.startsWith(prefixoTurma)) continue;
+      const resto = chave.slice(prefixoTurma.length);
+      for (const disciplina of subjects) {
+        const prefixoDisciplina = `${disciplina.id}_`;
+        if (!resto.startsWith(prefixoDisciplina)) continue;
+        const studentId = resto.slice(prefixoDisciplina.length);
+        if (!studentId) continue;
+        return { classId: turma.id, subjectId: disciplina.id, studentId };
+      }
+    }
+    return null;
+  };
+
   const getStudentAbsencesInternal = (
     studentId: string, 
     subjectId: string, 
@@ -2926,9 +2965,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = { ...prev };
       duplicateSubjectIds.forEach(dupId => {
         Object.keys(updated).forEach(key => {
-          const parts = key.split('_');
-          if (parts.length === 3 && parts[1] === dupId) {
-            const newKey = `${parts[0]}_${correctSubjectId}_${parts[2]}`;
+          const partes = separarChaveDeFalta(key);
+          if (partes && partes.subjectId === dupId) {
+            const newKey = `${partes.classId}_${correctSubjectId}_${partes.studentId}`;
             if (updated[newKey] !== undefined) {
               updated[newKey] = Math.max(updated[newKey], updated[key]);
             } else {
@@ -3118,9 +3157,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       Object.keys(mergeMap).forEach(dupId => {
         const correctId = mergeMap[dupId];
         Object.keys(updated).forEach(key => {
-          const parts = key.split('_');
-          if (parts.length === 3 && parts[1] === dupId) {
-            const newKey = `${parts[0]}_${correctId}_${parts[2]}`;
+          const partes = separarChaveDeFalta(key);
+          if (partes && partes.subjectId === dupId) {
+            const newKey = `${partes.classId}_${correctId}_${partes.studentId}`;
             if (updated[newKey] !== undefined) {
               updated[newKey] = Math.max(updated[newKey], updated[key]);
             } else {
@@ -3253,12 +3292,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subjectId = subjectId || parts[3];
       }
     } else if ((!studentId || !classId || !subjectId) && id.startsWith('grade_')) {
-      const parts = id.split('_');
-      if (parts.length >= 4) {
-        studentId = studentId || parts[1];
-        classId = classId || parts[2];
-        subjectId = subjectId || parts[3];
-      }
+      // FORMATO ANTIGO `grade_aluno_turma_disciplina`: NÃO DÁ PARA SEPARAR.
+      //
+      // Cortar em parts[1], [2] e [3] só funciona se os três identificadores
+      // não tiverem underscore. Com os atuais, `grade_aluno_25201012_class_enf_
+      // m1_noturno_2025_2_enf_m1_anatomia` produzia aluno="aluno",
+      // turma="25201012" e disciplina="class" — uma nota apontando para o nada,
+      // gravada sem erro nenhum.
+      //
+      // Quem chama sempre informa os três campos em `updates`; esta separação é
+      // só rede de proteção para dados antigos. Ela agora procura os
+      // identificadores REAIS em vez de contar separadores, e prefere não
+      // preencher a preencher errado — nota órfã é pior que nota faltando,
+      // porque some da tela sem ninguém saber por quê.
+      const corpo = id.slice('grade_'.length);
+      const turma = classes.find(c => corpo.includes(`_${c.id}_`) || corpo.includes(`_${c.id}`));
+      const disciplina = subjects.find(sub => corpo.endsWith(sub.id));
+      const aluno = users.find(u => corpo.startsWith(`${u.id}_`));
+      studentId = studentId || aluno?.id || '';
+      classId = classId || turma?.id || '';
+      subjectId = subjectId || disciplina?.id || '';
     }
     return {
       id,
@@ -3312,12 +3365,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subjectId = subjectId || parts[3];
         }
       } else if ((!studentId || !classId) && id.startsWith('grade_')) {
-        const parts = id.split('_');
-        if (parts.length >= 4) {
-          studentId = studentId || parts[1];
-          classId = classId || parts[2];
-          subjectId = subjectId || parts[3];
-        }
+        // Mesma correção do formato antigo: identificar em vez de contar
+        // underscores. Ver a explicação em createDefaultGradeRecord.
+        const corpo = id.slice('grade_'.length);
+        const turma = classes.find(c => corpo.includes(`_${c.id}_`) || corpo.includes(`_${c.id}`));
+        const disciplina = subjects.find(sub => corpo.endsWith(sub.id));
+        const aluno = users.find(u => corpo.startsWith(`${u.id}_`));
+        studentId = studentId || aluno?.id || '';
+        classId = classId || turma?.id || '';
+        subjectId = subjectId || disciplina?.id || '';
       }
 
       const studentUser = users.find(u => u.id === studentId);
@@ -4303,8 +4359,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 3. Remover chaves de directAbsences que contenham o classId de turmas históricas
     const remainingDirectAbsences: { [key: string]: number } = { ...directAbsences };
     Object.keys(remainingDirectAbsences).forEach(key => {
-      const classId = key.split('_')[0];
-      if (historicalClassIds.has(classId)) {
+      // Antes: `key.split('_')[0]` devolvia só "class" para
+      // `class_enf_m1_noturno_2025_2` — e nada era removido, jamais.
+      const partes = separarChaveDeFalta(key);
+      if (partes && historicalClassIds.has(partes.classId)) {
         delete remainingDirectAbsences[key];
       }
     });
@@ -4379,9 +4437,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       } else {
         // Create new
-        const parts = id.split('_');
-        const studentId = parts[1] || '';
-        const name = parts.slice(2).join('_') || '';
+        //
+        // DOCUMENTO DO ALUNO: MESMO DEFEITO DOS OUTROS CINCO.
+        //
+        // `parts[1]` como aluno e o resto como nome do documento só funciona se
+        // a matrícula não tiver underscore. Com `aluno_25201012`, o documento
+        // era registrado para o aluno "aluno" e ganhava o nome "25201012_RG" —
+        // ficava órfão, sem aparecer na ficha de ninguém.
+        const corpo = id.replace(/^doc_/, '');
+        const aluno = users.find(u => corpo.startsWith(`${u.id}_`));
+        const studentId = aluno?.id || corpo.split('_')[0] || '';
+        const name = aluno
+          ? corpo.slice(aluno.id.length + 1)
+          : corpo.split('_').slice(1).join('_') || '';
         return [...prev, {
           id,
           studentId,
