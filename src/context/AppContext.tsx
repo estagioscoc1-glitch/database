@@ -1523,13 +1523,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const [chave, total] of Object.entries(directAbsences)) {
         if (faltasGravadasRef.current.get(chave) === total) continue;
 
-        const partes = chave.split('_');
-        if (partes.length < 3) continue;
-        // A chave é montada como `${classId}_${subjectId}_${studentId}`
-        const studentId = partes[partes.length - 1];
-        const resto = partes.slice(0, -1).join('_');
-        const alvo = grades.find(g => `${g.classId}_${g.subjectId}` === resto && g.studentId === studentId);
+        // A CHAVE NÃO PODE SER DESMONTADA CORTANDO NO ÚLTIMO "_".
+        //
+        // Ela é `${classId}_${subjectId}_${studentId}`, e o código antigo
+        // separava pelo último underscore para achar o aluno. Isso só funciona
+        // se o identificador do aluno não tiver underscore nenhum — e os alunos
+        // importados dos mapas antigos são `aluno_25201012`.
+        //
+        // O corte saía errado, a nota correspondente não era encontrada, e a
+        // gravação era PULADA sem erro nenhum: a secretaria abonava a falta, via
+        // o número mudar na tela, e na leitura seguinte o valor antigo voltava.
+        //
+        // Remontar a chave a partir de cada nota elimina a adivinhação: não
+        // importa o formato dos identificadores.
+        const alvo = grades.find(
+          g => `${g.classId}_${g.subjectId}_${g.studentId}` === chave
+        );
         if (!alvo || !podeGravarNoDiario(alvo.classId, alvo.subjectId)) continue;
+        const studentId = alvo.studentId;
 
         // Mesma regra: a falta pertence ao semestre da turma.
         const turmaDaFalta = classes.find(c => c.id === alvo.classId);
@@ -1542,6 +1553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (falhas > 0) {
         setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhas} lançamento(s) de falta não gravado(s).`);
         addSecurityLog('GRAVACAO_FALTA_FALHA', `${falhas} lançamento(s) de falta não gravado(s).`, 'high');
       }
     }, 1200);
