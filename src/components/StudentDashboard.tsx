@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { enviarArquivoDeDocumento, linkDoDocumento } from '../lib/repositorios';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
   AlertTriangle, BookOpen, Clock, Sparkles, ExternalLink, FileText, 
@@ -41,7 +42,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   
   // Local state for simulated uploads
   const [uploadingDocName, setUploadingDocName] = useState<string | null>(null);
-  const [simulatedFile, setSimulatedFile] = useState<{ name: string; size: string } | null>(null);
+  // O ARQUIVO DE VERDADE, NÃO SÓ O NOME DELE.
+  //
+  // Antes isto guardava apenas `{ name, size }`: o conteúdo do documento nunca
+  // era lido. O aluno via "ENVIADO" e não havia arquivo nenhum no servidor.
+  const [arquivoEscolhido, setArquivoEscolhido] = useState<File | null>(null);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(false);
+  const [erroEnvio, setErroEnvio] = useState('');
 
   // Stage self-enrollment states
   const [estagioSubMode, setEstagioSubMode] = useState<'vagas_abertas' | 'meu_progresso'>('vagas_abertas');
@@ -529,14 +536,25 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                           {docRecord?.fileName ? (
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                               <Paperclip className="h-3 w-3 shrink-0 text-blue-600" />
-                              <a
-                                href={docRecord.fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hover:underline text-blue-600 truncate max-w-[200px]"
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  // O BALDE É PRIVADO: NÃO EXISTE ENDEREÇO FIXO.
+                                  //
+                                  // Antes o link ia direto no `href`, o que só
+                                  // funcionava com o endereço público inventado
+                                  // que o sistema gravava. Agora o caminho é
+                                  // trocado por um link temporário no momento do
+                                  // clique, e é o próprio servidor que confere se
+                                  // quem pediu tem direito ao arquivo.
+                                  const alvo = await linkDoDocumento(docRecord.fileUrl || "");
+                                  if (alvo) window.open(alvo, '_blank', 'noopener');
+                                  else alert('Não foi possível abrir o arquivo. Ele pode ter sido removido do servidor.');
+                                }}
+                                className="hover:underline text-blue-600 truncate max-w-[200px] cursor-pointer text-left"
                               >
                                 {docRecord.fileName}
-                              </a>
+                              </button>
                               <span>({new Date(docRecord.uploadedAt || '').toLocaleDateString('pt-BR')})</span>
                             </div>
                           ) : (
@@ -1460,7 +1478,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 type="button"
                 onClick={() => {
                   setUploadingDocName(null);
-                  setSimulatedFile(null);
+                  setArquivoEscolhido(null);
+                  setErroEnvio('');
                 }}
                 className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
               >
@@ -1478,35 +1497,40 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 <input
                   type="file"
                   id="simulated-file-input"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      setSimulatedFile({
-                        name: file.name,
-                        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-                      });
-                    }
+                    setErroEnvio('');
+                    if (file) setArquivoEscolhido(file);
                   }}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
                 <div className="space-y-2 pointer-events-none">
                   <UploadCloud className="h-8 w-8 text-slate-400 mx-auto" />
                   <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {simulatedFile ? (
-                      <span className="text-blue-600 dark:text-blue-400">{simulatedFile.name}</span>
+                    {arquivoEscolhido ? (
+                      <span className="text-blue-600 dark:text-blue-400">{arquivoEscolhido.name}</span>
                     ) : (
                       <span>Clique para selecionar ou arraste o arquivo</span>
                     )}
                   </div>
                   <p className="text-[10px] text-slate-400">
-                    {simulatedFile ? `Tamanho: ${simulatedFile.size}` : 'Suporta arquivos PDF, PNG ou JPG de até 10MB'}
+                    {arquivoEscolhido
+                      ? `Tamanho: ${(arquivoEscolhido.size / 1048576).toFixed(2)} MB`
+                      : 'PDF, JPG, PNG ou WEBP, até 5 MB'}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 text-[10px] text-blue-700 dark:text-blue-400 leading-normal">
-                <strong>Simulação Acadêmica:</strong> O envio de arquivos ainda está em modo de demonstração. O armazenamento real já está preparado no servidor e será ligado na próxima etapa.
-              </div>
+              {erroEnvio ? (
+                <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-200 dark:border-amber-900/40 text-[10px] text-amber-800 dark:text-amber-300 leading-normal">
+                  <strong>O documento não foi enviado.</strong> {erroEnvio}
+                </div>
+              ) : (
+                <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 text-[10px] text-blue-700 dark:text-blue-400 leading-normal">
+                  O arquivo fica guardado em área privada. Só você e a secretaria têm acesso.
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-150 dark:border-slate-800">
@@ -1514,7 +1538,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 type="button"
                 onClick={() => {
                   setUploadingDocName(null);
-                  setSimulatedFile(null);
+                  setArquivoEscolhido(null);
+                  setErroEnvio('');
                 }}
                 className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-755 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-all uppercase tracking-wider"
               >
@@ -1522,27 +1547,44 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               </button>
               <button
                 type="button"
-                disabled={!simulatedFile}
-                onClick={() => {
-                  if (simulatedFile) {
-                    const docId = `doc_${activeStudent.id}_${uploadingDocName}`;
-                    updateStudentDocumentStatus(
-                      docId,
-                      'ENVIADO',
-                      'https://firebasestorage.googleapis.com/v0/b/thematic-fragment-xnn32.firebasestorage.app/o/simulated%2Fdocument.pdf?alt=media',
-                      simulatedFile.name
-                    );
-                    setUploadingDocName(null);
-                    setSimulatedFile(null);
+                disabled={!arquivoEscolhido || enviandoArquivo}
+                onClick={async () => {
+                  if (!arquivoEscolhido || !uploadingDocName) return;
+                  setEnviandoArquivo(true);
+                  setErroEnvio('');
+
+                  // O ARQUIVO SÓ SOBE UMA VEZ, E O STATUS SÓ MUDA SE ELE SUBIU.
+                  //
+                  // Antes o botão gravava um endereço FIXO e inventado, de um
+                  // PDF de demonstração do Firebase — o mesmo para todos os
+                  // alunos. Marcar "ENVIADO" antes de ter arquivo é o erro que
+                  // fazia o aluno acreditar que entregou.
+                  const envio = await enviarArquivoDeDocumento(
+                    activeStudent.id, uploadingDocName, arquivoEscolhido
+                  );
+                  if (!envio.ok || !envio.caminho) {
+                    setErroEnvio(envio.erro || 'Não foi possível enviar o arquivo.');
+                    setEnviandoArquivo(false);
+                    return;
                   }
+
+                  updateStudentDocumentStatus(
+                    `doc_${activeStudent.id}_${uploadingDocName}`,
+                    'ENVIADO',
+                    envio.caminho,
+                    arquivoEscolhido.name
+                  );
+                  setEnviandoArquivo(false);
+                  setUploadingDocName(null);
+                  setArquivoEscolhido(null);
                 }}
                 className={`px-4 py-2 text-white text-xs font-bold rounded-xl shadow transition-all uppercase tracking-wider ${
-                  simulatedFile
+                  arquivoEscolhido && !enviandoArquivo
                     ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/15 cursor-pointer'
                     : 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
                 }`}
               >
-                Confirmar Envio
+                {enviandoArquivo ? 'Enviando…' : 'Confirmar Envio'}
               </button>
             </div>
           </motion.div>

@@ -8,7 +8,7 @@ import { FormularioDocente, DadosNovoDocente } from './cadastros/FormularioDocen
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
 import { criarAcesso, redefinirSenhaDeUsuario } from '../lib/supabase';
-import { criarAcessoDeUmAluno, criarAcessoDeUmDocente } from '../lib/repositorios';
+import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento } from '../lib/repositorios';
 
 /* ==========================================================================
  * QUAIS ABAS APARECEM NO PAINEL
@@ -5852,14 +5852,21 @@ export const AdminDashboard: React.FC = () => {
                         {docRecord?.fileName && (
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
                             <Paperclip className="h-3 w-3 shrink-0 text-blue-600" />
-                            <a
-                              href={docRecord.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="hover:underline text-blue-600 truncate max-w-[180px]"
+                            {/* Balde privado: o caminho vira link temporário no
+                                clique, e o servidor confere quem pediu. Antes o
+                                `href` levava a um endereço público inventado,
+                                igual para todos os alunos. */}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const alvo = await linkDoDocumento(docRecord.fileUrl || '');
+                                if (alvo) window.open(alvo, '_blank', 'noopener');
+                                else mostrarAviso('Arquivo indisponível', 'Não foi possível abrir o documento. Ele pode ter sido removido do servidor.');
+                              }}
+                              className="hover:underline text-blue-600 truncate max-w-[180px] cursor-pointer text-left"
                             >
                               {docRecord.fileName}
-                            </a>
+                            </button>
                             <span className="shrink-0">({new Date(docRecord.uploadedAt || '').toLocaleDateString('pt-BR')})</span>
                           </div>
                         )}
