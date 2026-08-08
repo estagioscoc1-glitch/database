@@ -21,7 +21,8 @@ export const TeacherDashboard: React.FC = () => {
   const { 
     classes, subjects, courses, currentUser, activeClassId, activeSubjectId, 
     setActiveClassId, setActiveSubjectId, messages, notifications, calendarEvents,
-    currentPeriod, simulatedDate
+    currentPeriod, simulatedDate,
+    avisosVistos, marcarAvisoVisto
   } = useApp();
 
   const [journalView, setJournalView] = useState<'grades' | 'attendance' | 'content'>('grades');
@@ -202,6 +203,11 @@ export const TeacherDashboard: React.FC = () => {
     (!!currentUser?.contaId && m.recipientId === currentUser.contaId)
   );
   const teacherNotifications = notifications.filter(n => n.userId === currentUser?.id);
+
+  // O aviso em destaque é o mais recente que a pessoa AINDA NÃO encerrou.
+  // Dispensado ou aberto, ele sai da frente e o próximo (se houver) assume.
+  const avisoAtual = teacherMessages.find(m => !avisosVistos.includes(m.id));
+  const avisosNaoLidos = teacherMessages.filter(m => !avisosVistos.includes(m.id)).length;
 
   return (
     <div id="teacher-dashboard-container" className="space-y-6">
@@ -420,8 +426,12 @@ export const TeacherDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* High-visibility Urgent Notice Banner */}
-      {teacherMessages.length > 0 && (
+      {/* AVISO APARECE UMA VEZ E A PESSOA DECIDE O QUE FAZER.
+          Antes ele mostrava sempre a mensagem mais recente, a cada entrada, sem
+          jeito de encerrar. O professor lia, respondia, voltava no dia seguinte
+          e o mesmo comunicado estava lá como "Novo aviso". Aviso que não some
+          vira paisagem — e no dia do recado importante ninguém olha. */}
+      {avisoAtual && (
         <motion.div 
           initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -442,12 +452,35 @@ export const TeacherDashboard: React.FC = () => {
                 Novo aviso
               </span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold ml-auto">
-                {teacherMessages[0].date.substring(5, 10).replace('-', '/')} às {teacherMessages[0].date.substring(11, 16)}h
+                {avisoAtual.date.substring(5, 10).replace('-', '/')} às {avisoAtual.date.substring(11, 16)}h
               </span>
             </div>
             <p className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-amber-100 leading-relaxed">
-              {teacherMessages[0].content}
+              {avisoAtual.content}
             </p>
+
+            <div className="flex items-center gap-2 pt-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  // Encerra o aviso e abre a central de mensagens. O botão de
+                  // abrir o chat vive no cabeçalho do App; clicá-lo por aqui
+                  // evita duplicar a lógica de abertura em dois lugares.
+                  marcarAvisoVisto(avisoAtual.id);
+                  document.getElementById('chat-center-trigger-btn')?.click();
+                }}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all"
+              >
+                Ver mensagem
+              </button>
+              <button
+                type="button"
+                onClick={() => marcarAvisoVisto(avisoAtual.id)}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg bg-transparent hover:bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/40 transition-all"
+              >
+                Dispensar
+              </button>
+            </div>
           </div>
         </motion.div>
       )}
@@ -537,17 +570,29 @@ export const TeacherDashboard: React.FC = () => {
 
             <div className="flex items-center justify-between border-b border-blue-100 dark:border-blue-900/40 pb-2">
               <div className="flex items-center gap-1.5">
+                {/* O PONTO VERMELHO SÓ ACENDE SE HÁ AVISO NÃO LIDO.
+                    Ele piscava para sempre, mesmo sem novidade nenhuma — e o
+                    contador dizia "1 Aviso" para uma mensagem lida meses atrás.
+                    Sinal que nunca apaga não avisa mais nada. */}
                 <div className="relative">
                   <Inbox className="h-4.5 w-4.5 text-blue-700 dark:text-blue-400" />
-                  <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                  </span>
+                  {avisosNaoLidos > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                    </span>
+                  )}
                 </div>
                 <h5 className="font-black text-xs text-blue-800 dark:text-blue-300 uppercase tracking-wider">Avisos da Coordenação</h5>
               </div>
-              <span className="text-[9px] bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full font-black animate-pulse">
-                {teacherMessages.length} {teacherMessages.length === 1 ? 'Aviso' : 'Avisos'}
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${
+                avisosNaoLidos > 0
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 animate-pulse'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+              }`}>
+                {avisosNaoLidos > 0
+                  ? `${avisosNaoLidos} ${avisosNaoLidos === 1 ? 'novo' : 'novos'}`
+                  : `${teacherMessages.length} ${teacherMessages.length === 1 ? 'aviso' : 'avisos'}`}
               </span>
             </div>
             
@@ -556,15 +601,17 @@ export const TeacherDashboard: React.FC = () => {
                 teacherMessages.map((msg, idx) => (
                   <div 
                     key={msg.id} 
-                    className={`p-3 rounded-xl border space-y-1.5 text-xs transition-all ${
-                      idx === 0 
-                        ? 'bg-amber-500/5 dark:bg-amber-500/5 border-amber-200 dark:border-amber-900/50 shadow-sm' 
+                    onClick={() => marcarAvisoVisto(msg.id)}
+                    title="Clique para marcar como lido"
+                    className={`p-3 rounded-xl border space-y-1.5 text-xs transition-all cursor-pointer ${
+                      !avisosVistos.includes(msg.id)
+                        ? 'bg-amber-500/5 dark:bg-amber-500/5 border-amber-200 dark:border-amber-900/50 shadow-sm'
                         : 'bg-white dark:bg-slate-850/50 border-slate-100 dark:border-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between font-extrabold text-slate-800 dark:text-slate-200">
                       <span className="flex items-center gap-1">
-                        {idx === 0 && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>}
+                        {!avisosVistos.includes(msg.id) && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>}
                         {msg.senderName}
                       </span>
                       <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">
