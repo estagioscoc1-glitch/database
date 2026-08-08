@@ -1027,19 +1027,62 @@ export async function salvarEventosCalendario(
  * dele ia para um diário do período errado (que não existe e que ele não
  * tem permissão de criar).
  */
-export async function carregarPeriodoAtual(): Promise<{ periodoAtual: string; periodos: string[] } | null> {
+/**
+ * Configuração da escola inteira: uma linha por chave em `configuracoes`.
+ *
+ * POR QUE MUDOU DE TABELA
+ *
+ * Estas funções liam e gravavam em `config_sistema` — uma tabela que NUNCA foi
+ * criada em nenhum arquivo SQL. Toda chamada falhava, e a falha era engolida
+ * por um `console.warn`. O período letivo, na prática, nunca saiu do navegador
+ * de quem o escolheu.
+ *
+ * `configuracoes` existe desde o começo e tem exatamente a regra certa:
+ * qualquer pessoa logada LÊ, só a gestão ESCREVE. É o que faz uma configuração
+ * da escola chegar ao aluno sem lhe dar acesso ao resto.
+ */
+async function lerConfiguracao<T>(chave: string): Promise<T | null> {
   if (!supabaseConfigurado) return null;
-
   const { data, error } = await supabase
-    .from('config_sistema')
-    .select('periodo_atual, periodos_disponiveis')
-    .eq('id', 'principal')
-    .maybeSingle();
-
+    .from('configuracoes').select('valor').eq('chave', chave).maybeSingle();
   if (error) {
-    console.warn('[Banco] carregar período atual:', error.message);
+    console.warn(`[Banco] ler configuração ${chave}:`, error.message);
     return null;
   }
+  return (data?.valor as T) ?? null;
+}
+
+async function gravarConfiguracao(chave: string, valor: unknown): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('configuracoes').upsert(
+    { chave, valor, atualizado_em: new Date().toISOString() },
+    { onConflict: 'chave' }
+  );
+  if (error) {
+    if ((error.message || '').toLowerCase().includes('row-level security')) {
+      return { ok: false, erro: 'Apenas a gestão pode alterar configurações da escola.' };
+    }
+    return falha(`gravar configuração ${chave}`, error);
+  }
+  return { ok: true };
+}
+
+/** Janelas de emissão das declarações. Lida por TODOS — inclusive pelo aluno. */
+export interface JanelasDeDeclaracao {
+  escolaridade: { startDate: string; endDate: string };
+  ctransp: { startDate: string; endDate: string };
+}
+
+export async function carregarJanelasDeDeclaracao(): Promise<JanelasDeDeclaracao | null> {
+  return lerConfiguracao<JanelasDeDeclaracao>('declaracoes');
+}
+
+export async function salvarJanelasDeDeclaracao(j: JanelasDeDeclaracao): Promise<ResultadoGravacao> {
+  return gravarConfiguracao('declaracoes', j);
+}
+
+export async function carregarPeriodoAtual(): Promise<{ periodoAtual: string; periodos: string[] } | null> {
+  const data = await lerConfiguracao<any>('periodo');
   if (!data) return null;
 
   return {
@@ -1055,21 +1098,10 @@ export async function salvarPeriodoAtual(
 ): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
 
-  const { error } = await supabase.from('config_sistema').upsert(
-    {
-      id: 'principal',
-      periodo_atual: periodoAtual,
-      periodos_disponiveis: periodos,
-      atualizado_em: new Date().toISOString(),
-    },
-    { onConflict: 'id' }
-  );
-
-  if (error) {
-    console.error('[Banco] gravar período atual:', error.message);
-    return { ok: false, erro: error.message };
-  }
-  return { ok: true };
+  return gravarConfiguracao('periodo', {
+    periodo_atual: periodoAtual,
+    periodos_disponiveis: periodos,
+  });
 }
 
 /* ==========================================================================
