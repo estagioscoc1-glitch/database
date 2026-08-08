@@ -2122,6 +2122,9 @@ export async function carregarEstrutura(): Promise<{
     enrollment: a.matricula,
     dossierNumber: a.dossie ?? undefined,
     cpf: a.cpf ?? undefined,
+    // O sexo decide se o Certificado de Reservista entra na lista de
+    // documentos obrigatórios. Estava no banco e não era lido.
+    sexo: a.sexo ?? undefined,
     phone: a.telefone ?? undefined,
     courseId: a.curso_id ?? undefined,
     classId: a.turma_id ?? undefined,
