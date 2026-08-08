@@ -23,7 +23,10 @@ export const getInternshipComponentsByCourse = (courseId: string, courseName: st
     return [
       { name: 'INTRODUÇÃO À ENFERMAGEM', workload: 20 },
       { name: 'FUNDAMENTOS DE ENFERMAGEM', workload: 80 },
-      { name: 'ASST. À MUHER, CRIANÇA E O ADOLES.', workload: 80 },
+      // Era 'ASST. À MUHER, CRIANÇA E O ADOLES.' — "MUHER" sem o L, e o nome
+      // cortado. O erro veio da planilha da secretaria e foi copiado para cá.
+      // Este texto sai impresso no documento de estágio do aluno.
+      { name: 'ASST. À MULHER, CRIANÇA E O ADOLESCENTE', workload: 80 },
       { name: 'SAÚDE COLETIVA', workload: 40 },
       { name: 'SAÚDE MENTAL', workload: 40 },
       { name: 'URGÊNCIA E EMERGÊNCIA', workload: 40 },
@@ -72,6 +75,8 @@ export const AdminInternships: React.FC = () => {
   // Row states for active edits/launches
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editLocation, setEditLocation] = useState<string>('');
+  // Coluna "NOME DO PROFESSOR" do formulário oficial, que faltava no sistema.
+  const [editTeacher, setEditTeacher] = useState<string>('');
   const [editGrade, setEditGrade] = useState<string>('');
 
   // Status for flash successes
@@ -95,9 +100,10 @@ export const AdminInternships: React.FC = () => {
     ? getInternshipComponentsByCourse(studentCourse.id, studentCourse.name)
     : [];
 
-  const handleEditClick = (compName: string, currentLoc: string, currentGrade: number | null) => {
+  const handleEditClick = (compName: string, currentLoc: string, currentGrade: number | null, currentTeacher: string = '') => {
     setEditingRow(compName);
     setEditLocation(currentLoc);
+    setEditTeacher(currentTeacher);
     setEditGrade(currentGrade !== null ? currentGrade.toString() : '');
   };
 
@@ -121,7 +127,8 @@ export const AdminInternships: React.FC = () => {
       compName,
       workload,
       editLocation.trim(),
-      parsedGrade
+      parsedGrade,
+      editTeacher.trim()
     );
 
     setSaveStatus(prev => ({ ...prev, [compName]: 'saved' }));
@@ -295,6 +302,7 @@ export const AdminInternships: React.FC = () => {
                           <th className="pb-3 pl-2">Componente Curricular</th>
                           <th className="pb-3 text-center">C.H.</th>
                           <th className="pb-3">Local Realizado</th>
+                          <th className="pb-3">Professor</th>
                           <th className="pb-3 text-center">Nota</th>
                           <th className="pb-3 text-right pr-2">Ação</th>
                         </tr>
@@ -342,6 +350,25 @@ export const AdminInternships: React.FC = () => {
                                       {record?.location || 'Pendente'}
                                     </span>
                                   </div>
+                                )}
+                              </td>
+
+                              {/* NOME DO PROFESSOR — coluna do formulário oficial
+                                  da escola, que o sistema não guardava. Sem ela,
+                                  a secretaria imprimia e preenchia à mão. */}
+                              <td className="py-4 font-medium text-slate-600 dark:text-slate-400">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    value={editTeacher}
+                                    onChange={(e) => setEditTeacher(e.target.value)}
+                                    placeholder="Docente supervisor"
+                                    className="w-full text-xs px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-1 focus:ring-amber-500 focus:border-amber-500 focus:outline-none"
+                                  />
+                                ) : (
+                                  <span className={record?.teacherName ? 'text-slate-800 dark:text-slate-350 font-medium' : 'text-slate-400 italic'}>
+                                    {record?.teacherName || '—'}
+                                  </span>
                                 )}
                               </td>
 
@@ -397,7 +424,7 @@ export const AdminInternships: React.FC = () => {
                                     </>
                                   ) : (
                                     <button
-                                      onClick={() => handleEditClick(comp.name, record?.location || '', record?.grade || null)}
+                                      onClick={() => handleEditClick(comp.name, record?.location || '', record?.grade ?? null, record?.teacherName || '')}
                                       className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-350 font-extrabold text-[10px] uppercase rounded-lg transition-all"
                                     >
                                       Lançar
