@@ -123,6 +123,8 @@ export interface User {
 
   assignedJournals?: { classId: string, subjectId: string }[];
   staffPermissions?: StaffPermissions;
+  /** 'M' ou 'F'. Define se o Certificado de Reservista é exigido. */
+  sexo?: string;
 }
 
 export interface Course {
