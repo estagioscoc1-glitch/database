@@ -297,12 +297,10 @@ export const TeacherDashboard: React.FC = () => {
               {activeJournalsCount}
             </span>
           </div>
-          <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-150 dark:border-slate-800 rounded-2xl text-center min-w-[100px]">
-            <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Simulação</span>
-            <span className="block text-xs font-mono font-bold text-slate-700 dark:text-slate-300 mt-1.5">
-              {formatDateBR(simulatedDate)}
-            </span>
-          </div>
+          {/* A caixinha "Simulação" saiu junto com a data falsa.
+              Ela anunciava ao professor uma data que não era a de hoje, e o
+              portal inteiro obedecia a ela. Sem data falsa, não há o que
+              anunciar: o sistema usa o relógio. */}
         </div>
       </div>
 

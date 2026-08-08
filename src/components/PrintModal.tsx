@@ -258,11 +258,31 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   };
 
   // High Fidelity SVGs representing the real physical logo systems from screenshots
-  const LogoOswaldoCruzHeader = () => (
+  /**
+   * Cabeçalho das declarações.
+   *
+   * MESMO TAMANHO EM TODAS, POR DECISÃO DA ESCOLA.
+   *
+   * Este componente usava `h-16 w-auto`: altura fixa e largura só o necessário.
+   * A Declaração de Escolaridade, por ser a única montada com a imagem direta,
+   * usava `w-full max-h-24` — e saía visivelmente maior. Numa pilha de
+   * documentos oficiais da mesma instituição, o cabeçalho mudando de tamanho
+   * conforme o papel dá impressão de documento improvisado.
+   *
+   * Agora as três — Escolaridade, SETRANSP Passe e Vacina em Dia — usam a
+   * medida da maior. `object-contain` garante que a logo não distorça.
+   */
+  const LogoOswaldoCruzHeader = ({ compacto = false }: { compacto?: boolean } = {}) => (
     <img
       src={LOGO_COLEGIO_OSWALDO_CRUZ}
       alt="Colégio Oswaldo Cruz"
-      className="h-16 w-auto max-w-[850px] object-contain block select-none"
+      className={
+        compacto
+          // Plano B da Escolaridade: a logo divide a linha com o selo de 30
+          // anos. Largura total aqui espremeria o selo até sumir.
+          ? "h-16 w-auto max-w-[850px] object-contain block select-none"
+          : "w-full max-h-24 max-w-[850px] object-contain block select-none"
+      }
       referrerPolicy="no-referrer"
     />
   );
@@ -1657,7 +1677,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           }}
                         />
                         <div className="hidden w-full flex items-center justify-between">
-                          <LogoOswaldoCruzHeader />
+                          <LogoOswaldoCruzHeader compacto />
                           <Seal30Anos />
                         </div>
                       </div>

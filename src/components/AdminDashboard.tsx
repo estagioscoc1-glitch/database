@@ -134,7 +134,7 @@ export const AdminDashboard: React.FC = () => {
     failedAttemptsMap, resetFailedAttempts,
     currentPeriod, periods, setCurrentPeriod, addPeriod,
     wipeAllData, wipeAllStudents, loadDemoData,
-    autoLockEnabled, setAutoLockEnabled, simulatedDate, setSimulatedDate, updateCalendarEventDate,
+    autoLockEnabled, setAutoLockEnabled, simulatedDate, updateCalendarEventDate,
     activeClassId, activeSubjectId, setActiveClassId, setActiveSubjectId,
     backupSchedule, updateBackupSchedule,
     storageBackups, isLoadingStorageBackups, fetchStorageBackups,
