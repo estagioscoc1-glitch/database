@@ -1640,6 +1640,90 @@ export async function criarAcessosDosAlunos(
  * grava — então o envio do aluno nunca chegava ao servidor.
  * ========================================================================== */
 
+/**
+ * Envia o arquivo do documento para o Storage e devolve o caminho gravado.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * O envio de documentos era só aparência. A tela guardava o NOME e o TAMANHO
+ * do arquivo escolhido e nada mais — o conteúdo nunca era lido nem enviado.
+ * O aluno clicava, via "ENVIADO", e acreditava ter entregue o RG. A secretaria
+ * via o mesmo "ENVIADO" e achava que tinha documento para conferir. Não havia
+ * arquivo nenhum, e ninguém descobria até precisar dele de verdade.
+ *
+ * O servidor já estava pronto desde sempre: balde privado, limite de 5 MB,
+ * apenas PDF e imagem, cada aluno isolado na própria pasta pelas regras de
+ * acesso. Faltava só o navegador fazer a sua parte.
+ *
+ * O caminho é `<id_do_aluno>/<tipo>_<carimbo>.<ext>`. A pasta com o id do aluno
+ * não é organização: é o que as regras do Storage conferem para impedir que um
+ * aluno alcance o documento do outro.
+ */
+export async function enviarArquivoDeDocumento(
+  studentId: string,
+  tipoDocumento: string,
+  arquivo: File
+): Promise<{ ok: boolean; caminho?: string; erro?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  if (!studentId) return { ok: false, erro: 'Documento sem aluno.' };
+  if (!arquivo) return { ok: false, erro: 'Nenhum arquivo escolhido.' };
+
+  // As mesmas travas do servidor, conferidas antes de subir: assim o aluno
+  // recebe uma frase clara em vez de um erro de rede depois da espera.
+  const LIMITE = 5 * 1024 * 1024;
+  if (arquivo.size > LIMITE) {
+    return { ok: false, erro: `O arquivo tem ${(arquivo.size / 1048576).toFixed(1)} MB. O limite é 5 MB.` };
+  }
+  const aceitos = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  if (!aceitos.includes(arquivo.type)) {
+    return { ok: false, erro: 'Formato não aceito. Envie PDF, JPG, PNG ou WEBP.' };
+  }
+
+  const extensao = (arquivo.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const tipoLimpo = tipoDocumento.replace(/[^\w-]/g, '_').toUpperCase();
+  const caminho = `${studentId}/${tipoLimpo}_${Date.now()}.${extensao}`;
+
+  const { error } = await supabase.storage
+    .from('documentos-alunos')
+    .upload(caminho, arquivo, { upsert: true, contentType: arquivo.type });
+
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('row-level security') || msg.includes('unauthorized')) {
+      return { ok: false, erro: 'Sem permissão para enviar este documento.' };
+    }
+    if (msg.includes('bucket') && msg.includes('not found')) {
+      return { ok: false, erro: 'O espaço de arquivos não existe no servidor. Rode supabase/01_schema_e_seguranca.sql.' };
+    }
+    console.error('[Storage] enviar documento:', error.message);
+    return { ok: false, erro: error.message };
+  }
+  return { ok: true, caminho };
+}
+
+/**
+ * Gera um link temporário para abrir ou baixar o documento.
+ *
+ * O balde é privado — não existe endereço fixo. Cada consulta gera um link que
+ * expira, e é o próprio Storage que confere se quem pediu tem direito: a
+ * secretaria alcança qualquer aluno, o aluno só a própria pasta.
+ *
+ * Uma hora de validade é suficiente para conferir ou baixar, e curto o bastante
+ * para que um link copiado por engano não vire acesso permanente ao RG de
+ * alguém.
+ */
+export async function linkDoDocumento(caminho: string): Promise<string | null> {
+  if (!supabaseConfigurado || !caminho) return null;
+  const { data, error } = await supabase.storage
+    .from('documentos-alunos')
+    .createSignedUrl(caminho, 3600);
+  if (error) {
+    console.error('[Storage] link do documento:', error.message);
+    return null;
+  }
+  return data?.signedUrl ?? null;
+}
+
 export async function salvarDocumentoAluno(doc: {
   id: string;
   studentId: string;
