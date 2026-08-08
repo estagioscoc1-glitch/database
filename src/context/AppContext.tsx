@@ -237,6 +237,9 @@ interface AppContextType {
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
   transferStudent: (studentId: string, targetClassId: string) => void;
   updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null, teacherName?: string) => void;
+  /** Ids de avisos já dispensados ou abertos por esta pessoa. */
+  avisosVistos: string[];
+  marcarAvisoVisto: (id: string) => void;
   adminPasswordResetDone: boolean;
   /** Ligado quando a pessoa precisa trocar a senha antes de usar o portal. */
   precisaTrocarSenha: boolean;
@@ -3865,6 +3868,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  /**
+   * Avisos que a pessoa já dispensou ou já abriu.
+   *
+   * POR QUE ISTO PRECISOU EXISTIR
+   *
+   * O comunicado da coordenação não tinha noção de "lido". A tela pegava a
+   * mensagem mais recente e mostrava — de novo a cada entrada, para sempre. A
+   * pessoa lia, respondia, saía, voltava, e o mesmo aviso estava lá piscando
+   * como novidade. Aviso que não some deixa de ser aviso: vira paisagem, e no
+   * dia do recado importante ninguém olha.
+   *
+   * A marca fica numa chave que o espelho sincroniza por pessoa — então
+   * dispensar num computador vale em todos, e não se perde na saída.
+   */
+  const [avisosVistos, setAvisosVistos] = useState<string[]>(() => {
+    const val = safeJsonParse(safeLocalStorage.getItem('oc_avisos_vistos'), [] as string[]);
+    return Array.isArray(val) ? val : [];
+  });
+
+  useEffect(() => {
+    safeLocalStorage.setItem('oc_avisos_vistos', JSON.stringify(avisosVistos));
+  }, [avisosVistos]);
+
+  const marcarAvisoVisto = (id: string) => {
+    if (!id) return;
+    setAvisosVistos(anterior => (anterior.includes(id) ? anterior : [...anterior, id]));
+  };
+
   const addNotification = (userId: string, content: string) => {
     const newNot: AcademicNotification = {
       id: `not_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -5340,6 +5371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
+      avisosVistos, marcarAvisoVisto,
       getStudentAbsences, getStudentAttendanceGrid,
       importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports, undoHistoricalImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
