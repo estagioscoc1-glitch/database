@@ -50,7 +50,8 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     dependencies,
     securityLogs,
     calendarEvents,
-    declarationConfigs
+    declarationConfigs,
+    messages
   } = useApp();
 
   // Real-time Clock
@@ -254,6 +255,9 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       paidInstallments,
       openInstallments,
       overdueInstallments,
+      // O total do mês já era calculado aqui e nunca saía da função — por isso
+      // a tela recorria à contagem de alunos para preencher o rótulo.
+      totalThisMonth,
       inadimplenciaRate,
       monthExpenses,
       yearExpenses,
@@ -1052,7 +1056,12 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                 <FileText className="h-4 w-4 text-blue-600" /> Status de Mensalidades
               </h4>
-              <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">{enrolledStudents} parcelas</span>
+              {/* Antes: `{enrolledStudents} parcelas` — mostrava a contagem de
+                  ALUNOS MATRICULADOS com rótulo de parcelas. O painel dizia
+                  "188 parcelas" numa escola sem nenhuma parcela lançada. */}
+              <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
+                {financialMetrics.totalThisMonth} parcelas
+              </span>
             </div>
 
             <div className="grid grid-cols-3 gap-2 pt-1 text-center">
@@ -1533,13 +1542,25 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
             <span className="text-xs text-purple-600 bg-purple-50 dark:bg-purple-950/40 px-2.5 py-1 rounded-full font-bold">Hoje</span>
           </div>
 
+          {/* PESSOAS INVENTADAS SAÍRAM DAQUI.
+              O cartão trazia "Prof.ª Helena Maria (28/Jul), Aluno Lucas Silva
+              (29/Jul), Aluna Beatriz Costa (31/Jul)" e um comunicado sobre
+              reabertura de turmas — tudo escrito fixo no código. Nenhuma dessas
+              pessoas existe na escola, e o comunicado nunca foi enviado por
+              ninguém.
+              Numa tela de gestão, texto inventado é indistinguível de
+              informação: alguém iria parabenizar a Helena.
+              O aniversário de verdade depende da data de nascimento, que o
+              banco guarda mas o portal ainda não carrega. Até lá, o cartão diz
+              o que sabe — e o comunicado passa a ser o último enviado de
+              verdade pela coordenação. */}
           <div className="space-y-3 text-xs">
             <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 rounded-2xl border border-purple-100 dark:border-purple-900/40 space-y-2">
               <p className="font-extrabold text-purple-900 dark:text-purple-200 flex items-center gap-2">
                 🎉 Aniversariantes do Mês (Acadêmico)
               </p>
-              <p className="text-purple-700 dark:text-purple-300 text-[11px] leading-relaxed">
-                Prof.ª Helena Maria (28/Jul), Aluno Lucas Silva (29/Jul), Aluna Beatriz Costa (31/Jul).
+              <p className="text-purple-700/80 dark:text-purple-300/80 text-[11px] leading-relaxed italic">
+                Ainda não disponível: a data de nascimento não é carregada pelo portal.
               </p>
             </div>
 
@@ -1547,9 +1568,15 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               <p className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 📌 Comunicado Institucional
               </p>
-              <p className="text-slate-500 text-[11px]">
-                Encerramento do prazo para reabertura de turmas do 2º semestre em 10 de Agosto.
-              </p>
+              {messages && messages.length > 0 ? (
+                <p className="text-slate-500 text-[11px]">
+                  {messages[0].content}
+                </p>
+              ) : (
+                <p className="text-slate-400 text-[11px] italic">
+                  Nenhum comunicado enviado pela coordenação.
+                </p>
+              )}
             </div>
           </div>
         </div>
