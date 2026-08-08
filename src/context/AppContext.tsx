@@ -115,7 +115,6 @@ interface AppContextType {
   autoLockEnabled: boolean;
   setAutoLockEnabled: (enabled: boolean) => void;
   simulatedDate: string;
-  setSimulatedDate: (date: string) => void;
   updateCalendarEventDate: (id: string, date: string) => void;
   isClassS1Locked: (cl: ClassSection) => boolean;
   isClassS2Locked: (cl: ClassSection) => boolean;
@@ -731,9 +730,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved !== null ? saved === 'true' : true;
   });
 
-  const [simulatedDate, setSimulatedDate] = useState<string>(() => {
-    return safeLocalStorage.getItem('oc_simulated_date') || '2026-07-01';
-  });
+  /**
+   * A DATA DE HOJE. NÃO EXISTE MAIS DATA SIMULADA.
+   *
+   * Este valor era uma data FALSA, guardada no navegador, com 2026-07-01 de
+   * padrão. Todas as regras de prazo do sistema olham para ele: liberação de
+   * declaração, fechamento automático de módulo, bloqueio de diário, contagem
+   * de dias restantes no calendário.
+   *
+   * Ficou esquecido em 1º de julho. Em 7 de agosto, o aluno via a Declaração de
+   * Escolaridade BLOQUEADA com o aviso "disponível entre 03/08 e 22/12" — uma
+   * janela que já estava aberta. O sistema inteiro trabalhava com dois meses de
+   * atraso, e nada na tela dizia por quê.
+   *
+   * Servia para a escola testar o comportamento de outras épocas. Com o portal
+   * entrando em produção, o risco de esquecer ligado é maior que a utilidade.
+   *
+   * O nome foi mantido porque quarenta pontos do sistema o consultam; o que
+   * mudou é que agora ele responde a verdade. O relógio é conferido a cada
+   * minuto para que a virada da meia-noite entre sozinha, sem recarregar.
+   */
+  const dataDeHoje = () => new Date().toISOString().split('T')[0];
+  const [simulatedDate, setSimulatedDate] = useState<string>(dataDeHoje);
+
+  useEffect(() => {
+    const relogio = setInterval(() => {
+      const hoje = dataDeHoje();
+      setSimulatedDate(anterior => (anterior === hoje ? anterior : hoje));
+    }, 60000);
+    return () => clearInterval(relogio);
+  }, []);
 
   const [declarationConfigs, setDeclarationConfigs] = useState<DeclarationConfigs>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_declaration_configs'), {
@@ -767,9 +793,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorage.setItem('oc_auto_lock_enabled', autoLockEnabled ? 'true' : 'false');
   }, [autoLockEnabled]);
 
+  // A data de hoje não se guarda: ela se lê do relógio. Guardar era o que fazia
+  // 1º de julho sobreviver a agosto.
   useEffect(() => {
-    safeLocalStorage.setItem('oc_simulated_date', simulatedDate);
-  }, [simulatedDate]);
+    safeLocalStorage.removeItem('oc_simulated_date');
+  }, []);
 
   useEffect(() => {
     safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(declarationConfigs));
@@ -856,7 +884,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
       if (state.currentPeriod) { setCurrentPeriodLocal(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
-      if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
       if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
       if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
@@ -4778,7 +4805,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (payload.notifications) { setNotifications(payload.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(payload.notifications)); }
       if (payload.currentPeriod) { setCurrentPeriodLocal(payload.currentPeriod); safeLocalStorage.setItem('oc_current_period', payload.currentPeriod); }
       if (payload.periods) { setPeriods(payload.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(payload.periods)); }
-      if (payload.simulatedDate) { setSimulatedDate(payload.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', payload.simulatedDate); }
       if (payload.autoLockEnabled !== undefined) { setAutoLockEnabled(payload.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', payload.autoLockEnabled ? 'true' : 'false'); }
       if (payload.declarationConfigs) { setDeclarationConfigs(payload.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(payload.declarationConfigs)); }
       if (payload.studentDocuments) { setStudentDocuments(payload.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(payload.studentDocuments)); }
@@ -4827,7 +4853,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
       if (state.currentPeriod) { setCurrentPeriodLocal(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
-      if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
       if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
       if (state.adminPasswordResetDone !== undefined) {
@@ -5158,7 +5183,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       conceptRanges, calendarEvents, messages, notifications,
       activeClassId, activeSubjectId,
       autoLockEnabled, setAutoLockEnabled,
-      simulatedDate, setSimulatedDate,
+      simulatedDate,
       updateCalendarEventDate,
       isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
       currentPeriod, periods, setCurrentPeriod, addPeriod,
