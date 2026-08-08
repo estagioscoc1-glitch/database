@@ -1017,14 +1017,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           try {
             const faltas = await carregarFaltas();
-            if (faltas && !desmontado) setDirectAbsences(faltas);
+            if (faltas && !desmontado) {
+              // O QUE ACABOU DE VIR DO BANCO NÃO PRECISA VOLTAR PARA O BANCO.
+              //
+              // O controle de "já gravado" nascia vazio a cada login, então o
+              // laço de gravação enxergava TODA falta lida como pendente e
+              // tentava reescrever as 1.867 de uma vez. Para a secretaria isso
+              // passava despercebido — as regravações eram aceitas. Para o
+              // professor, o banco recusa o que não é diário dele, e a tela
+              // dele abria com "867 lançamentos de falta não gravados", sem
+              // que ninguém tivesse lançado nada.
+              //
+              // As notas já faziam esta marcação; as faltas ficaram de fora.
+              faltasGravadasRef.current = new Map(Object.entries(faltas));
+              setDirectAbsences(faltas);
+            }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar faltas:', err?.message || err);
           }
 
           try {
             const aulas = await carregarAulas();
-            if (aulas && aulas.length > 0 && !desmontado) setAttendance(aulas as any);
+            if (aulas && aulas.length > 0 && !desmontado) {
+              // Mesma razão das faltas: chamada lida do banco já está gravada.
+              aulasGravadasRef.current = new Map(
+                (aulas as any[]).map(a => [a.id, JSON.stringify(a)] as [string, string])
+              );
+              setAttendance(aulas as any);
+            }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar aulas:', err?.message || err);
           }
