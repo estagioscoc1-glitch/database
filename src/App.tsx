@@ -349,7 +349,15 @@ function MainAppLayout() {
             transition={{ duration: 0.2 }}
           >
             <React.Suspense fallback={<DashboardLoadingFallback />}>
-              {activeDisplayRole === UserRole.ADMIN && <AdminDashboard />}
+              {/* SECRETARIA TAMBÉM PRECISA DE PAINEL.
+                  Esta linha listava só ADMIN. Quem entrava com papel SECRETARIA
+                  passava pelo login, via o próprio nome no topo, e recebia uma
+                  PÁGINA EM BRANCO — sem erro, sem aviso, sem nada em que clicar.
+                  O papel existe no banco, o login funciona, as permissões estão
+                  escritas; só o desenho da tela ficou de fora.
+                  As duas veem o mesmo painel: o que a secretaria pode fazer
+                  dentro dele já é controlado pelas permissões de cada função. */}
+              {(activeDisplayRole === UserRole.ADMIN || activeDisplayRole === UserRole.STAFF) && <AdminDashboard />}
               {activeDisplayRole === UserRole.TEACHER && <TeacherDashboard />}
               {activeDisplayRole === UserRole.STUDENT && (
                 <StudentDashboard studentId={currentUser.id} />
