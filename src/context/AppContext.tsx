@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -236,7 +236,7 @@ interface AppContextType {
   updateDeclarationConfig: (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => void;
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
   transferStudent: (studentId: string, targetClassId: string) => void;
-  updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null) => void;
+  updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null, teacherName?: string) => void;
   adminPasswordResetDone: boolean;
   /** Ligado quando a pessoa precisa trocar a senha antes de usar o portal. */
   precisaTrocarSenha: boolean;
@@ -888,7 +888,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
       if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
       if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
-      if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
+      // O retrato de estado NÃO restaura mais estágio: quem manda é a tabela.
+      // Restaurar aqui ressuscitaria a versão congelada no JSON por cima do que
+      // foi lido do banco — foi assim que as turmas antigas voltavam do nada.
       if (state.staffMembers) { setStaffMembers(state.staffMembers); safeLocalStorage.setItem('oc_staff_members', JSON.stringify(state.staffMembers)); }
       if (state.dependencies) { setDependencies(state.dependencies); safeLocalStorage.setItem('oc_dependencies', JSON.stringify(state.dependencies)); }
       if (state.lastBackupTime) {
@@ -1074,6 +1076,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar aulas:', err?.message || err);
+          }
+
+          try {
+            // ESTÁGIO VEM DO BANCO, NÃO DO RETRATO DE ESTADO.
+            //
+            // Enquanto morava no JSON geral, o lançamento de uma pessoa podia
+            // ser apagado pelo salvamento de outra. Lendo da tabela própria,
+            // cada linha tem dono e as regras de acesso fazem o resto: a
+            // secretaria recebe tudo, o aluno recebe só o dele — o filtro é do
+            // banco, então o que não é dele nem chega ao navegador.
+            const estagios = await carregarEstagios();
+            if (estagios && !desmontado) setInternships(estagios as any);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar estágios:', err?.message || err);
           }
 
           try {
@@ -4515,7 +4531,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     subjectName: string,
     workload: number,
     location: string,
-    grade: number | null
+    grade: number | null,
+    // O formulário impresso da escola tem a coluna "NOME DO PROFESSOR" desde
+    // sempre; o sistema não a guardava. Sem ela, o documento saía incompleto e
+    // a secretaria preenchia à mão depois de imprimir.
+    teacherName: string = ''
   ) => {
     setInternships(prev => {
       const recordId = `int_${studentId}_${subjectName.replace(/\s+/g, '_')}`;
@@ -4529,6 +4549,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...r,
               workload,
               location,
+              teacherName,
               grade,
               updatedAt: now
             };
@@ -4542,6 +4563,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subjectName,
           workload,
           location,
+          teacherName,
           grade,
           updatedAt: now
         }];
@@ -4553,6 +4575,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Lançamento/atualização de estágio feito para o aluno ID ${studentId}: Componente [${subjectName}], Local [${location || 'Sem local'}], Nota [${grade !== null ? grade : 'Pendente'}].`,
       'low'
     );
+
+    // ESTÁGIO AGORA VAI PARA TABELA PRÓPRIA, LINHA A LINHA.
+    //
+    // Antes ele só existia dentro do retrato geral do sistema — um único
+    // arquivo JSON regravado inteiro a cada alteração. Duas pessoas lançando
+    // estágio ao mesmo tempo se sobrescreviam, e a que salvasse primeiro perdia
+    // o trabalho sem nenhum aviso. Também não havia como conferir por consulta:
+    // nada de "quantos alunos concluíram", nada de auditoria.
+    //
+    // A gravação acontece aqui, no ato, e não no laço de fundo: quem lançou a
+    // nota está olhando para a tela e precisa saber na hora se falhou.
+    void salvarEstagio({
+      id: idEstagio(studentId, subjectName),
+      studentId, subjectName, workload, location, grade, teacherName,
+    }).then(res => {
+      if (res.ok) return;
+      setCloudBackupStatus('error');
+      registrarFalhaDeGravacao(`Estágio não gravado: ${res.erro}`);
+      addSecurityLog(
+        'ESTAGIO_FALHA',
+        `Falha ao gravar estágio de ${studentId} em ${subjectName}: ${res.erro}`,
+        'high'
+      );
+    });
   };
 
   const transferStudent = (studentId: string, targetClassId: string) => {
@@ -4808,7 +4854,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (payload.autoLockEnabled !== undefined) { setAutoLockEnabled(payload.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', payload.autoLockEnabled ? 'true' : 'false'); }
       if (payload.declarationConfigs) { setDeclarationConfigs(payload.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(payload.declarationConfigs)); }
       if (payload.studentDocuments) { setStudentDocuments(payload.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(payload.studentDocuments)); }
-      if (payload.internships) { setInternships(payload.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(payload.internships)); }
       if (payload.adminPasswordResetDone !== undefined) { setAdminPasswordResetDone(payload.adminPasswordResetDone); safeLocalStorage.setItem('oc_admin_reset_done', payload.adminPasswordResetDone ? 'true' : 'false'); }
       if (payload.securityLogs) { setSecurityLogs(payload.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(payload.securityLogs)); }
 
@@ -4850,7 +4895,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
       if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
       if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
-      if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
       if (state.currentPeriod) { setCurrentPeriodLocal(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
