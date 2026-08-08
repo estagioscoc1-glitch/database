@@ -258,26 +258,53 @@ interface AppContextType {
   unlockAdminReset: () => void;
 }
 
-export function getRequiredDocsForStudent(courseName?: string): string[] {
+/**
+ * Documentos exigidos para a matrícula, conforme a secretaria da escola.
+ *
+ * ESTA É A ÚNICA LISTA. ANTES ERAM TRÊS, DIFERENTES ENTRE SI.
+ *
+ * A tela do aluno trazia quatro itens escritos à mão ('RG e CPF', 'Histórico
+ * do Ensino Médio', 'Comprovante de Residência', 'Atestado de Vacinação') e a
+ * tela da secretaria usava esta função, com oito. O aluno entregava o que a
+ * tela dele pedia e continuava pendente na tela da secretaria, por documentos
+ * que nunca lhe foram solicitados.
+ *
+ * Reservista aparece só para homens: pedir a todos gera pendência impossível
+ * para metade dos alunos. Quando o sexo não está cadastrado, o documento é
+ * exigido — falta a menos é pior que falta a mais numa conferência de matrícula.
+ */
+export function getRequiredDocsForStudent(courseName?: string, sexo?: string): string[] {
   const base = [
     'RG',
     'CPF',
     'Título de Eleitor',
-    'Certidão de Nascimento ou Casamento',
-    'Comprovante de Endereço',
-    'Foto 3x4',
-    'Diploma de Ensino Médio',
-    'Histórico do Ensino Médio'
+    'Certidão de Nascimento, Casamento ou Averbação',
+    'Diploma do Ensino Médio',
+    'Histórico do Ensino Médio',
   ];
-  if (!courseName) return base;
-  const nameLower = courseName.toLowerCase();
-  if (nameLower.includes('instrumentação') || nameLower.includes('cirúrgica')) {
-    return [...base, 'Diploma do Curso Técnico em Enfermagem', 'Histórico do Curso Técnico em Enfermagem'];
+
+  // Certificado de reservista: obrigatório para o sexo masculino.
+  const ehFeminino = (sexo || '').trim().toUpperCase().startsWith('F');
+  const docs = ehFeminino ? [...base] : [...base, 'Certificado de Reservista'];
+
+  if (!courseName) return docs;
+  const nome = courseName.toLowerCase();
+
+  // Instrumentação Cirúrgica e Enfermagem do Trabalho são cursos de
+  // especialização: exigem formação anterior em Enfermagem.
+  const exigeFormacaoEmEnfermagem =
+    nome.includes('instrumentação') ||
+    nome.includes('cirúrgica') ||
+    (nome.includes('enfermagem') && nome.includes('trabalho'));
+
+  if (exigeFormacaoEmEnfermagem) {
+    return [
+      ...docs,
+      'Diploma do Técnico em Enfermagem ou da Graduação em Enfermagem',
+      'Histórico do Técnico em Enfermagem ou da Graduação em Enfermagem',
+    ];
   }
-  if (nameLower.includes('graduação') && nameLower.includes('enfermagem')) {
-    return [...base, 'Diploma da Graduação em Enfermagem'];
-  }
-  return base;
+  return docs;
 }
 
 export const officialCurriculum = [
@@ -4613,6 +4640,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStudentDocumentStatus = (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => {
+    // A SITUAÇÃO DO DOCUMENTO PRECISA CHEGAR AO ALUNO.
+    //
+    // Esta função só mexia na memória. A secretaria abria o arquivo, conferia,
+    // marcava ENTREGUE — e o aluno continuava vendo "AGUARDANDO ANÁLISE" para
+    // sempre, porque nada saía deste navegador. Pior no caminho contrário: o
+    // aluno enviava o arquivo e a secretaria não via chegar.
+    //
+    // A gravação vai junto com a mudança na tela, e não num laço de fundo:
+    // quem clicou está olhando e precisa saber na hora se falhou.
+    // O id é `doc_<idDoAluno>_<nomeDoDocumento>`. Separar contando underscores
+    // não funciona — o id do aluno tem underscore ("aluno_25201012") e o nome do
+    // documento também pode ter. Identificar o aluno pela lista real elimina a
+    // adivinhação; é o mesmo cuidado dos outros identificadores do sistema.
+    const corpo = id.replace(/^doc_/, '');
+    const aluno = users.find(u => corpo.startsWith(`${u.id}_`));
+    const nomeDoDocumento = aluno
+      ? corpo.slice(aluno.id.length + 1)
+      : (studentDocuments.find(d => d.id === id)?.name || corpo);
+
+    if (!aluno) {
+      console.warn('[Portal] Documento sem aluno identificável:', id);
+    } else {
+      void salvarDocumentoAluno({
+        id,
+        studentId: aluno.id,
+        name: nomeDoDocumento,
+        status,
+        fileUrl,
+        fileName,
+      }).then(res => {
+        if (res.ok) return;
+        setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`Situação do documento não gravada: ${res.erro}`);
+        addSecurityLog('DOCUMENTO_FALHA', `Falha ao gravar situação do documento ${id}: ${res.erro}`, 'high');
+      });
+    }
+
     setStudentDocuments(prev => {
       const exists = prev.some(doc => doc.id === id);
       if (exists) {
