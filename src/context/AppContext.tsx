@@ -954,6 +954,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         // Precisa saber o papel ANTES de decidir gravar qualquer coisa.
         const perfilInicial = await carregarPerfil();
+
+        // A LISTA DE PESSOAS NÃO PODE SOBREVIVER À TROCA DE USUÁRIO.
+        //
+        // O portal guarda a lista em `oc_users`, no navegador, e ela ficava lá
+        // depois que a sessão terminava. Num computador onde a secretaria já
+        // tinha entrado, o aluno seguinte abria a central de mensagens e via a
+        // conta ADMINISTRADOR, a secretaria, os professores — e os 188 colegas.
+        //
+        // O banco recusou corretamente: para o aluno, `usuarios` devolve apenas
+        // a própria linha e `alunos` só ele mesmo. Ele não LEU nada disso; ele
+        // herdou restos da sessão anterior.
+        //
+        // Num laboratório ou na recepção, isso é dado de menor de idade
+        // passando de uma pessoa para a outra. A lista é apagada agora, e cada
+        // sessão remonta a sua a partir do que o servidor devolver.
+        if (perfilInicial && perfilInicial.papel !== 'ADMIN' && perfilInicial.papel !== 'SECRETARIA') {
+          safeLocalStorage.removeItem('oc_users');
+          setUsers(anterior => anterior.filter(u => u.id === perfilInicial.id));
+        }
+
         const resultado = await loadStateFromCloud();
         if (desmontado) return;
 
@@ -1048,7 +1068,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (estrutura.users.length > 0) setUsers(prev => {
             // Preserva quem é gestão (admin/secretaria): eles não estão nas
             // tabelas de aluno nem de professor.
-            const gestaoAnterior = prev.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.STAFF);
+            // Só sobrevive a gestão que o SERVIDOR devolveu nesta sessão.
+            //
+            // Antes, o que estivesse na lista anterior era preservado — e a
+            // lista anterior podia ser de outra pessoa, no mesmo navegador.
+            const gestaoAnterior = contasDeGestao.length > 0
+              ? []
+              : prev.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.STAFF);
             const idsCarregados = new Set(contasDeGestao.map(u => u.id));
             const gestao = [
               ...contasDeGestao,
@@ -2437,6 +2463,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Encerra a sessão no servidor: o token deixa de valer.
         sairDoPortal().catch(() => { /* a sessão local já foi limpa */ });
       });
+
+    // O QUE ERA DESTA SESSÃO NÃO FICA ESPERANDO A PRÓXIMA PESSOA.
+    //
+    // Sair encerrava o acesso, mas deixava no navegador a lista de pessoas, as
+    // notas, as faltas e as mensagens carregadas. Num computador compartilhado
+    // — laboratório, recepção, sala dos professores — quem entrasse depois
+    // herdava tudo isso antes mesmo de o servidor responder.
+    //
+    // Apagar na saída é o par certo de apagar na entrada: se alguém fechar a
+    // aba sem sair, a limpeza da entrada pega; se sair direito, já vai limpo.
+    for (const chave of [
+      'oc_users', 'oc_grades', 'oc_attendance', 'oc_direct_absences',
+      'oc_messages', 'oc_notifications', 'oc_student_documents',
+      'oc_internships', 'oc_staff_members', 'oc_dependencies', 'oc_security_logs',
+      'oc_current_user',
+    ]) {
+      safeLocalStorage.removeItem(chave);
+    }
 
     setCurrentUser(null);
   };
