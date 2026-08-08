@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { enviarArquivoDeDocumento, linkDoDocumento } from '../lib/repositorios';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
@@ -513,7 +513,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
           {/* TAB 3: DOCUMENTOS */}
           {activeSubTab === 'documentos' && (() => {
-            const requiredDocs = ['RG e CPF', 'Histórico do Ensino Médio', 'Comprovante de Residência', 'Atestado de Vacinação'];
+            // A LISTA VEM DA REGRA DA ESCOLA, NÃO DE UM RASCUNHO NA TELA.
+            //
+            // Aqui havia quatro itens escritos à mão, diferentes dos que a
+            // secretaria conferia. O aluno entregava o que ESTA tela pedia e
+            // continuava pendente na tela dela, por documentos que nunca lhe
+            // foram solicitados. Agora as duas leem a mesma função, que também
+            // sabe o que muda por curso e por sexo.
+            const requiredDocs = getRequiredDocsForStudent(courseInfo?.name, activeStudent?.sexo);
             const docs = studentDocuments.filter(d => d.studentId === activeStudent.id);
 
             return (
@@ -644,7 +651,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               }
 
               // 3) Documents Check
-              const requiredDocs = ['RG e CPF', 'Histórico do Ensino Médio', 'Comprovante de Residência', 'Atestado de Vacinação'];
+              // A LISTA VEM DA REGRA DA ESCOLA, NÃO DE UM RASCUNHO NA TELA.
+            //
+            // Aqui havia quatro itens escritos à mão, diferentes dos que a
+            // secretaria conferia. O aluno entregava o que ESTA tela pedia e
+            // continuava pendente na tela dela, por documentos que nunca lhe
+            // foram solicitados. Agora as duas leem a mesma função, que também
+            // sabe o que muda por curso e por sexo.
+            const requiredDocs = getRequiredDocsForStudent(courseInfo?.name, activeStudent?.sexo);
               const userDocs = studentDocuments.filter(d => d.studentId === activeStudent.id);
               const missingDocs = requiredDocs.filter(reqName => {
                 const docRecord = userDocs.find(d => d.name === reqName);
