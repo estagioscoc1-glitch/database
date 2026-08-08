@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -1018,10 +1018,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (estrutura.courses.length > 0) setCourses(estrutura.courses);
           if (estrutura.subjects.length > 0) setSubjects(estrutura.subjects);
           if (estrutura.classes.length > 0) setClasses(estrutura.classes);
+          // GESTÃO PRECISA APARECER NA LISTA DE PESSOAS.
+          //
+          // A lista era montada só com `alunos` e `professores`. Administração e
+          // secretaria não estão em nenhuma dessas tabelas — moram em
+          // `usuarios`. O professor recebia recado da coordenação e não tinha
+          // para quem responder: a central de mensagens não listava ninguém da
+          // secretaria.
+          //
+          // Só quem tem direito recebe: as regras do banco devolvem a lista para
+          // gestão e para professor, e recusam para o aluno — que não precisa da
+          // relação de funcionários da escola.
+          let contasDeGestao: any[] = [];
+          try {
+            const g = await carregarContasDeGestao();
+            if (g) {
+              contasDeGestao = g.map(u => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.papel === 'ADMIN' ? UserRole.ADMIN : UserRole.STAFF,
+                active: true,
+              }));
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar contas de gestão:', err?.message || err);
+          }
+
           if (estrutura.users.length > 0) setUsers(prev => {
             // Preserva quem é gestão (admin/secretaria): eles não estão nas
             // tabelas de aluno nem de professor.
-            const gestao = prev.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.STAFF);
+            const gestaoAnterior = prev.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.STAFF);
+            const idsCarregados = new Set(contasDeGestao.map(u => u.id));
+            const gestao = [
+              ...contasDeGestao,
+              ...gestaoAnterior.filter(u => !idsCarregados.has(u.id)),
+            ];
             return [...gestao, ...estrutura.users];
           });
 
