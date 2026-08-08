@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -1076,6 +1076,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar aulas:', err?.message || err);
+          }
+
+          try {
+            // As janelas de declaração valem para a escola inteira e são lidas
+            // por todos — inclusive pelo aluno, que antes não as recebia.
+            const janelas = await carregarJanelasDeDeclaracao();
+            if (janelas && !desmontado) setDeclarationConfigs(janelas as any);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar janelas de declaração:', err?.message || err);
           }
 
           try {
@@ -4475,11 +4484,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateDeclarationConfig = (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => {
-    setDeclarationConfigs(prev => ({
-      ...prev,
-      [type]: fields
-    }));
+    const novasJanelas = { ...declarationConfigs, [type]: fields };
+    setDeclarationConfigs(novasJanelas);
     addSecurityLog('CONFIG_DECLARACAO', `Configurações da declaração de ${type === 'escolaridade' ? 'Escolaridade' : 'SETRANSP Passe'} atualizadas: ${fields.startDate} a ${fields.endDate}`, 'low');
+
+    // A JANELA PRECISA CHEGAR AO ALUNO — E SÓ ELE PRECISA DELA.
+    //
+    // Antes isto ficava apenas no navegador de quem clicou e dentro do retrato
+    // geral do sistema, que só a gestão consegue ler. O aluno nunca recebia a
+    // configuração e caía no padrão escrito no código: 04/02 a 26/06 — uma
+    // janela já encerrada. A secretaria via "03/08 a 22/12" na própria tela e
+    // o aluno via BLOQUEADO, cada um olhando um valor diferente.
+    //
+    // `configuracoes` é lida por qualquer pessoa logada e escrita só pela
+    // gestão. É o lugar de uma regra que vale para a escola inteira.
+    void salvarJanelasDeDeclaracao(novasJanelas as any).then(res => {
+      if (res.ok) return;
+      setCloudBackupStatus('error');
+      registrarFalhaDeGravacao(`Datas das declarações não gravadas: ${res.erro}`);
+    });
   };
 
   const updateStudentDocumentStatus = (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => {
