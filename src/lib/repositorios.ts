@@ -213,6 +213,47 @@ function falha(contexto: string, error: any): ResultadoGravacao {
   return { ok: false, erro: msg };
 }
 
+/**
+ * Carrega as contas de gestão (administração e secretaria).
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * O portal montava a lista de pessoas lendo as tabelas `alunos` e
+ * `professores`. Gestão não está em nenhuma das duas — mora só em `usuarios`.
+ * Resultado: a coordenação mandava recado para o professor, ele lia, e não
+ * tinha para quem responder: a central de mensagens não listava ninguém da
+ * secretaria.
+ *
+ * As regras do banco já permitiam essa leitura (`p_usuarios_select` libera para
+ * gestão e para professor). Faltava pedir.
+ *
+ * O aluno continua fora: para ele, `usuarios` só devolve a própria linha, e é
+ * assim que deve ser — ele não precisa da lista de funcionários da escola.
+ */
+export async function carregarContasDeGestao(): Promise<
+  { id: string; name: string; email: string; papel: string }[] | null
+> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('id, nome, login, papel, ativo')
+    .in('papel', ['ADMIN', 'SECRETARIA'])
+    .eq('ativo', true)
+    .order('nome');
+
+  if (error) {
+    // Aluno recebe recusa aqui, e é esperado: não é falha para avisar na tela.
+    console.warn('[Banco] carregar contas de gestão:', error.message);
+    return null;
+  }
+  return (data ?? []).map((u: any) => ({
+    id: u.id,
+    name: u.nome || u.login,
+    email: u.login,
+    papel: u.papel,
+  }));
+}
+
 /* ------------------------------------------------------------ estágio */
 
 export interface EstagioGravado {
