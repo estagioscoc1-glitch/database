@@ -273,6 +273,8 @@ export interface InternshipRecord {
   subjectName: string;
   workload: number;
   location: string;
+  /** Docente responsável pela supervisão na unidade concedente. */
+  teacherName?: string;
   grade: number | null;
   updatedAt?: string;
 }
