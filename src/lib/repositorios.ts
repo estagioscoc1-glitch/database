@@ -213,6 +213,115 @@ function falha(contexto: string, error: any): ResultadoGravacao {
   return { ok: false, erro: msg };
 }
 
+/* ------------------------------------------------------------ estágio */
+
+export interface EstagioGravado {
+  id: string;
+  studentId: string;
+  subjectName: string;
+  workload: number;
+  location: string;
+  teacherName?: string;
+  grade: number | null;
+  updatedAt?: string;
+}
+
+/**
+ * Identificador estável do lançamento de estágio.
+ *
+ * Vem do par aluno + componente, que é a chave natural: a secretaria pensa
+ * "a nota de Saúde Mental da Maria", não "o registro 4712". Calcular o id em
+ * vez de sortear evita duplicata quando a mesma ficha é lançada duas vezes.
+ */
+export function idEstagio(studentId: string, componente: string): string {
+  return `est_${studentId}_${componente}`.replace(/[^\w-]/g, '_');
+}
+
+/**
+ * Grava um lançamento de estágio.
+ *
+ * Antes, isso vivia dentro do retrato geral do sistema — um único arquivo JSON
+ * regravado inteiro a cada alteração. Duas pessoas lançando ao mesmo tempo se
+ * sobrescreviam em silêncio. Aqui cada lançamento é uma linha própria: quem
+ * lança Saúde Mental não toca em Geriatria.
+ */
+export async function salvarEstagio(e: EstagioGravado): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  if (!e.studentId || !e.subjectName) return { ok: false, erro: 'Aluno ou componente não informado.' };
+
+  const { data, error } = await supabase
+    .from('estagios')
+    .upsert({
+      id: idEstagio(e.studentId, e.subjectName),
+      aluno_id: e.studentId,
+      componente: e.subjectName,
+      carga_horaria: Math.max(0, Math.trunc(e.workload || 0)),
+      local_realizado: texto(e.location),
+      professor_nome: texto(e.teacherName),
+      nota: e.grade === null || e.grade === undefined ? null : Number(e.grade),
+      atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'aluno_id,componente' })
+    .select('id');
+
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('does not exist') && msg.includes('estagios')) {
+      return { ok: false, erro: 'O banco ainda não tem a tabela de estágios. Rode supabase/20_estagios.sql.' };
+    }
+    if (msg.includes('row-level security')) {
+      return { ok: false, erro: 'Apenas a secretaria pode lançar estágio.' };
+    }
+    if (msg.includes('violates foreign key')) {
+      return { ok: false, erro: 'Este aluno ainda não existe no servidor. Aguarde a sincronização e tente de novo.' };
+    }
+    return falha('gravar estágio', error);
+  }
+
+  // 200 sem linha é recusa silenciosa das regras de acesso — nunca sucesso.
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'Nada foi gravado: o aluno não existe no servidor ou você não tem permissão.' };
+  }
+  return { ok: true };
+}
+
+export async function excluirEstagio(studentId: string, componente: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('estagios').delete()
+    .eq('aluno_id', studentId).eq('componente', componente);
+  if (error) return falha('excluir estágio', error);
+  return { ok: true };
+}
+
+/**
+ * Lê os lançamentos de estágio que o usuário logado pode ver.
+ *
+ * Para a gestão, todos. Para o aluno, apenas os dele — o filtro é do banco,
+ * não da tela, então nem chega ao navegador o que não é dele.
+ */
+export async function carregarEstagios(): Promise<EstagioGravado[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase
+    .from('estagios')
+    .select('*')
+    .order('aluno_id')
+    .order('componente');
+
+  if (error) {
+    console.error('[Banco] carregar estágios:', error.message);
+    return null;
+  }
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    studentId: r.aluno_id,
+    subjectName: r.componente,
+    workload: r.carga_horaria ?? 0,
+    location: r.local_realizado ?? '',
+    teacherName: r.professor_nome ?? '',
+    grade: r.nota === null || r.nota === undefined ? null : Number(r.nota),
+    updatedAt: r.atualizado_em,
+  }));
+}
+
 /* ------------------------------------------- registro de conteúdo programático */
 
 export interface LinhaDeConteudo {
