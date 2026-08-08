@@ -119,6 +119,23 @@ export const initialMiscCatalog: MiscPaymentCatalog[] = [
   }
 ];
 
+/*
+ * DINHEIRO FICTÍCIO NÃO É PADRÃO DE SISTEMA EM PRODUÇÃO.
+ *
+ * Parcelas, despesas, recibos, bolsas e receitas avulsas tinham massa de
+ * demonstração como VALOR PADRÃO — servida sempre que o navegador ainda não
+ * tinha dados salvos. Num sistema recém-zerado, o painel da direção abria
+ * mostrando "Total Recebido: R$ 432" e "Despesas: R$ 180" de alunos que não
+ * existem, com nomes inventados como "Maria Silva de Oliveira".
+ *
+ * Isso é pior que enfeite: é número financeiro errado numa tela de gestão, e
+ * quem olha não tem como saber que é mentira. Os padrões agora são listas
+ * vazias — o painel mostra zero até alguém lançar algo de verdade.
+ *
+ * Catálogos de configuração (formas de pagamento, tabelas de preço) continuam
+ * com valores iniciais: aquilo é parâmetro da escola, não lançamento.
+ */
+
 // Helper to safely fetch from localStorage
 function getItemJSON<T>(key: string, defaultValue: T): T {
   try {
@@ -320,7 +337,7 @@ export function getScholarships(): Scholarship[] {
       active: true
     }
   ];
-  return getItemJSON<Scholarship[]>(STORAGE_KEYS.SCHOLARSHIPS, seedScholarships);
+  return getItemJSON<Scholarship[]>(STORAGE_KEYS.SCHOLARSHIPS, []);
 }
 
 export function saveScholarship(scholarship: Scholarship, user: string): void {
@@ -404,7 +421,7 @@ export function getMiscIncomes(): MiscIncome[] {
       status: 'PAGO'
     }
   ];
-  return getItemJSON<MiscIncome[]>(STORAGE_KEYS.MISC_INCOMES, seedIncomes);
+  return getItemJSON<MiscIncome[]>(STORAGE_KEYS.MISC_INCOMES, []);
 }
 
 export function payMiscIncome(
@@ -507,7 +524,7 @@ export function getExpenses(): Expense[] {
       notes: 'Nota Fiscal nº 4920'
     }
   ];
-  return getItemJSON<Expense[]>(STORAGE_KEYS.EXPENSES, seedExpenses);
+  return getItemJSON<Expense[]>(STORAGE_KEYS.EXPENSES, []);
 }
 
 export function addExpense(expenseData: Omit<Expense, 'id'>, user: string): Expense {
@@ -594,7 +611,7 @@ export function getInstallments(): Installment[] {
       status: 'PENDENTE'
     }
   ];
-  return getItemJSON<Installment[]>(STORAGE_KEYS.INSTALLMENTS, seedInstallments);
+  return getItemJSON<Installment[]>(STORAGE_KEYS.INSTALLMENTS, []);
 }
 
 export function saveInstallment(inst: Installment): void {
@@ -966,7 +983,7 @@ export function getReceipts(): FinancialReceipt[] {
       status: 'VALIDO'
     }
   ];
-  return getItemJSON<FinancialReceipt[]>(STORAGE_KEYS.RECEIPTS, seedReceipts);
+  return getItemJSON<FinancialReceipt[]>(STORAGE_KEYS.RECEIPTS, []);
 }
 
 export function saveReceipt(receipt: FinancialReceipt): void {
@@ -1094,7 +1111,7 @@ export function getFinancialNotes(): FinancialNote[] {
       semester: '2026/1'
     }
   ];
-  return getItemJSON<FinancialNote[]>(STORAGE_KEYS.FINANCIAL_NOTES, seedNotes);
+  return getItemJSON<FinancialNote[]>(STORAGE_KEYS.FINANCIAL_NOTES, []);
 }
 
 export function addFinancialNote(
