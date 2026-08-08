@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Search, Send, User as UserIcon, Users, MessageSquare, 
   ArrowLeft, Check, CheckCheck, MessageCircle, Sparkles, SendHorizontal, GraduationCap,
-  ChevronRight, FileText, Image as ImageIcon, Mic, Download, Trash2
+  ChevronRight, FileText, Image as ImageIcon, Mic, Download, Trash2, Shield
 } from 'lucide-react';
 
 interface MessageCenterProps {
@@ -283,19 +283,32 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
                             }`}
                           >
                             <div className="flex items-center gap-3">
+                              {/* O PAPEL MOSTRADO ERA SEMPRE "ALUNO" PARA QUEM NÃO FOSSE PROFESSOR.
+                                  A conta ADMINISTRADOR aparecia na lista como se fosse aluno.
+                                  Numa tela onde se escolhe para quem mandar recado, o papel
+                                  errado leva a mandar para a pessoa errada. */}
                               <div className={`p-2.5 rounded-xl ${
-                                user.role === UserRole.TEACHER 
-                                  ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' 
-                                  : 'bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
+                                user.role === UserRole.TEACHER
+                                  ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                                  : (user.role === UserRole.ADMIN || user.role === UserRole.STAFF)
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
                               }`}>
-                                {user.role === UserRole.TEACHER ? <Users className="h-4 w-4" /> : <GraduationCap className="h-4 w-4" />}
+                                {user.role === UserRole.TEACHER
+                                  ? <Users className="h-4 w-4" />
+                                  : (user.role === UserRole.ADMIN || user.role === UserRole.STAFF)
+                                    ? <Shield className="h-4 w-4" />
+                                    : <GraduationCap className="h-4 w-4" />}
                               </div>
                               <div className="text-left">
                                 <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase leading-tight">
                                   {user.name}
                                 </h4>
                                 <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                                  {user.role === UserRole.TEACHER ? 'Professor' : 'Aluno'} 
+                                  {user.role === UserRole.TEACHER ? 'Professor'
+                                    : user.role === UserRole.ADMIN ? 'Administração'
+                                    : user.role === UserRole.STAFF ? 'Secretaria'
+                                    : 'Aluno'} 
                                   {user.enrollment && ` • Matrícula: ${user.enrollment}`}
                                   {user.cpf && ` • CPF: ${user.cpf}`}
                                 </p>
