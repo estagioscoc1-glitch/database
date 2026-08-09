@@ -184,7 +184,7 @@ interface AppContextType {
     attachmentName?: string
   ) => void;
   deleteMessage: (id: string) => void;
-  addNotification: (userId: string, content: string) => void;
+  addNotification: (userId: string, content: string, messageId?: string) => void;
   clearNotifications: (userId: string) => void;
   
   // Helpers
@@ -3877,10 +3877,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const hasAttachmentText = attachmentType ? ` [ANEXO ${attachmentType.toUpperCase()}]` : '';
     if (recipientId === 'ALL_TEACHERS') {
       users.filter(u => u.role === UserRole.TEACHER).forEach(t => {
-        addNotification(t.id, `Nova mensagem de coordenação:${hasAttachmentText} "${uppercaseContent.substring(0, 60)}${uppercaseContent.length > 60 ? '...' : ''}"`);
+        addNotification(t.id, `Nova mensagem de coordenação:${hasAttachmentText} "${uppercaseContent.substring(0, 60)}${uppercaseContent.length > 60 ? '...' : ''}"`, newMsg.id);
       });
     } else {
-      addNotification(recipientId, `Mensagem de ${senderName.toUpperCase()}:${hasAttachmentText} "${uppercaseContent.substring(0, 100)}${uppercaseContent.length > 100 ? '...' : ''}"`);
+      addNotification(recipientId, `Mensagem de ${senderName.toUpperCase()}:${hasAttachmentText} "${uppercaseContent.substring(0, 100)}${uppercaseContent.length > 100 ? '...' : ''}"`, newMsg.id);
     }
   };
 
@@ -3889,6 +3889,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     excluirMensagem(id).then(res => {
       if (res.ok) {
         setMessages(prev => prev.filter(m => m.id !== id));
+
+        // O AVISO MORRE JUNTO COM A MENSAGEM.
+        //
+        // Apagar a mensagem a removia do banco, mas o aviso ("Nova mensagem de
+        // coordenação: ...") continuava na tela de quem recebeu — e ele carrega
+        // os primeiros 60 caracteres do texto. O trecho seguia visível depois
+        // de a mensagem ter sido apagada, e quem clicasse não encontrava nada.
+        setNotifications(anterior => anterior.filter(n => n.messageId !== id));
       } else {
         addSecurityLog('SISTEMA_ERRO', `Não foi possível excluir a mensagem ${id}: ${res.erro}`, 'medium');
       }
@@ -3923,13 +3931,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAvisosVistos(anterior => (anterior.includes(id) ? anterior : [...anterior, id]));
   };
 
-  const addNotification = (userId: string, content: string) => {
+  const addNotification = (userId: string, content: string, messageId?: string) => {
     const newNot: AcademicNotification = {
       id: `not_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       userId,
       content,
       date: new Date().toISOString(),
-      read: false
+      read: false,
+      messageId
     };
     setNotifications(prev => [newNot, ...prev]);
   };
