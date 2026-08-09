@@ -36,7 +36,7 @@ export const DependencyManager: React.FC = () => {
   // Filter student users
   const studentUsers = users.filter(u => u.role === 'STUDENT' && u.active);
   const filteredStudents = studentUsers.filter(u =>
-    u.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    (u.name ?? '').toLowerCase().includes(studentSearch.toLowerCase()) ||
     (u.enrollment && u.enrollment.toLowerCase().includes(studentSearch.toLowerCase())) ||
     (u.cpf && u.cpf.includes(studentSearch))
   ).slice(0, 8); // show top 8 results for clean display

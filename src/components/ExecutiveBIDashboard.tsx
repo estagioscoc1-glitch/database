@@ -140,7 +140,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     if (globalSearch.trim()) {
       const q = globalSearch.toLowerCase();
       result = result.filter(u =>
-        u.name.toLowerCase().includes(q) ||
+        (u.name ?? '').toLowerCase().includes(q) ||
         (u.enrollment && u.enrollment.toLowerCase().includes(q)) ||
         (u.cpf && u.cpf.toLowerCase().includes(q)) ||
         (u.email && u.email.toLowerCase().includes(q))

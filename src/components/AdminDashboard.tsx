@@ -898,7 +898,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Filter student directory search
   const filteredStudents = allStudentUsers.filter(s => {
-    return s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment?.includes(searchQuery);
+    return (s.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment?.includes(searchQuery);
   });
 
   // Drag and drop events for Backup JSON Importer
@@ -1991,7 +1991,7 @@ export const AdminDashboard: React.FC = () => {
                     const query = classSearchQuery.toLowerCase();
                     const courseName = courses.find(co => co.id === cl.courseId)?.name || '';
                     return (
-                      cl.name.toLowerCase().includes(query) ||
+                      (cl.name ?? '').toLowerCase().includes(query) ||
                       (cl.code && cl.code.toLowerCase().includes(query)) ||
                       courseName.toLowerCase().includes(query) ||
                       cl.shift.toLowerCase().includes(query)
@@ -2390,11 +2390,21 @@ export const AdminDashboard: React.FC = () => {
                 {(() => {
                   const filteredUsers = users.filter(u => {
                     if (userSearchQuery) {
+                      // CAMPO VAZIO NÃO PODE DERRUBAR A BUSCA.
+                      //
+                      // `u.username.toLowerCase()` e `u.email.toLowerCase()`
+                      // supunham que todo mundo tem esses dados. A conta de
+                      // administração e a da secretaria não têm e-mail
+                      // cadastrado — bastava digitar UMA LETRA no campo de
+                      // pesquisa para a tela inteira cair em "Ocorrência de
+                      // Sistema", no meio de um atendimento.
                       const q = userSearchQuery.toLowerCase();
-                      const matchName = u.name.toLowerCase().includes(q);
-                      const matchUsername = u.username.toLowerCase().includes(q);
-                      const matchEmail = u.email.toLowerCase().includes(q);
-                      const matchEnrollment = u.enrollment ? u.enrollment.toLowerCase().includes(q) : false;
+                      const contem = (valor?: string | null) =>
+                        (valor ?? '').toLowerCase().includes(q);
+                      const matchName = contem(u.name);
+                      const matchUsername = contem(u.username);
+                      const matchEmail = contem(u.email);
+                      const matchEnrollment = contem(u.enrollment);
                       if (!matchName && !matchUsername && !matchEmail && !matchEnrollment) {
                         return false;
                       }
@@ -2546,7 +2556,15 @@ export const AdminDashboard: React.FC = () => {
                                 ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                             }`}>
-                              {u.role === UserRole.ADMIN ? 'Admin' : u.role === UserRole.TEACHER ? 'Prof' : 'Aluno'}
+                              {/* SECRETARIA APARECIA COMO "ALUNO".
+                                  Quem não fosse Admin nem Professor caía no
+                                  rótulo de aluno. Numa lista onde se redefine
+                                  senha e se exclui conta, papel errado leva a
+                                  agir sobre a pessoa errada. */}
+                              {u.role === UserRole.ADMIN ? 'Admin'
+                                : u.role === UserRole.TEACHER ? 'Prof'
+                                : u.role === UserRole.STAFF ? 'Secretaria'
+                                : 'Aluno'}
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-400 truncate">
@@ -3030,7 +3048,7 @@ export const AdminDashboard: React.FC = () => {
               {transferSearch && (
                 <div className="border border-slate-200 dark:border-slate-750 rounded-xl max-h-[140px] overflow-y-auto bg-slate-50 dark:bg-slate-850 p-1 divide-y divide-slate-100 dark:divide-slate-800">
                   {users
-                    .filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(transferSearch.toLowerCase()))
+                    .filter(u => u.role === UserRole.STUDENT && (u.name ?? '').toLowerCase().includes(transferSearch.toLowerCase()))
                     .slice(0, 5)
                     .map(std => {
                       const currentClass = classes.find(c => c.id === std.classId);
@@ -3051,7 +3069,7 @@ export const AdminDashboard: React.FC = () => {
                         </button>
                       );
                     })}
-                  {users.filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(transferSearch.toLowerCase())).length === 0 && (
+                  {users.filter(u => u.role === UserRole.STUDENT && (u.name ?? '').toLowerCase().includes(transferSearch.toLowerCase())).length === 0 && (
                     <p className="text-[10px] text-slate-400 italic text-center py-2">Nenhum aluno encontrado.</p>
                   )}
                 </div>
@@ -3224,7 +3242,7 @@ export const AdminDashboard: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                   {users
-                    .filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(docSearchQuery.toLowerCase()))
+                    .filter(u => u.role === UserRole.STUDENT && (u.name ?? '').toLowerCase().includes(docSearchQuery.toLowerCase()))
                     .map(std => {
                       const cl = classes.find(c => c.id === std.classId);
                       const targetCourse = courses.find(co => co.id === cl?.courseId);
@@ -4099,7 +4117,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="border border-slate-150 dark:border-slate-800 rounded-xl max-h-[200px] overflow-y-auto bg-slate-50 dark:bg-slate-950 divide-y divide-slate-150 dark:divide-slate-850">
                     {(() => {
                       const matches = users.filter(u => u.role === UserRole.STUDENT && (
-                        u.name.toLowerCase().includes(boletimSearch.toLowerCase()) || 
+                        (u.name ?? '').toLowerCase().includes(boletimSearch.toLowerCase()) || 
                         (u.enrollment && u.enrollment.toLowerCase().includes(boletimSearch.toLowerCase()))
                       ));
                       if (matches.length === 0) {
@@ -4550,7 +4568,7 @@ export const AdminDashboard: React.FC = () => {
                   <div className="border border-slate-150 dark:border-slate-800 rounded-xl max-h-[250px] overflow-y-auto bg-slate-50 dark:bg-slate-950 divide-y divide-slate-150 dark:divide-slate-850">
                     {(() => {
                       const matches = users.filter(u => u.role === UserRole.STUDENT && (
-                        u.name.toLowerCase().includes(historicoSearch.toLowerCase()) || 
+                        (u.name ?? '').toLowerCase().includes(historicoSearch.toLowerCase()) || 
                         (u.enrollment && u.enrollment.toLowerCase().includes(historicoSearch.toLowerCase()))
                       ));
                       if (matches.length === 0) {

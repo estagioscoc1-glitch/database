@@ -113,8 +113,8 @@ export const CourseManager: React.FC = () => {
   };
 
   const filteredCourses = courses.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.id.toLowerCase().includes(searchTerm.toLowerCase())
+    (c.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.id ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

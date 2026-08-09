@@ -215,10 +215,10 @@ export const StaffManager: React.FC = () => {
   };
 
   const filteredStaff = staffMembers.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.cpf.includes(searchTerm) ||
-    s.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.position.toLowerCase().includes(searchTerm.toLowerCase())
+    (s.username ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.position ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

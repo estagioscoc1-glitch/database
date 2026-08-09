@@ -80,11 +80,11 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
       const query = searchQuery.toLowerCase().trim();
       if (!query) return true;
 
-      const nameMatch = u.name.toLowerCase().includes(query);
+      const nameMatch = (u.name ?? '').toLowerCase().includes(query);
       const enrollmentMatch = u.enrollment?.toLowerCase().includes(query) || false;
       const emailMatch = u.email?.toLowerCase().includes(query) || false;
       const cpfMatch = u.cpf?.toLowerCase().includes(query) || false;
-      const roleMatch = u.role.toLowerCase().includes(query);
+      const roleMatch = (u.role ?? '').toLowerCase().includes(query);
 
       return nameMatch || enrollmentMatch || emailMatch || cpfMatch || roleMatch;
     });
