@@ -228,6 +228,14 @@ export interface AcademicNotification {
   content: string;
   date: string;
   read: boolean;
+  /**
+   * Mensagem que originou este aviso, quando houver.
+   *
+   * Sem esta ligação, apagar a mensagem deixava o aviso órfão na tela do
+   * destinatário — e o aviso carrega os primeiros 60 caracteres do texto, então
+   * o trecho continuava visível depois de a mensagem ter sido apagada.
+   */
+  messageId?: string;
 }
 
 export interface AcademicCalendarEvent {
