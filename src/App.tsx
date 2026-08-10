@@ -380,13 +380,19 @@ function MainAppLayout() {
         setSelectedContactId={setSelectedContactId}
       />
 
-      {/* Extreme Flashy Notification Popover */}
-      <FlashyNotification 
+      {/* BALÃO PISCANTE DE NOTIFICAÇÃO DESLIGADO, POR DECISÃO DA ESCOLA.
+          A mensagem continua chegando por inteiro: o sino no cabeçalho marca o
+          não lido, a caixa de avisos lista tudo, e a central de mensagens abre
+          normal. O que sai é só o balão que aparecia sozinho por cima da tela,
+          interrompendo quem estava lançando nota ou fazendo chamada.
+          Nada foi apagado: o componente segue em
+          src/components/FlashyNotification.tsx e volta descomentando abaixo. */}
+      {/* <FlashyNotification
         onOpenChat={(senderId) => {
           setSelectedContactId(senderId);
           setIsChatOpen(true);
         }}
-      />
+      /> */}
 
       {/* AVISO DO SISTEMA
           Substitui o alert() do navegador. O alert congela a página inteira e
