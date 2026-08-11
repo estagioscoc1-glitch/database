@@ -9,7 +9,7 @@ import { useApp } from '../context/AppContext';
 import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
-import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
 
 interface PrintModalProps {
   documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | 'historico_completo';
@@ -355,10 +355,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
       <div className="border border-black text-black text-[10px] font-sans w-full mb-4">
         {/* Header Row 1: Logo, Title, and Academic Details */}
         <div className="flex border-b border-black">
-          {/* Left Box: Official school logo (must match the school's official documents exactly) */}
+          {/* Left Box: Official school logo — plain version, no seal (diaries,
+              boletim and histórico use the plain logo; declarations use the
+              full banner with the 30-year seal, see LogoOswaldoCruzHeader below) */}
           <div className="w-[180px] p-2 flex flex-col justify-center items-center text-center border-r border-black select-none font-sans">
             <img
-              src={LOGO_COLEGIO_OSWALDO_CRUZ}
+              src={LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES}
               alt="Colégio Oswaldo Cruz"
               className="max-h-[46px] max-w-[160px] object-contain"
             />
@@ -620,10 +622,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return { av4: g.av4 ?? parts[0], av5: g.av5 ?? parts[1], av6: g.av6 ?? parts[2] };
   };
 
-  // Split class students into chunks of 25 for pagination
+  // Split class students into chunks of 30 for pagination (fills the whole
+  // printed sheet, matching the official paper forms — do not go back to 25).
   const studentChunks = (() => {
     const chunks: any[][] = [];
-    const chunkSize = 25;
+    const chunkSize = 30;
     for (let i = 0; i < classStudents.length; i += chunkSize) {
       chunks.push(classStudents.slice(i, i + chunkSize));
     }
@@ -693,7 +696,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     const pageCols = colsData.slice(pageStartIndex, pageStartIndex + 30);
     const numDatePages = getPageCount();
     const sChunksCount = studentChunks.length;
-    const totalPagesLabel = `Frequência - Pág. ${datePageIndex + 1}/${numDatePages} | Alunos ${studentChunkIndex * 25 + 1} a ${Math.min((studentChunkIndex + 1) * 25, classStudents.length)}`;
+    const totalPagesLabel = `Frequência - Pág. ${datePageIndex + 1}/${numDatePages} | Alunos ${studentChunkIndex * 30 + 1} a ${Math.min((studentChunkIndex + 1) * 30, classStudents.length)}`;
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
@@ -798,9 +801,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black font-semibold text-[8px] text-black">
-                  {Array.from({ length: 25 }).map((_, idx) => {
+                  {Array.from({ length: 30 }).map((_, idx) => {
                     const std = studentChunk[idx];
-                    const globalIdx = studentChunkIndex * 25 + idx;
+                    const globalIdx = studentChunkIndex * 30 + idx;
                     
                     if (std) {
                       return (
@@ -864,7 +867,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const renderDiarioNotasPage = (page: any, pIndex: number, clampedActivePage: number) => {
     const { studentChunk, studentChunkIndex } = page;
-    const pageInfoLabel = `Notas - Alunos ${studentChunkIndex * 25 + 1} a ${Math.min((studentChunkIndex + 1) * 25, classStudents.length)}`;
+    const pageInfoLabel = `Notas - Alunos ${studentChunkIndex * 30 + 1} a ${Math.min((studentChunkIndex + 1) * 30, classStudents.length)}`;
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
@@ -901,44 +904,44 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                 </colgroup>
                 <thead>
                   <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[8px]">
-                    <th className="py-1 px-1.5 text-center border-r border-black w-[35px]" rowSpan={2}>
+                    <th className="py-0.5 px-1.5 text-center border-r border-black w-[35px]" rowSpan={2}>
                       <div className="[writing-mode:vertical-lr] rotate-180 mx-auto font-black py-1">ORDEM</div>
                     </th>
-                    <th className="py-1 px-1.5 text-center border-r border-black w-[65px]" rowSpan={2}>Matr.</th>
-                    <th className="py-1 px-2 border-r border-black" rowSpan={2}>ALUNO</th>
-                    <th className="py-1 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={5}>
+                    <th className="py-0.5 px-1.5 text-center border-r border-black w-[65px]" rowSpan={2}>Matr.</th>
+                    <th className="py-0.5 px-2 border-r border-black" rowSpan={2}>ALUNO</th>
+                    <th className="py-0.5 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={5}>
                       Aulas Previstas: <span className="font-mono">{targetSubject.workload || '0'}</span>
                     </th>
-                    <th className="py-1 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={5}>
+                    <th className="py-0.5 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={5}>
                       Aulas Dadas: <span className="font-mono">{attendance.filter(a => a.subjectId === targetSubject.id).length || '0'}</span>
                     </th>
-                    <th className="py-1 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={6}>
+                    <th className="py-0.5 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={6}>
                       Período: <span className="font-mono">{targetClass?.year}/{targetClass?.semester}</span>
                     </th>
                   </tr>
                   <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[7.5px] text-center">
-                    <th className="py-1 border-r border-black w-[35px]">AV1</th>
-                    <th className="py-1 border-r border-black w-[35px]">AV2</th>
-                    <th className="py-1 border-r border-black w-[35px]">AV3</th>
-                    <th className="py-1 border-r border-black w-[35px]">REC</th>
-                    <th className="py-1 border-r border-black w-[35px] bg-gray-200/50 font-black">S1</th>
-                    <th className="py-1 border-r border-black w-[35px]">AV4</th>
-                    <th className="py-1 border-r border-black w-[35px]">AV5</th>
-                    <th className="py-1 border-r border-black w-[35px]">AV6</th>
-                    <th className="py-1 border-r border-black w-[35px]">REC</th>
-                    <th className="py-1 border-r border-black w-[35px] bg-gray-200/50 font-black">S2</th>
-                    <th className="py-1 border-r border-black w-[35px]">Extra</th>
-                    <th className="py-1 border-r border-black w-[30px]">CS</th>
-                    <th className="py-1 border-r border-black w-[35px]">AFC</th>
-                    <th className="py-1 border-r border-black w-[35px] bg-blue-50/50 font-black">PF</th>
-                    <th className="py-1 border-r border-black w-[45px] font-black">Conceito</th>
-                    <th className="py-1 px-2 font-black text-right border-r border-black">Resultado</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV1</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV2</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV3</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">REC</th>
+                    <th className="py-0.5 border-r border-black w-[35px] bg-gray-200/50 font-black">S1</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV4</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV5</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AV6</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">REC</th>
+                    <th className="py-0.5 border-r border-black w-[35px] bg-gray-200/50 font-black">S2</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">Extra</th>
+                    <th className="py-0.5 border-r border-black w-[30px]">CS</th>
+                    <th className="py-0.5 border-r border-black w-[35px]">AFC</th>
+                    <th className="py-0.5 border-r border-black w-[35px] bg-blue-50/50 font-black">PF</th>
+                    <th className="py-0.5 border-r border-black w-[45px] font-black">Conceito</th>
+                    <th className="py-0.5 px-2 font-black text-right border-r border-black">Resultado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black font-semibold text-[8.5px] text-black">
-                  {Array.from({ length: Math.max(15, studentChunk.length) }).map((_, idx) => {
+                  {Array.from({ length: Math.max(30, studentChunk.length) }).map((_, idx) => {
                     const std = studentChunk[idx];
-                    const globalIdx = studentChunkIndex * 25 + idx;
+                    const globalIdx = studentChunkIndex * 30 + idx;
                     const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id) : null;
 
                     if (std) {
@@ -947,28 +950,28 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
                       return (
                         <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
-                          <td className="py-1 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{std.enrollment}</td>
-                          <td className="py-1 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{std.enrollment}</td>
+                          <td className="py-0.5 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
 
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s1Part.av1.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s1Part.av2.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s1Part.av3.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade && grade.recS1 !== null ? grade.recS1.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-black font-mono bg-gray-200/40">{grade ? grade.s1.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s1Part.av1.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s1Part.av2.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s1Part.av3.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade && grade.recS1 !== null ? grade.recS1.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-black font-mono bg-gray-200/40">{grade ? grade.s1.toFixed(1) : '-'}</td>
 
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s2Part.av4.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s2Part.av5.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade ? s2Part.av6.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade && grade.recS2 !== null ? grade.recS2.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-black font-mono bg-gray-200/40">{grade ? grade.s2.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s2Part.av4.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s2Part.av5.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s2Part.av6.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade && grade.recS2 !== null ? grade.recS2.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-black font-mono bg-gray-200/40">{grade ? grade.s2.toFixed(1) : '-'}</td>
 
-                          <td className="py-1 text-center border-r border-black font-mono">{grade && grade.extra !== null ? grade.extra.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade && grade.conselho !== null ? grade.conselho.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-mono">{grade && grade.afc !== null ? grade.afc.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-black font-mono bg-blue-50/40 text-blue-955">{grade ? grade.pf.toFixed(1) : '-'}</td>
-                          <td className="py-1 text-center border-r border-black font-black text-[9px]">{grade ? grade.concept : '-'}</td>
-                          <td className={`py-1 px-2 text-right border-r border-black font-black ${grade?.result?.includes('APTO') ? 'text-emerald-700' : grade?.result === 'DISPENSADO' ? 'text-purple-700' : grade?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'}`}>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade && grade.extra !== null ? grade.extra.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade && grade.conselho !== null ? grade.conselho.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-mono">{grade && grade.afc !== null ? grade.afc.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-black font-mono bg-blue-50/40 text-blue-955">{grade ? grade.pf.toFixed(1) : '-'}</td>
+                          <td className="py-0.5 text-center border-r border-black font-black text-[9px]">{grade ? grade.concept : '-'}</td>
+                          <td className={`py-0.5 px-2 text-right border-r border-black font-black ${grade?.result?.includes('APTO') ? 'text-emerald-700' : grade?.result === 'DISPENSADO' ? 'text-purple-700' : grade?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'}`}>
                             {/* "F. NOTA" É IMPRESSO COMO "NÃO APTO", NÃO COMO "REP. FALTAS".
                                 O documento traduzia toda situação de nota faltando para
                                 "REP. FALTAS" — em cinco lugares. Saía reprovado por falta
@@ -982,26 +985,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       );
                     } else {
                       return (
-                        <tr key={`empty-row-${idx}`} className="h-[20px] text-black odd:bg-white even:bg-gray-100/50">
-                          <td className="py-1 text-center border-r border-black font-mono text-gray-400">{globalIdx + 1}</td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black bg-gray-200/40"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black bg-gray-200/40"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 border-r border-black bg-blue-50/40"></td>
-                          <td className="py-1 border-r border-black"></td>
-                          <td className="py-1 px-2 border-r border-black"></td>
+                        <tr key={`empty-row-${idx}`} className="h-[15px] text-black odd:bg-white even:bg-gray-100/50">
+                          <td className="py-0.5 text-center border-r border-black font-mono text-gray-400">{globalIdx + 1}</td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black bg-gray-200/40"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black bg-gray-200/40"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 border-r border-black bg-blue-50/40"></td>
+                          <td className="py-0.5 border-r border-black"></td>
+                          <td className="py-0.5 px-2 border-r border-black"></td>
                         </tr>
                       );
                     }
@@ -1023,7 +1026,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const renderMapaNotasPage = (page: any, pIndex: number, clampedActivePage: number) => {
     const { studentChunk, studentChunkIndex } = page;
-    const pageInfoLabel = `Mapa - Alunos ${studentChunkIndex * 25 + 1} a ${Math.min((studentChunkIndex + 1) * 25, classStudents.length)}`;
+    const pageInfoLabel = `Mapa - Alunos ${studentChunkIndex * 30 + 1} a ${Math.min((studentChunkIndex + 1) * 30, classStudents.length)}`;
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
@@ -1061,9 +1064,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                 </tr>
               </thead>
               <tbody className="divide-y divide-black font-semibold text-[8.5px] text-black">
-                {Array.from({ length: Math.max(15, studentChunk.length) }).map((_, idx) => {
+                {Array.from({ length: Math.max(30, studentChunk.length) }).map((_, idx) => {
                   const std = studentChunk[idx];
-                  const globalIdx = studentChunkIndex * 25 + idx;
+                  const globalIdx = studentChunkIndex * 30 + idx;
 
                   if (std) {
                     let totalGradesSum = 0;
@@ -1352,9 +1355,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           const sChunksCount = studentChunks.length;
                           const dIndex = Math.floor(pIndex / sChunksCount);
                           const sIndex = pIndex % sChunksCount;
-                          label = `Dias ${(dIndex * 30) + 1}-${(dIndex + 1) * 30} | Alunos ${sIndex * 25 + 1}-${Math.min((sIndex + 1) * 25, classStudents.length)}`;
+                          label = `Dias ${(dIndex * 30) + 1}-${(dIndex + 1) * 30} | Alunos ${sIndex * 30 + 1}-${Math.min((sIndex + 1) * 30, classStudents.length)}`;
                         } else if (documentType === 'diario_notas' || documentType === 'mapa_notas') {
-                          label = `Alunos ${pIndex * 25 + 1}-${Math.min((pIndex + 1) * 25, classStudents.length)}`;
+                          label = `Alunos ${pIndex * 30 + 1}-${Math.min((pIndex + 1) * 30, classStudents.length)}`;
                         }
                         return (
                           <option key={pIndex} value={pIndex}>

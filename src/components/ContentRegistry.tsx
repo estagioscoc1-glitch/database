@@ -10,7 +10,7 @@ import {
   PAGINAS_DE_CONTEUDO,
   TOTAL_DE_LINHAS,
 } from '../lib/repositorios';
-import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../lib/imageAssets';
+import { LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES } from '../lib/imageAssets';
 
 /**
  * REGISTRO DE CONTEÚDO PROGRAMÁTICO
@@ -165,7 +165,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
       <table class="cab">
         <tr>
           <td class="logo">
-            <img src="${LOGO_COLEGIO_OSWALDO_CRUZ}" alt="Colégio Oswaldo Cruz" class="marca-img" />
+            <img src="${LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES}" alt="Colégio Oswaldo Cruz" class="marca-img" />
           </td>
           <td class="titulo">
             REGISTRO DE CONTEÚDO PROGRAMÁTICO<br/>
