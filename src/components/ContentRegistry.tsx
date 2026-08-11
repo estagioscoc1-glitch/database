@@ -10,6 +10,7 @@ import {
   PAGINAS_DE_CONTEUDO,
   TOTAL_DE_LINHAS,
 } from '../lib/repositorios';
+import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../lib/imageAssets';
 
 /**
  * REGISTRO DE CONTEÚDO PROGRAMÁTICO
@@ -164,8 +165,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
       <table class="cab">
         <tr>
           <td class="logo">
-            <div class="marca">LYNX <span>EDU</span></div>
-            <div class="sub">SISTEMAS ESCOLARES INTELIGENTES</div>
+            <img src="${LOGO_COLEGIO_OSWALDO_CRUZ}" alt="Colégio Oswaldo Cruz" class="marca-img" />
           </td>
           <td class="titulo">
             REGISTRO DE CONTEÚDO PROGRAMÁTICO<br/>
@@ -235,9 +235,7 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
   table { width: 100%; border-collapse: collapse; }
   .cab td { border: 1px solid #000; padding: 4px 6px; vertical-align: middle; }
   .logo { width: 20%; text-align: center; }
-  .marca { font-weight: bold; font-size: 13pt; }
-  .marca span { color: #1d4ed8; }
-  .sub { font-size: 6pt; letter-spacing: .5px; }
+  .marca-img { max-height: 40px; max-width: 90%; object-fit: contain; }
   .titulo { width: 50%; text-align: center; font-weight: bold; font-size: 10pt; }
   .ident { width: 30%; font-size: 8pt; line-height: 1.6; }
   .grade { margin-top: -1px; }

@@ -355,10 +355,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
       <div className="border border-black text-black text-[10px] font-sans w-full mb-4">
         {/* Header Row 1: Logo, Title, and Academic Details */}
         <div className="flex border-b border-black">
-          {/* Left Box: Styled Clean Text */}
+          {/* Left Box: Official school logo (must match the school's official documents exactly) */}
           <div className="w-[180px] p-2 flex flex-col justify-center items-center text-center border-r border-black select-none font-sans">
-            <span className="text-[10px] font-black tracking-widest block leading-none text-black">LYNX EDU</span>
-            <span className="text-[10px] font-black tracking-tight text-blue-600 block mt-0.5">SISTEMAS INTELIGENTES</span>
+            <img
+              src={LOGO_COLEGIO_OSWALDO_CRUZ}
+              alt="Colégio Oswaldo Cruz"
+              className="max-h-[46px] max-w-[160px] object-contain"
+            />
           </div>
           
           {/* Center Box: Title */}
