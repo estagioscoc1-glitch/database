@@ -372,7 +372,7 @@ export interface LinhaDeConteudo {
 }
 
 /** Linhas por página impressa. Vem do formulário em papel da secretaria. */
-export const LINHAS_POR_PAGINA = 27;
+export const LINHAS_POR_PAGINA = 30;
 /** Páginas por disciplina. */
 export const PAGINAS_DE_CONTEUDO = 10;
 export const TOTAL_DE_LINHAS = LINHAS_POR_PAGINA * PAGINAS_DE_CONTEUDO;
