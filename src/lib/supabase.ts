@@ -173,10 +173,27 @@ async function emailDoLogin(login: string): Promise<string | null> {
 /**
  * Faz login de verdade: a senha é verificada pelo Supabase Auth, com hash.
  * Não existe senha mestra, nem usuário fixo, nem verificação no navegador.
+ *
+ * O bloqueio por tentativas erradas agora é conferido e gravado no SERVIDOR
+ * (tabela `tentativas_login` + funções no banco). Antes ficava só na memória
+ * do navegador: bastava recarregar a página para o contador zerar. Agora não
+ * — o bloqueio vale mesmo trocando de aba, de navegador, ou reiniciando o
+ * computador.
  */
 export async function entrar(login: string, senha: string): Promise<ResultadoLogin> {
   if (!supabaseConfigurado) {
     return { ok: false, mensagem: 'O portal não está conectado ao banco de dados.' };
+  }
+
+  const chaveTentativas = login.trim().toLowerCase();
+
+  // Confere o bloqueio ANTES de qualquer outra coisa — inclusive quando o
+  // login já é um e-mail (caso em que `emailDoLogin` pula a função do banco
+  // que também checaria isso; sem esta linha, dava para burlar o bloqueio
+  // digitando o e-mail direto).
+  const { data: bloqueado } = await supabase.rpc('login_bloqueado', { p_login: chaveTentativas });
+  if (bloqueado) {
+    return { ok: false, mensagem: 'Muitas tentativas erradas. Aguarde alguns segundos e tente de novo.' };
   }
 
   const email = await emailDoLogin(login.trim());
@@ -187,8 +204,11 @@ export async function entrar(login: string, senha: string): Promise<ResultadoLog
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
   if (error || !data.user) {
+    await supabase.rpc('registrar_falha_login', { p_login: chaveTentativas });
     return { ok: false, mensagem: 'Usuário ou senha incorretos.' };
   }
+
+  await supabase.rpc('registrar_sucesso_login', { p_login: chaveTentativas });
 
   const perfil = await carregarPerfil();
   if (!perfil) {
@@ -205,6 +225,27 @@ export async function entrar(login: string, senha: string): Promise<ResultadoLog
     usuario: await montarUsuario(perfil),
     precisaTrocarSenha: perfil.trocar_senha,
   };
+}
+
+/**
+ * Confere a SENHA ATUAL de quem está logado agora, reautenticando de
+ * verdade no servidor — não é uma comparação escondida no código.
+ *
+ * Usada como "digite sua senha para confirmar" antes de ações destrutivas
+ * (por exemplo, excluir um usuário). Antes disso existia uma senha fixa
+ * ('excluir2026') escrita no código que roda no navegador — visível para
+ * qualquer um que abrisse "Ver código-fonte". Agora é a senha de verdade da
+ * pessoa, a mesma que ela usa pra entrar, conferida pelo Supabase Auth.
+ *
+ * Reautenticar com sucesso não derruba a sessão atual.
+ */
+export async function conferirSenhaAtual(senha: string): Promise<boolean> {
+  const { data: sessao } = await supabase.auth.getUser();
+  const email = sessao.user?.email;
+  if (!email) return false;
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  return !error && !!data.user;
 }
 
 export async function sair(): Promise<void> {
