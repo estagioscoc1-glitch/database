@@ -38,7 +38,7 @@ import { useApp } from '../context/AppContext';
 import { LogIn, ShieldAlert, KeyRound, ArrowRight, BookOpen, User as UserIcon, HelpCircle, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Logo } from './Logo';
-import { checkLoginRateLimit, registerFailedLoginAttempt, resetLoginAttempts, sanitizeInput } from '../utils/security';
+import { sanitizeInput } from '../utils/security';
 
 export const LoginScreen: React.FC = () => {
   const { login } = useApp();
@@ -64,32 +64,26 @@ export const LoginScreen: React.FC = () => {
       return;
     }
 
-    // Freio contra tentativa em massa de adivinhar senha.
-    const limite = checkLoginRateLimit(usuarioLimpo);
-    if (!limite.allowed) {
-      setErro(`Acesso bloqueado temporariamente por excesso de tentativas. Aguarde ${limite.waitSeconds}s.`);
-      return;
-    }
+    // O BLOQUEIO POR TENTATIVAS erradas agora é conferido no SERVIDOR
+    // (tabela `tentativas_login`, dentro da função `login` do contexto).
+    // Havia uma checagem só no navegador aqui antes — resetava sozinha ao
+    // recarregar a página, e mascarava a proteção real. Removida.
 
     setCarregando(true);
     try {
       const entrou = await login(usuarioLimpo, senhaLimpa);
-      if (entrou) {
-        resetLoginAttempts(usuarioLimpo);
-      } else {
-        const tentativa = registerFailedLoginAttempt(usuarioLimpo);
-        // MENSAGEM ÚNICA, DE PROPÓSITO.
-        //
-        // Não diferencia "usuário não existe" de "senha errada", nem revela o
-        // papel de ninguém. Quem tenta invadir não descobre quais logins são
-        // válidos testando um por um.
-        setErro(
-          tentativa.locked
-            ? 'Muitas tentativas incorretas. Seu acesso ficou bloqueado por 5 minutos.'
-            : `Usuário ou senha incorretos. (${tentativa.attemptsLeft} tentativa(s) restante(s))`
-        );
+      if (!entrou) {
+        // Na prática este caminho não deve ocorrer: toda falha de login vem
+        // com uma mensagem do servidor e cai no catch abaixo. Mantido só
+        // como rede de segurança.
+        setErro('Usuário ou senha incorretos.');
       }
     } catch (err: any) {
+      // MENSAGEM DO SERVIDOR, DE PROPÓSITO.
+      //
+      // Pode ser "usuário ou senha incorretos" (mensagem única, não revela
+      // se o login existe) ou o aviso real de bloqueio por tentativas —
+      // esse sim gravado no banco, sobrevive a um F5 ou trocar de navegador.
       setErro(err?.message || 'Não foi possível falar com o servidor. Verifique sua internet.');
     } finally {
       setCarregando(false);
