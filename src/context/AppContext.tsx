@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -3002,41 +3002,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUser = (id: string) => {
     const userToDelete = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
-    setGrades(prev => prev.filter(g => g.studentId !== id));
-    setAttendance(prev => prev.map(session => {
-      if (!session.records || !(id in session.records)) return session;
-      const newRecords = { ...session.records };
-      delete newRecords[id];
-      return { ...session, records: newRecords };
-    }));
-    setDirectAbsences(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(key => {
-        if (key.endsWith(`_${id}`)) {
-          delete next[key];
-        }
-      });
-      return next;
+
+    addSecurityLog(
+      'USUARIO_REMOVIDO',
+      `Acesso de login de ${userToDelete?.name || ''} (ID: ${id}) foi removido. ` +
+      `O histórico acadêmico (notas, frequência, matrícula, histórico escolar) NÃO foi apagado — só o login.`,
+      'medium'
+    );
+
+    // "EXCLUIR USUÁRIO" REMOVE SÓ O ACESSO DE LOGIN, NUNCA O HISTÓRICO.
+    //
+    // Antes, isto chamava `excluirAluno`/`excluirProfessor`, que apagam a
+    // FICHA (linha em `alunos`/`professores`) — e para aluno isso arrasta em
+    // cascata, automaticamente: matrícula, TODAS as notas, frequência,
+    // faltas diretas, histórico escolar e documentos. Um clique pensado para
+    // "esse aluno saiu, tira o acesso dele" apagava o histórico acadêmico
+    // inteiro da pessoa, sem volta — e ainda por cima deixava a conta de
+    // login intacta, o oposto do que o botão promete.
+    //
+    // Agora apaga-se só a linha em `usuarios` (a conta de login). A ficha em
+    // `alunos`/`professores` tem `usuario_id ... on delete set null`: perde
+    // o vínculo de login, mas o registro acadêmico — permanente, como devia
+    // ser — continua intacto.
+    //
+    // `contaId` é o id de login de verdade; para aluno/professor, `id` aqui
+    // é o id da FICHA (troca proposital em `montarUsuario`), não o de login.
+    const contaId = userToDelete?.contaId || id;
+    excluirContaDeLogin(contaId).then(res => {
+      if (!res.ok) {
+        addSecurityLog('SISTEMA_ERRO', `Falha ao remover o acesso de login de ${id}: ${res.erro}`, 'high');
+      }
     });
-    addSecurityLog('USUARIO_REMOVIDO', `Usuário ${userToDelete?.name || ''} (ID: ${id}) foi excluído do sistema.`, 'medium');
-    // Mesmo motivo do curso, turma e disciplina: sem isto, o aluno/professor
-    // excluído reaparecia em outro aparelho assim que a estrutura fosse
-    // recarregada, porque a sincronização automática nunca apaga sozinha.
-    // ADMIN e SECRETARIA não têm linha em nenhuma tabela (por isso não têm
-    // exclusão de banco correspondente aqui — não há nada pra apagar).
-    if (userToDelete?.role === UserRole.STUDENT) {
-      excluirAluno(id).then(res => {
-        if (!res.ok) {
-          addSecurityLog('SISTEMA_ERRO', `Falha ao excluir aluno ${id} do banco: ${res.erro}`, 'high');
-        }
-      });
-    } else if (userToDelete?.role === UserRole.TEACHER) {
-      excluirProfessor(id).then(res => {
-        if (!res.ok) {
-          addSecurityLog('SISTEMA_ERRO', `Falha ao excluir professor ${id} do banco: ${res.erro}`, 'high');
-        }
-      });
-    }
   };
 
   const unifyDuplicateStudents = (principalId: string, duplicateIds: string[]) => {
