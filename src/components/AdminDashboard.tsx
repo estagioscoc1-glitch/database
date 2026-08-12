@@ -141,7 +141,8 @@ export const AdminDashboard: React.FC = () => {
     triggerStorageBackup, deleteStorageBackup,
     declarationConfigs, studentDocuments,
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
-    unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum
+    unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum,
+    currentUser
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
@@ -2650,10 +2651,34 @@ export const AdminDashboard: React.FC = () => {
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
+                          {/* EXCLUIR USUÁRIO — só o ADMIN vê este botão.
+                              A Secretaria (STAFF) e qualquer outro papel não veem a
+                              lixeira aqui: podem editar e redefinir senha, mas não
+                              apagar contas. Além disso, mesmo o Admin precisa digitar
+                              a senha de confirmação de exclusão antes de a conta
+                              sumir — clique errado não apaga ninguém.
+                              A SENHA_CONFIRMACAO_EXCLUSAO_USUARIO abaixo é fixa no
+                              código; troque-a por outra a qualquer momento e publique
+                              de novo, como qualquer outro texto do sistema. */}
+                          {currentUser?.role === UserRole.ADMIN && (
                           <button
                             type="button"
                             onClick={() => {
                               if (isUserConfirmingDelete) {
+                                const SENHA_CONFIRMACAO_EXCLUSAO_USUARIO = 'excluir2026';
+                                const digitada = window.prompt(
+                                  `Para excluir definitivamente "${u.name}", digite a senha de confirmação de exclusão:`
+                                );
+                                if (digitada === null) {
+                                  // Cancelou a caixa de senha — não exclui, não fica travado em "Confirmar?"
+                                  setConfirmDeleteUserId(null);
+                                  return;
+                                }
+                                if (digitada !== SENHA_CONFIRMACAO_EXCLUSAO_USUARIO) {
+                                  mostrarAviso('Senha incorreta', 'A senha de confirmação está errada. Nenhum usuário foi excluído.');
+                                  setConfirmDeleteUserId(null);
+                                  return;
+                                }
                                 deleteUser(u.id);
                                 setConfirmDeleteUserId(null);
                               } else {
@@ -2669,6 +2694,7 @@ export const AdminDashboard: React.FC = () => {
                           >
                             {isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -2972,7 +2998,7 @@ export const AdminDashboard: React.FC = () => {
                                           key={sub.id}
                                           className={`flex items-start gap-2 p-1.5 rounded-lg border text-[10px] font-medium transition-all ${
                                             otherTeacher
-                                              ? 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-850 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60'
+                                              ? 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-850 text-slate-400 dark:text-slate-600 opacity-90'
                                               : isChecked 
                                                 ? 'bg-blue-50/40 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40 text-blue-850 dark:text-blue-300 cursor-pointer' 
                                                 : 'bg-slate-50/30 dark:bg-slate-850/10 border-slate-100 dark:border-slate-800 text-slate-500 hover:bg-slate-50 cursor-pointer'
@@ -2985,12 +3011,51 @@ export const AdminDashboard: React.FC = () => {
                                             onChange={() => toggleJournalAccess(teacher.id, cls.id, sub.id)}
                                             className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-3 w-3 disabled:opacity-50"
                                           />
-                                          <div className="flex flex-col min-w-0">
+                                          <div className="flex flex-col min-w-0 flex-1">
                                             <span className="leading-tight truncate" title={sub.name}>{sub.name}</span>
                                             {otherTeacher && (
-                                              <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 truncate">
-                                                Prof. {otherTeacher.name}
-                                              </span>
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                                                  Prof. {otherTeacher.name}
+                                                </span>
+                                                {/* TROCAR O PROFESSOR DE UM DIÁRIO QUE JÁ TEM LANÇAMENTOS.
+                                                    Antes, o único jeito era ir na ficha do professor antigo,
+                                                    tirar o acesso dele, voltar aqui e marcar para o novo —
+                                                    dois passos, fácil de esquecer o primeiro. Notas e faltas
+                                                    são gravadas por turma+disciplina, não por professor (o
+                                                    campo professor não existe na nota), então essa troca
+                                                    nunca apaga nem move o que já foi lançado. */}
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    pedirConfirmacao(
+                                                      'Transferir este diário?',
+                                                      `"${sub.name}" em "${cls.name}" está hoje com o(a) professor(a) ${otherTeacher.name}.\n\n` +
+                                                      `Transferir o acesso para ${teacher.name}?\n\n` +
+                                                      `Notas e frequências já lançadas NÃO são apagadas nem alteradas — elas ` +
+                                                      `pertencem à turma e à disciplina, não ao professor, e continuam exatamente ` +
+                                                      `como estão. Só muda quem tem permissão de lançar dali para frente.`,
+                                                      () => {
+                                                        updateUser(otherTeacher.id, {
+                                                          assignedJournals: (otherTeacher.assignedJournals || []).filter(
+                                                            j => !(j.classId === cls.id && j.subjectId === sub.id)
+                                                          )
+                                                        });
+                                                        updateUser(teacher.id, {
+                                                          assignedJournals: [...assignedList, { classId: cls.id, subjectId: sub.id }]
+                                                        });
+                                                        setJournalError(null);
+                                                      }
+                                                    );
+                                                  }}
+                                                  className="text-[8px] font-extrabold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer shrink-0"
+                                                  title={`Transferir este diário de ${otherTeacher.name} para ${teacher.name}, sem perder notas ou faltas já lançadas`}
+                                                >
+                                                  Transferir p/ {teacher.name.split(' ')[0]}
+                                                </button>
+                                              </div>
                                             )}
                                           </div>
                                         </label>
@@ -3711,7 +3776,10 @@ export const AdminDashboard: React.FC = () => {
             {/* Column left: Import/Export panel */}
             <div className="lg:col-span-5 space-y-6">
               
-              {/* Box 0: Zerar Alunos do Sistema */}
+              {/* Box 0: Zerar Alunos do Sistema — oculto a pedido da direção (risco de exclusão
+                  em massa acidental). A função wipeAllStudents() continua existindo no código,
+                  só não tem mais botão na tela. */}
+              {false && (
               <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/40 p-6 rounded-3xl shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 select-none">
                   <Trash2 className="h-5 w-5 text-rose-600" />
@@ -3735,6 +3803,7 @@ export const AdminDashboard: React.FC = () => {
                   <Trash2 className="h-4 w-4" /> Zerar Todos os Alunos
                 </button>
               </div>
+              )}
 
               {/* Box 1: Local backup toolbelt */}
               <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">

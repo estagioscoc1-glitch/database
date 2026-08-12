@@ -68,10 +68,47 @@ export const MessageCenter: React.FC<MessageCenterProps> = ({
   // Filter out current user, and filter by search and role
   const filteredUsers = useMemo(() => {
     if (!currentUser) return [];
-    
+
+    // QUEM PODE VER QUEM NA LISTA DE CONTATOS.
+    //
+    // Sem esta regra, professor e aluno enxergavam TODO MUNDO da escola na
+    // lista de mensagens — inclusive gente de outras turmas, sem nenhuma
+    // relação entre eles. Professor só deve poder falar com os alunos dos
+    // diários que ele leciona; aluno só deve ver os professores que dão
+    // aula pra ele, e nunca outros alunos (colega não é contato de
+    // mensagem aqui).
+    //
+    // Admin e Secretaria continuam visíveis para todos — são o canal de
+    // suporte, não fazem parte dessa restrição.
+    const idsDasTurmasDoProfessor = currentUser.role === UserRole.TEACHER
+      ? new Set((currentUser.assignedJournals ?? []).map(j => j.classId))
+      : null;
+
+    const podeVer = (u: User): boolean => {
+      if (currentUser.role === UserRole.TEACHER) {
+        if (u.role === UserRole.STUDENT) {
+          return !!u.classId && !!idsDasTurmasDoProfessor && idsDasTurmasDoProfessor.has(u.classId);
+        }
+        return true; // outros professores, admin, secretaria: sem restrição
+      }
+
+      if (currentUser.role === UserRole.STUDENT) {
+        if (u.role === UserRole.STUDENT) return false; // aluno nunca vê outro aluno aqui
+        if (u.role === UserRole.TEACHER) {
+          return (u.assignedJournals ?? []).some(j => j.classId === currentUser.classId);
+        }
+        return true; // admin, secretaria: sem restrição
+      }
+
+      // Admin, Secretaria e demais papéis: mantém o comportamento de sempre.
+      return true;
+    };
+
     return users.filter(u => {
       // Don't show current user
       if (u.id === currentUser.id) return false;
+
+      if (!podeVer(u)) return false;
 
       // Filter by role (we only care about STUDENT and TEACHER, but admins can also be listed if they exist)
       if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
