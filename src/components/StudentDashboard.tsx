@@ -13,6 +13,7 @@ import {
   Upload, UploadCloud, Briefcase, MapPin, Award, History
 } from 'lucide-react';
 import { PrintModal } from './PrintModal';
+import { escapeHtml } from '../utils/security';
 import { getInternshipComponentsByCourse } from './AdminInternships';
 import { motion } from 'motion/react';
 import { 
@@ -1038,12 +1039,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                               </div>
                             </div>
                           `)
-                            .replace(/{NOME_ALUNO}/g, activeStudent.name)
-                            .replace(/{CPF}/g, activeStudent.enrollment || '')
-                            .replace(/{CURSO}/g, title)
-                            .replace(/{CARGA_HORARIA}/g, hours.toString())
-                            .replace(/{DATA}/g, evt ? new Date(evt.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'))
-                            .replace(/{PROFESSOR}/g, instructor);
+                            .replace(/{NOME_ALUNO}/g, escapeHtml(activeStudent.name))
+                            .replace(/{CPF}/g, escapeHtml(activeStudent.enrollment || ''))
+                            .replace(/{CURSO}/g, escapeHtml(title))
+                            .replace(/{CARGA_HORARIA}/g, escapeHtml(hours.toString()))
+                            .replace(/{DATA}/g, escapeHtml(evt ? new Date(evt.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')))
+                            .replace(/{PROFESSOR}/g, escapeHtml(instructor));
 
                           setSelectedCertModal({
                             title: `Certificado Oficial - ${title}`,
