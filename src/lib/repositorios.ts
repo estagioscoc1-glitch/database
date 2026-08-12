@@ -896,6 +896,29 @@ export async function excluirTurma(id: string): Promise<ResultadoGravacao> {
   return { ok: true };
 }
 
+/**
+ * Remove APENAS a conta de login (tabela `usuarios`) de alguém — nunca a
+ * ficha acadêmica, nem notas, nem frequência, nem histórico escolar.
+ *
+ * Por que isto precisou existir: a tela "Gerenciar Usuários Cadastrados"
+ * chamava `excluirAluno`, que apaga a linha em `alunos` — e isso arrasta em
+ * cascata matrícula, TODAS as notas, frequência, faltas diretas, histórico
+ * escolar e documentos do aluno. Um clique em "excluir usuário" (que devia
+ * só tirar o acesso de alguém que saiu da escola) apagava o histórico
+ * acadêmico inteiro da pessoa, sem volta.
+ *
+ * A ficha em `alunos` tem `usuario_id references usuarios(id) on delete set
+ * null` — ou seja, apagar só a conta de login desliga o acesso e deixa a
+ * ficha (e todo o histórico ligado a ela) intacta, como registro
+ * permanente. É isto que "excluir usuário" deveria sempre ter feito.
+ */
+export async function excluirContaDeLogin(usuarioId: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase.from('usuarios').delete().eq('id', usuarioId);
+  if (error) return falha('excluir conta de login', error);
+  return { ok: true };
+}
+
 /** Mesma lógica do curso, para quando um aluno é excluído pela tela. */
 export async function excluirAluno(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
