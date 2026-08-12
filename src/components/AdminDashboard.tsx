@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { FormularioDocente, DadosNovoDocente } from './cadastros/FormularioDocente';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
-import { criarAcesso, redefinirSenhaDeUsuario } from '../lib/supabase';
+import { criarAcesso, redefinirSenhaDeUsuario, conferirSenhaAtual } from '../lib/supabase';
 import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento } from '../lib/repositorios';
 
 /* ==========================================================================
@@ -498,6 +498,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Redefinição de senha (quando alguém esquece a senha e procura a secretaria).
   const [redefinindoSenhaDe, setRedefinindoSenhaDe] = useState<string | null>(null);
+  const [confirmandoExclusaoDe, setConfirmandoExclusaoDe] = useState<string | null>(null);
 
   // Cadastro de novo administrador.
   const [novoAdminNome, setNovoAdminNome] = useState('');
@@ -2654,45 +2655,49 @@ export const AdminDashboard: React.FC = () => {
                           {/* EXCLUIR USUÁRIO — só o ADMIN vê este botão.
                               A Secretaria (STAFF) e qualquer outro papel não veem a
                               lixeira aqui: podem editar e redefinir senha, mas não
-                              apagar contas. Além disso, mesmo o Admin precisa digitar
-                              a senha de confirmação de exclusão antes de a conta
-                              sumir — clique errado não apaga ninguém.
-                              A SENHA_CONFIRMACAO_EXCLUSAO_USUARIO abaixo é fixa no
-                              código; troque-a por outra a qualquer momento e publique
-                              de novo, como qualquer outro texto do sistema. */}
+                              apagar contas — e isso agora também vale dentro do banco
+                              de dados (não é só a tela escondendo o botão).
+                              Antes de excluir, o Admin precisa digitar a PRÓPRIA senha
+                              de login, conferida de verdade pelo servidor — não é mais
+                              uma senha fixa escrita no código. */}
                           {currentUser?.role === UserRole.ADMIN && (
                           <button
                             type="button"
-                            onClick={() => {
+                            disabled={confirmandoExclusaoDe === u.id}
+                            onClick={async () => {
                               if (isUserConfirmingDelete) {
-                                const SENHA_CONFIRMACAO_EXCLUSAO_USUARIO = 'excluir2026';
                                 const digitada = window.prompt(
-                                  `Para excluir definitivamente "${u.name}", digite a senha de confirmação de exclusão:`
+                                  `Para excluir definitivamente "${u.name}", digite a SUA senha de administrador para confirmar:`
                                 );
                                 if (digitada === null) {
                                   // Cancelou a caixa de senha — não exclui, não fica travado em "Confirmar?"
                                   setConfirmDeleteUserId(null);
                                   return;
                                 }
-                                if (digitada !== SENHA_CONFIRMACAO_EXCLUSAO_USUARIO) {
-                                  mostrarAviso('Senha incorreta', 'A senha de confirmação está errada. Nenhum usuário foi excluído.');
+                                setConfirmandoExclusaoDe(u.id);
+                                try {
+                                  const senhaValida = await conferirSenhaAtual(digitada);
+                                  if (!senhaValida) {
+                                    mostrarAviso('Senha incorreta', 'A senha digitada não confere com a sua senha de administrador. Nenhum usuário foi excluído.');
+                                    return;
+                                  }
+                                  deleteUser(u.id);
+                                } finally {
+                                  setConfirmandoExclusaoDe(null);
                                   setConfirmDeleteUserId(null);
-                                  return;
                                 }
-                                deleteUser(u.id);
-                                setConfirmDeleteUserId(null);
                               } else {
                                 setConfirmDeleteUserId(u.id);
                               }
                             }}
-                            className={`p-1.5 rounded-lg transition-all text-xs ${
+                            className={`p-1.5 rounded-lg transition-all text-xs disabled:opacity-40 ${
                               isUserConfirmingDelete 
                                 ? 'bg-red-600 text-white animate-pulse font-bold px-2 py-1' 
                                 : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
                             }`}
                             title={isUserConfirmingDelete ? 'Confirmar exclusão deste usuário?' : 'Excluir Usuário'}
                           >
-                            {isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
+                            {confirmandoExclusaoDe === u.id ? 'Conferindo...' : isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
                           )}
                         </div>
