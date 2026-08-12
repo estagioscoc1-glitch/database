@@ -578,6 +578,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
         .print-page .p-2, .print-container .p-2 {
           padding: 4px !important;
         }
+        /* Histórico Escolar: margem maior no topo e nas laterais, pedida
+           separadamente do resto — não usa o padding compacto padrão acima. */
+        .print-page.historico-page, .print-container.historico-page {
+          padding: 4cm 3cm 0.8cm 3cm !important;
+        }
       }
     `;
     document.head.appendChild(style);
@@ -1474,8 +1479,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
             ) : (
             <div 
               ref={printAreaRef}
-              className={`print-container print-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col justify-between shrink-0 ${
+              className={`print-container print-page bg-white text-slate-900 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col justify-between shrink-0 ${
                 isLandscape ? 'w-[29.7cm] min-h-[21cm]' : 'w-[21cm] min-h-[29.7cm]'
+              } ${
+                documentType === 'historico_completo' ? 'historico-page pt-[4cm] pr-[3cm] pb-[0.8cm] pl-[3cm]' : 'p-8'
               }`}
               style={{ fontFamily: '"Inter", sans-serif', zoom: zoom }}
             >
