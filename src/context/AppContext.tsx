@@ -2372,13 +2372,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const sanitizedUsername = cleanedUsername.replace(/<[^>]*>/g, '');
     const sanitizedCpfOrEnrollment = cleanedCpfOrEnrollment.replace(/<[^>]*>/g, '');
 
-    // 2. Check lockout limits
-    const lockout = failedAttemptsMap[sanitizedUsername];
-    if (lockout && lockout.lockoutUntil && lockout.lockoutUntil > Date.now()) {
-      const remainingSecs = Math.ceil((lockout.lockoutUntil - Date.now()) / 1000);
-      addSecurityLog('SISTEMA_BLOQUEIO', `Tentativa de login rejeitada para [${sanitizedUsername}] (Bloqueio Anti-Brute-Force ativo por mais ${remainingSecs}s).`, 'medium');
-      throw new Error(`Acesso bloqueado por excesso de tentativas. Aguarde ${remainingSecs}s.`);
-    }
+    // O BLOQUEIO POR TENTATIVAS AGORA É CONFERIDO NO SERVIDOR (dentro de
+    // `entrarNoPortal`, que confere a tabela `tentativas_login` no banco).
+    //
+    // Havia uma checagem AQUI antes, baseada só em `failedAttemptsMap`
+    // (memória do navegador): bastava recarregar a página para zerar o
+    // contador e voltar a tentar sem esperar. Ela rodava ANTES da chamada ao
+    // servidor, então mesmo com o bloqueio real já pronto no banco, essa
+    // checagem antiga barrava (ou liberava) por conta própria primeiro — a
+    // proteção de verdade nunca chegava a ser exercitada.
+    //
+    // `failedAttemptsMap` continua existindo só para o painel do Admin
+    // mostrar "quem está sendo monitorado" (não decide mais nada sozinho).
 
     // ------------------------------------------------------------------
     // AUTENTICAÇÃO REAL (Supabase Auth)
@@ -2450,21 +2455,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     }
 
-    // Increment failed count
+    // Increment failed count (só para o painel "Monitoramento de Segurança"
+    // do Admin mostrar contagem — não decide mais bloqueio nenhum sozinho).
     setFailedAttemptsMap(prev => {
       const current = (prev[sanitizedUsername]?.count || 0) + 1;
-      let lockoutUntil: number | null = null;
-      if (current >= 3) {
-        lockoutUntil = Date.now() + 30000; // 30s lockout
-        addSecurityLog('SISTEMA_LOCKOUT', `Múltiplas tentativas falhas para [${sanitizedUsername}]. Bloqueio preventivo ativado por 30 segundos.`, 'high');
-      } else {
-        addSecurityLog('LOGIN_FALHA', `Credenciais inválidas informadas para [${sanitizedUsername}]. Tentativa ${current}/3.`, 'medium');
-      }
       return {
         ...prev,
-        [sanitizedUsername]: { count: current, lockoutUntil }
+        [sanitizedUsername]: { count: current, lockoutUntil: null }
       };
     });
+
+    // A mensagem que chega aqui já vem do SERVIDOR — pode ser "senha
+    // incorreta" ou o aviso real de bloqueio por tentativas (gravado no
+    // banco, sobrevive a um F5). É essa mensagem que a tela deve mostrar.
+    if (resultado.mensagem) {
+      addSecurityLog('LOGIN_FALHA', `Login rejeitado para [${sanitizedUsername}]: ${resultado.mensagem}`, 'medium');
+      throw new Error(resultado.mensagem);
+    }
 
     return false;
   };
