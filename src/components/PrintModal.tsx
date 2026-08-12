@@ -398,12 +398,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                 <span className="font-mono">{targetClass?.module}</span>
               </div>
             </div>
-            {pageInfo && (
-              <div className="p-1 px-2 border-t border-black flex justify-between bg-blue-50/20 text-blue-800 font-bold">
-                <span>FOLHA DE FREQUÊNCIA:</span>
-                <span className="font-mono">{pageInfo}</span>
-              </div>
-            )}
           </div>
         </div>
         
@@ -540,7 +534,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           padding: 0.4cm 0.8cm !important;
           display: flex !important;
           flex-direction: column !important;
-          justify-content: space-between !important;
           background: white !important;
           color: black !important;
           border: none !important;
@@ -694,9 +687,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     const { studentChunk, studentChunkIndex, datePageIndex } = page;
     const pageStartIndex = datePageIndex * 30;
     const pageCols = colsData.slice(pageStartIndex, pageStartIndex + 30);
-    const numDatePages = getPageCount();
-    const sChunksCount = studentChunks.length;
-    const totalPagesLabel = `Frequência - Pág. ${datePageIndex + 1}/${numDatePages} | Alunos ${studentChunkIndex * 30 + 1} a ${Math.min((studentChunkIndex + 1) * 30, classStudents.length)}`;
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
@@ -705,7 +695,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
         className={`print-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col justify-between w-[29.7cm] min-h-[21cm] shrink-0 ${screenHiddenClass}`}
       >
         <div>
-          {renderHeader(totalPagesLabel)}
+          {renderHeader()}
 
           {targetSubject && (
             <div className="overflow-hidden mb-4">
@@ -746,7 +736,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       />h
                     </th>
                     <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={8}>
-                      Início do módulo: 
+                      Início: 
                       <input
                         type="text"
                         placeholder="__/__/____"
@@ -867,16 +857,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const renderDiarioNotasPage = (page: any, pIndex: number, clampedActivePage: number) => {
     const { studentChunk, studentChunkIndex } = page;
-    const pageInfoLabel = `Notas - Alunos ${studentChunkIndex * 30 + 1} a ${Math.min((studentChunkIndex + 1) * 30, classStudents.length)}`;
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
       <div 
         key={page.key}
-        className={`print-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col justify-between w-[29.7cm] min-h-[21cm] shrink-0 ${screenHiddenClass}`}
+        className={`print-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col w-[29.7cm] min-h-[21cm] shrink-0 ${screenHiddenClass}`}
       >
         <div>
-          {renderHeader(pageInfoLabel)}
+          {renderHeader()}
 
           {targetSubject && (
             <div className="overflow-hidden mb-4">
@@ -949,7 +938,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       const s2Part = grade ? getS2Evaluations(grade) : { av4: 0, av5: 0, av6: 0 };
 
                       return (
-                        <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
+                        <tr key={std.id} className={`h-[21px] hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
                           <td className="py-0.5 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
                           <td className="py-0.5 text-center border-r border-black font-mono">{std.enrollment}</td>
                           <td className="py-0.5 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
@@ -985,7 +974,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       );
                     } else {
                       return (
-                        <tr key={`empty-row-${idx}`} className="h-[15px] text-black odd:bg-white even:bg-gray-100/50">
+                        <tr key={`empty-row-${idx}`} className="h-[21px] text-black odd:bg-white even:bg-gray-100/50">
                           <td className="py-0.5 text-center border-r border-black font-mono text-gray-400">{globalIdx + 1}</td>
                           <td className="py-0.5 border-r border-black"></td>
                           <td className="py-0.5 border-r border-black"></td>

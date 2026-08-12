@@ -215,7 +215,6 @@ export const ContentRegistry: React.FC<Props> = ({ turma, disciplina }) => {
               </td>
             </tr>
           </table>
-          <div class="rodape-pag">Página ${p + 1} de ${PAGINAS_DE_CONTEUDO}</div>
         </div>`);
     }
 
