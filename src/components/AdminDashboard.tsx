@@ -2114,6 +2114,18 @@ export const AdminDashboard: React.FC = () => {
                       );
                     }
 
+                    // TRAVA DE SEGURANÇA CONTRA APAGAR TURMA COM DADO REAL.
+                    //
+                    // Excluir uma turma apaga em cascata, no banco, toda
+                    // matrícula e nota lançada nela — sem aviso nenhum antes
+                    // desta correção. Uma turma de teste vazia pode ser
+                    // excluída livremente; uma turma com aluno matriculado
+                    // ou nota lançada não pode, para não arriscar apagar
+                    // histórico acadêmico de verdade sem querer.
+                    const alunosNaTurma = users.filter(u => u.role === UserRole.STUDENT && u.classId === cl.id).length;
+                    const notasNaTurma = grades.filter(g => g.classId === cl.id).length;
+                    const turmaTemDados = alunosNaTurma > 0 || notasNaTurma > 0;
+
                     return (
                       <div 
                         key={cl.id}
@@ -2125,6 +2137,11 @@ export const AdminDashboard: React.FC = () => {
                             {cl.code && (
                               <span className="px-1.5 py-0.5 text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-mono font-bold">
                                 {cl.code}
+                              </span>
+                            )}
+                            {turmaTemDados && (
+                              <span className="px-1.5 py-0.5 text-[9px] bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 rounded font-bold">
+                                {alunosNaTurma} aluno(s) • {notasNaTurma} nota(s)
                               </span>
                             )}
                           </p>
@@ -2152,6 +2169,15 @@ export const AdminDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => {
+                              if (turmaTemDados) {
+                                mostrarAviso(
+                                  'Esta turma não pode ser excluída por aqui',
+                                  `"${cl.name}" tem ${alunosNaTurma} aluno(s) matriculado(s) e ${notasNaTurma} nota(s) lançada(s). ` +
+                                  `Excluir apagaria esse histórico junto — por isso o botão está bloqueado para turmas com dados. ` +
+                                  `Se a turma realmente precisa sumir mesmo assim (ex.: matrícula feita por engano), fale com o suporte técnico em vez de usar este botão.`
+                                );
+                                return;
+                              }
                               if (isConfirming) {
                                 deleteClass(cl.id);
                                 setConfirmDeleteClassId(null);
@@ -2159,14 +2185,17 @@ export const AdminDashboard: React.FC = () => {
                                 setConfirmDeleteClassId(cl.id);
                               }
                             }}
+                            disabled={turmaTemDados}
                             className={`p-1.5 rounded-lg transition-all text-xs ${
-                              isConfirming 
+                              turmaTemDados
+                                ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                                : isConfirming 
                                 ? 'bg-red-600 text-white animate-pulse font-bold px-2 py-1' 
                                 : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
                             }`}
-                            title={isConfirming ? 'Confirmar exclusão desta turma?' : 'Excluir Turma'}
+                            title={turmaTemDados ? 'Turma com aluno/nota — exclusão bloqueada' : isConfirming ? 'Confirmar exclusão desta turma?' : 'Excluir Turma'}
                           >
-                            {isConfirming ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
+                            {isConfirming && !turmaTemDados ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       </div>
