@@ -2659,7 +2659,14 @@ export const AdminDashboard: React.FC = () => {
                               de dados (não é só a tela escondendo o botão).
                               Antes de excluir, o Admin precisa digitar a PRÓPRIA senha
                               de login, conferida de verdade pelo servidor — não é mais
-                              uma senha fixa escrita no código. */}
+                              uma senha fixa escrita no código.
+                              IMPORTANTE: isto remove só o ACESSO DE LOGIN da pessoa.
+                              Notas, frequência, matrícula e histórico escolar do aluno
+                              NUNCA são apagados por aqui — ficam preservados como
+                              registro permanente, mesmo que ela não estude/trabalhe
+                              mais na escola. (Antes desta correção, excluir um aluno
+                              apagava o histórico acadêmico inteiro dele; foi
+                              corrigido.) */}
                           {currentUser?.role === UserRole.ADMIN && (
                           <button
                             type="button"
@@ -2667,7 +2674,9 @@ export const AdminDashboard: React.FC = () => {
                             onClick={async () => {
                               if (isUserConfirmingDelete) {
                                 const digitada = window.prompt(
-                                  `Para excluir definitivamente "${u.name}", digite a SUA senha de administrador para confirmar:`
+                                  `Isto remove só o ACESSO DE LOGIN de "${u.name}" — notas, frequência e histórico ` +
+                                  `NÃO são apagados, continuam registrados.\n\n` +
+                                  `Digite a SUA senha de administrador para confirmar:`
                                 );
                                 if (digitada === null) {
                                   // Cancelou a caixa de senha — não exclui, não fica travado em "Confirmar?"
@@ -2678,7 +2687,7 @@ export const AdminDashboard: React.FC = () => {
                                 try {
                                   const senhaValida = await conferirSenhaAtual(digitada);
                                   if (!senhaValida) {
-                                    mostrarAviso('Senha incorreta', 'A senha digitada não confere com a sua senha de administrador. Nenhum usuário foi excluído.');
+                                    mostrarAviso('Senha incorreta', 'A senha digitada não confere com a sua senha de administrador. Nenhum acesso foi removido.');
                                     return;
                                   }
                                   deleteUser(u.id);
@@ -2695,7 +2704,7 @@ export const AdminDashboard: React.FC = () => {
                                 ? 'bg-red-600 text-white animate-pulse font-bold px-2 py-1' 
                                 : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
                             }`}
-                            title={isUserConfirmingDelete ? 'Confirmar exclusão deste usuário?' : 'Excluir Usuário'}
+                            title={isUserConfirmingDelete ? 'Confirmar remoção do acesso?' : 'Remover acesso de login (não apaga notas nem histórico)'}
                           >
                             {confirmandoExclusaoDe === u.id ? 'Conferindo...' : isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
