@@ -1472,7 +1472,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           ` }} />
 
           <div className="w-fit mx-auto shrink-0 flex flex-col items-center">
-            {classStudents.length === 0 && (
+            {['diario_freq', 'boletim_sala', 'diario_notas', 'mapa_notas'].includes(documentType) && classStudents.length === 0 && (
               <div className="p-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl text-center max-w-md my-8 shadow-sm">
                 <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Nenhum aluno encontrado nesta turma.</p>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Não há alunos cadastrados ou vinculados a esta turma para exibição no documento.</p>
