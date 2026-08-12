@@ -634,10 +634,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return chunks;
   })();
 
+  // Diário de Notas has more columns per row than the other diaries, so 30
+  // rows plus the header/footer no longer fit on one printed page — it was
+  // spilling onto a second sheet. 26 rows (4 fewer) brings the signature
+  // block back onto the same page while still filling it out.
+  const studentChunksNotas = (() => {
+    const chunks: any[][] = [];
+    const chunkSize = 26;
+    for (let i = 0; i < classStudents.length; i += chunkSize) {
+      chunks.push(classStudents.slice(i, i + chunkSize));
+    }
+    if (chunks.length === 0) {
+      chunks.push([]);
+    }
+    return chunks;
+  })();
+
   const totalPagesForCurrentDoc = (() => {
     if (documentType === 'boletim_sala') return classStudents.length;
     if (documentType === 'diario_freq') return getPageCount() * studentChunks.length;
-    if (documentType === 'diario_notas') return studentChunks.length;
+    if (documentType === 'diario_notas') return studentChunksNotas.length;
     if (documentType === 'mapa_notas') return studentChunks.length;
     return 1;
   })();
@@ -662,7 +678,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
       return pages;
     }
     if (documentType === 'diario_notas') {
-      return studentChunks.map((chunk, sIndex) => ({
+      return studentChunksNotas.map((chunk, sIndex) => ({
         type: 'diario_notas',
         studentChunk: chunk,
         studentChunkIndex: sIndex,
@@ -933,9 +949,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black font-semibold text-[8.5px] text-black">
-                  {Array.from({ length: Math.max(30, studentChunk.length) }).map((_, idx) => {
+                  {Array.from({ length: Math.max(26, studentChunk.length) }).map((_, idx) => {
                     const std = studentChunk[idx];
-                    const globalIdx = studentChunkIndex * 30 + idx;
+                    const globalIdx = studentChunkIndex * 26 + idx;
                     const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id) : null;
 
                     if (std) {
