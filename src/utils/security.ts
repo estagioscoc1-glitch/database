@@ -238,3 +238,36 @@ export function registerFailedLoginAttempt(username: string): { locked: boolean;
 export function resetLoginAttempts(username: string): void {
   delete loginAttemptsMap[username.toLowerCase()];
 }
+
+/**
+ * Escapa texto antes de colocá-lo dentro de um HTML bruto (usado com
+ * `dangerouslySetInnerHTML`, ex.: certificados e documentos gerados com
+ * template + dados do aluno).
+ *
+ * DIFERENTE de `sanitizeInput` acima: aquela função é para o texto que a
+ * pessoa DIGITA (remove tags, preserva o texto real — "Maria D'Ávila"
+ * continua "Maria D'Ávila"). Esta aqui é para o texto no INSTANTE em que
+ * vira HTML de verdade: troca `<`, `>`, `&`, `"` e `'` pelos códigos HTML
+ * correspondentes, sem alterar o dado guardado — só a versão exibida como
+ * HTML. Não sofre o problema de escapar-repetidamente-a-cada-salvamento
+ * porque nunca é gravada: é calculada de novo, a partir do dado original,
+ * toda vez que o documento é montado.
+ *
+ * Por que isto precisou existir: nome de aluno, endereço, nome de curso e
+ * outros campos eram inseridos DIRETO dentro de uma string de HTML (troca
+ * de `{NOME_ALUNO}` pelo nome, ou `${aluno.nome}` dentro de um template
+ * literal) e essa string ia para `dangerouslySetInnerHTML` sem nenhum
+ * tratamento. Um nome cadastrado (por engano ou de propósito, inclusive via
+ * importação de planilha) contendo algo como `<img src=x onerror=...>`
+ * executaria no navegador de quem abrisse aquele certificado ou documento —
+ * inclusive no navegador de um Admin, o que é especialmente perigoso.
+ */
+export function escapeHtml(valor: unknown): string {
+  const texto = valor === null || valor === undefined ? '' : String(valor);
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
