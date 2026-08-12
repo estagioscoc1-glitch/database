@@ -431,7 +431,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     }
 
     return (
-      <div className="mt-8 pt-6 border-t border-gray-300 grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-black select-none">
+      <div className={`mt-8 pt-6 ${documentType === 'diario_notas' ? '' : 'border-t border-gray-300'} grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-black select-none`}>
         <div>
           <div className="border-b border-black mx-auto w-52 mb-1"></div>
           <p className="uppercase">
@@ -634,11 +634,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return chunks;
   })();
 
-  // Diário de Notas has more columns per row than the other diaries, so 30
-  // rows plus the header/footer no longer fit on one printed page — it was
-  // spilling onto a second sheet. 26 rows (4 fewer) brings the signature
-  // block back onto the same page while still filling it out.
-  const studentChunksNotas = (() => {
+  // Diário de Notas e Diário de Frequência usam 26 linhas por página (a pedido
+  // do usuário, para ficarem iguais entre si e caberem numa folha só). O Mapa
+  // de Notas continua com 30 (studentChunks acima) — ninguém pediu mudança nele.
+  const studentChunks26 = (() => {
     const chunks: any[][] = [];
     const chunkSize = 26;
     for (let i = 0; i < classStudents.length; i += chunkSize) {
@@ -652,8 +651,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const totalPagesForCurrentDoc = (() => {
     if (documentType === 'boletim_sala') return classStudents.length;
-    if (documentType === 'diario_freq') return getPageCount() * studentChunks.length;
-    if (documentType === 'diario_notas') return studentChunksNotas.length;
+    if (documentType === 'diario_freq') return getPageCount() * studentChunks26.length;
+    if (documentType === 'diario_notas') return studentChunks26.length;
     if (documentType === 'mapa_notas') return studentChunks.length;
     return 1;
   })();
@@ -665,10 +664,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
       const pages: any[] = [];
       const numDatePages = getPageCount();
       for (let dIndex = 0; dIndex < numDatePages; dIndex++) {
-        for (let sIndex = 0; sIndex < studentChunks.length; sIndex++) {
+        for (let sIndex = 0; sIndex < studentChunks26.length; sIndex++) {
           pages.push({
             type: 'diario_freq',
-            studentChunk: studentChunks[sIndex],
+            studentChunk: studentChunks26[sIndex],
             studentChunkIndex: sIndex,
             datePageIndex: dIndex,
             key: `freq-d${dIndex}-s${sIndex}`
@@ -678,7 +677,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
       return pages;
     }
     if (documentType === 'diario_notas') {
-      return studentChunksNotas.map((chunk, sIndex) => ({
+      return studentChunks26.map((chunk, sIndex) => ({
         type: 'diario_notas',
         studentChunk: chunk,
         studentChunkIndex: sIndex,
@@ -812,9 +811,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black font-semibold text-[8px] text-black">
-                  {Array.from({ length: 30 }).map((_, idx) => {
+                  {Array.from({ length: 26 }).map((_, idx) => {
                     const std = studentChunk[idx];
-                    const globalIdx = studentChunkIndex * 30 + idx;
+                    const globalIdx = studentChunkIndex * 26 + idx;
                     
                     if (std) {
                       return (
@@ -1024,9 +1023,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
             </div>
           )}
 
-          <div className="text-[8px] font-bold text-black mt-2 leading-relaxed">
-            Legenda: S1 - Somatório de Notas 1; S2 - Somatório de Notas 2; REC - Recuperação
-          </div>
         </div>
 
         {renderFooter()}
@@ -1362,11 +1358,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           label = `${pIndex + 1}. ${classStudents[pIndex]?.name || ''}`;
                         } else if (documentType === 'diario_freq') {
                           const numDatePages = getPageCount();
-                          const sChunksCount = studentChunks.length;
+                          const sChunksCount = studentChunks26.length;
                           const dIndex = Math.floor(pIndex / sChunksCount);
                           const sIndex = pIndex % sChunksCount;
-                          label = `Dias ${(dIndex * 30) + 1}-${(dIndex + 1) * 30} | Alunos ${sIndex * 30 + 1}-${Math.min((sIndex + 1) * 30, classStudents.length)}`;
-                        } else if (documentType === 'diario_notas' || documentType === 'mapa_notas') {
+                          label = `Dias ${(dIndex * 30) + 1}-${(dIndex + 1) * 30} | Alunos ${sIndex * 26 + 1}-${Math.min((sIndex + 1) * 26, classStudents.length)}`;
+                        } else if (documentType === 'diario_notas') {
+                          label = `Alunos ${pIndex * 26 + 1}-${Math.min((pIndex + 1) * 26, classStudents.length)}`;
+                        } else if (documentType === 'mapa_notas') {
                           label = `Alunos ${pIndex * 30 + 1}-${Math.min((pIndex + 1) * 30, classStudents.length)}`;
                         }
                         return (
