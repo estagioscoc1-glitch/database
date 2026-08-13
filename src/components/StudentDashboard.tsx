@@ -581,12 +581,24 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                             {status === 'ENTREGUE' ? '✅ HOMOLOGADO' : status === 'ENVIADO' ? '🟡 AGUARDANDO ANÁLISE' : '❌ PENDENTE'}
                           </span>
 
-                          {status === 'PENDENTE' && (
+                          {/* REENVIO ENQUANTO AGUARDA ANÁLISE.
+                              Antes, só dava pra enviar quando o status era
+                              PENDENTE — depois que o aluno mandava, o botão
+                              sumia e só voltava se a secretaria devolvesse o
+                              status manualmente. Se o aluno mesmo percebesse
+                              que a foto/scan saiu ruim, ficava travado
+                              esperando alguém da secretaria notar e agir.
+                              Agora o aluno pode substituir o arquivo sozinho
+                              enquanto ainda está "aguardando análise" — só
+                              trava mesmo depois de HOMOLOGADO (aprovado),
+                              que aí sim não faz sentido trocar sem mais nem
+                              menos. */}
+                          {(status === 'PENDENTE' || status === 'ENVIADO') && (
                             <button
                               onClick={() => setUploadingDocName(docName)}
                               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all active:scale-95 shadow-md shadow-blue-500/10"
                             >
-                              Enviar Documento
+                              {status === 'ENVIADO' ? 'Reenviar Documento' : 'Enviar Documento'}
                             </button>
                           )}
                         </div>
@@ -1477,7 +1489,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
       )}
 
       {/* MODAL DE SIMULAÇÃO DE UPLOAD */}
-      {uploadingDocName && (
+      {uploadingDocName && (() => {
+        // Descobre se isto é um primeiro envio ou uma substituição de um
+        // arquivo que já estava "aguardando análise" — muda o texto do
+        // modal para deixar claro que o arquivo antigo será substituído.
+        const docSendoEnviado = studentDocuments.find(
+          d => d.studentId === activeStudent.id && d.name === uploadingDocName
+        );
+        const ehReenvio = docSendoEnviado?.status === 'ENVIADO';
+
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -1486,8 +1507,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
               <div>
-                <h4 className="font-extrabold text-slate-800 dark:text-white text-sm">Enviar Documento</h4>
-                <p className="text-[10px] text-slate-400">Entrega digital de {uploadingDocName}</p>
+                <h4 className="font-extrabold text-slate-800 dark:text-white text-sm">{ehReenvio ? 'Reenviar Documento' : 'Enviar Documento'}</h4>
+                <p className="text-[10px] text-slate-400">
+                  {ehReenvio
+                    ? `Isto substitui o arquivo que você já enviou de ${uploadingDocName}, antes de alguém analisar.`
+                    : `Entrega digital de ${uploadingDocName}`}
+                </p>
               </div>
               <button
                 type="button"
@@ -1604,7 +1629,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             </div>
           </motion.div>
         </div>
-      )}
+        );
+      })()}
 
       {/* TOAST NOTIFICATION */}
       {toastMsg && (
