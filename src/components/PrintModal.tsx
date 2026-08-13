@@ -431,7 +431,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     }
 
     return (
-      <div className={`mt-8 pt-6 ${documentType === 'diario_notas' ? '' : 'border-t border-gray-300'} grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-black select-none`}>
+      <div className={`mt-8 pt-6 ${['diario_notas', 'diario_freq'].includes(documentType) ? '' : 'border-t border-gray-300'} grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-black select-none`}>
         <div>
           <div className="border-b border-black mx-auto w-52 mb-1"></div>
           <p className="uppercase">
@@ -456,11 +456,28 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   const handlePrint = () => {
     // Create print window style overrides dynamically for perfect single page layout
     const style = document.createElement('style');
+    // MARGEM REAL DE SEGURANÇA, SÓ NO DIÁRIO DE FREQUÊNCIA.
+    //
+    // Impressoras físicas (Brother incluída) quase sempre têm uma borda que
+    // NUNCA imprime, mesmo pedindo margem 0 no CSS — é limitação do
+    // hardware, o navegador não controla isso. Quando a página é montada
+    // pra usar a folha inteira (21cm) e a impressora corta ainda por cima
+    // uma faixa nas bordas, o conteúdo do fim da página (a linha de
+    // assinatura) não cabe mais e pula pra uma segunda folha — e o topo
+    // pode ser cortado.
+    //
+    // Só ajustado aqui pro diário de frequência, a pedido explícito — os
+    // outros documentos continuam exatamente como estavam.
+    //
+    // 0.3cm ainda cortava o topo numa Brother física de verdade — 0.5cm é
+    // um valor mais seguro, mais perto do que a maioria das impressoras a
+    // laser/jato de tinta realmente consegue imprimir perto da borda.
+    const margemSegurancaFreq = documentType === 'diario_freq' ? '0.5cm' : '0cm';
     style.innerHTML = `
       @media print {
         @page {
           size: ${isLandscape ? 'landscape' : 'portrait'};
-          margin: 0 !important;
+          margin: ${margemSegurancaFreq} !important;
         }
         #root, .no-print {
           display: none !important;
@@ -540,6 +557,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           box-shadow: none !important;
           zoom: 1 !important;
           transform: none !important;
+        }
+        /* Desconta dos dois lados a margem de segurança acrescentada acima
+           (0.5cm + 0.5cm = 1cm), senão a folha ficaria maior que o papel
+           de verdade e o excesso pularia pra uma segunda página — o
+           problema que estamos corrigindo, não recriando. */
+        .print-page.freq-page {
+          width: ${isLandscape ? 'calc(29.7cm - 1cm)' : 'calc(21cm - 1cm)'} !important;
+          height: ${isLandscape ? 'calc(21cm - 1cm)' : 'calc(29.7cm - 1cm)'} !important;
         }
         .print-page:last-child {
           page-break-after: avoid;
@@ -712,7 +737,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return (
       <div 
         key={page.key}
-        className={`print-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col justify-between w-[29.7cm] min-h-[21cm] shrink-0 ${screenHiddenClass}`}
+        className={`print-page freq-page bg-white text-slate-900 p-8 shadow-md border border-slate-200/60 rounded-sm relative text-xs flex flex-col w-[29.7cm] min-h-[21cm] shrink-0 ${screenHiddenClass}`}
       >
         <div>
           {renderHeader()}
