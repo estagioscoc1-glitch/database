@@ -176,7 +176,11 @@ function MainAppLayout() {
 
         <div className="flex items-center gap-4">
           
-          {/* Chat / Message Center Trigger Button */}
+          {/* Chat / Message Center Trigger Button — só para Admin e Secretaria.
+              Aluno e professor não veem mais este botão no cabeçalho (pedido
+              explícito). A Central de Mensagens em si continua existindo no
+              código; só o atalho no topo some para esses dois papéis. */}
+          {activeDisplayRole !== UserRole.STUDENT && activeDisplayRole !== UserRole.TEACHER && (
           <button
             onClick={() => setIsChatOpen(true)}
             type="button"
@@ -194,6 +198,7 @@ function MainAppLayout() {
               </span>
             )}
           </button>
+          )}
 
           {/* Theme Mode Button */}
           <button
