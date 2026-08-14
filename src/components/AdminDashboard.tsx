@@ -3359,7 +3359,8 @@ export const AdminDashboard: React.FC = () => {
                 <ul className="list-disc pl-3.5 space-y-0.5">
                   <li>Remove o aluno da turma antiga e insere na nova;</li>
                   <li>Matricula o aluno em todas as disciplinas da nova turma;</li>
-                  <li>Migra notas e frequência de disciplinas com o mesmo código.</li>
+                  <li>Migra notas e frequência de disciplinas com o mesmo código;</li>
+                  <li>Se a mudança troca de CURSO (ex.: presencial → EAD), a turma antiga só é apagada quando estiver vazia (nenhuma nota real lançada) — nota de verdade já lançada nunca é apagada, fica preservada como histórico.</li>
                 </ul>
               </div>
 
