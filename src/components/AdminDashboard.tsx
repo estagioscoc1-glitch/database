@@ -8,7 +8,7 @@ import { FormularioDocente, DadosNovoDocente } from './cadastros/FormularioDocen
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
 import { criarAcesso, redefinirSenhaDeUsuario, conferirSenhaAtual } from '../lib/supabase';
-import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento } from '../lib/repositorios';
+import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuirProfessorAoDiario } from '../lib/repositorios';
 
 /* ==========================================================================
  * QUAIS ABAS APARECEM NO PAINEL
@@ -369,8 +369,10 @@ export const AdminDashboard: React.FC = () => {
     const exists = currentAssigned.some(j => j.classId === classId && j.subjectId === subjectId);
     
     let updatedAssigned;
+    let novoProfessorId: string | null;
     if (exists) {
       updatedAssigned = currentAssigned.filter(j => !(j.classId === classId && j.subjectId === subjectId));
+      novoProfessorId = null;
       setJournalError(null);
     } else {
       const otherTeacher = users.find(u => 
@@ -384,9 +386,26 @@ export const AdminDashboard: React.FC = () => {
       }
       setJournalError(null);
       updatedAssigned = [...currentAssigned, { classId, subjectId }];
+      novoProfessorId = teacherId;
     }
     
     updateUser(teacherId, { assignedJournals: updatedAssigned });
+
+    // GRAVA DIRETO NO BANCO, NA HORA — não espera o ciclo de sincronização
+    // periódica. Antes, a marcação só existia no estado do navegador até o
+    // próximo ciclo automático publicar; se esse ciclo rodasse com um
+    // estado desatualizado (ex.: outra aba aberta), a atribuição sumia
+    // sozinha, sem nenhum aviso. Agora, se a gravação falhar, o admin fica
+    // sabendo na hora — e a caixinha volta pro estado anterior.
+    const turma = classes.find(c => c.id === classId);
+    const periodo = turma && turma.year && turma.semester ? `${turma.year}/${turma.semester}` : currentPeriod;
+    atribuirProfessorAoDiario(classId, subjectId, periodo, novoProfessorId).then(res => {
+      if (!res.ok) {
+        setJournalError(`Não foi possível gravar no banco: ${res.erro || 'motivo não informado'}. Tente novamente.`);
+        // Desfaz a marcação na tela — ela não é real, o banco recusou.
+        updateUser(teacherId, { assignedJournals: currentAssigned });
+      }
+    });
   };
 
   // Números do topo do painel. Também ficam em useMemo: são só indicadores,
