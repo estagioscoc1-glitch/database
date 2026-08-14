@@ -2134,6 +2134,14 @@ export async function carregarEstrutura(): Promise<{
     phone: p.telefone ?? undefined,
     active: p.situacao !== 'INATIVO',
     assignedJournals: diariosPorProfessor.get(p.id) ?? [],
+    // SEM ISTO, A TELA NÃO SABIA DIFERENCIAR "TEM LOGIN" DE "NÃO TEM
+    // LOGIN". Excluir o acesso de um professor apaga só a conta de login
+    // (tabela `usuarios`) — a ficha dele aqui continua existindo de
+    // propósito (preserva notas, diários, histórico). Só que esta lista
+    // nunca lia `usuario_id`, então a pessoa reaparecia em "Gerenciar
+    // Usuários Cadastrados" exatamente como antes, mesmo sem acesso
+    // nenhum — parecia que a exclusão não tinha feito nada.
+    contaId: p.usuario_id ?? undefined,
   })) as User[];
 
   const alunos: User[] = (rAlunos.data ?? []).map((a: any) => ({
@@ -2153,6 +2161,11 @@ export async function carregarEstrutura(): Promise<{
     classId: a.turma_id ?? undefined,
     status: a.situacao,
     active: a.situacao === 'ATIVO',
+    // Mesmo motivo do professor logo acima: sem isto, excluir o acesso de
+    // um aluno não tinha como aparecer na tela — a ficha dele é
+    // preservada de propósito (notas, frequência, histórico), mas a
+    // lista de contas de login precisa saber que o login sumiu.
+    contaId: a.usuario_id ?? undefined,
   })) as User[];
 
   return { courses, subjects, classes, users: [...professores, ...alunos] };
