@@ -2572,6 +2572,14 @@ export const AdminDashboard: React.FC = () => {
                       );
                     }
 
+                    // SEM ISTO, NÃO DAVA PRA SABER OLHANDO A TELA se um
+                    // aluno/professor tinha login ou não. Depois de excluir o
+                    // acesso de alguém, a pessoa continuava aparecendo na
+                    // lista do jeito de sempre — parecia que a exclusão não
+                    // tinha feito nada, mesmo o login já tendo sumido do
+                    // banco de verdade. Agora mostra "SEM LOGIN" bem visível.
+                    const semLogin = (u.role === UserRole.STUDENT || u.role === UserRole.TEACHER) && !u.contaId;
+
                     return (
                       <div 
                         key={u.id}
@@ -2597,6 +2605,14 @@ export const AdminDashboard: React.FC = () => {
                                 : u.role === UserRole.STAFF ? 'Secretaria'
                                 : 'Aluno'}
                             </span>
+                            {semLogin && (
+                              <span
+                                className="px-1.5 py-0.5 text-[8px] font-extrabold uppercase rounded bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400"
+                                title="Esta pessoa não tem conta de login — não consegue entrar no portal. Se o acesso foi excluído recentemente, é esperado; se nunca teve, use 'Acessos dos alunos importados' ou cadastre manualmente."
+                              >
+                                Sem login
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-slate-400 truncate">
                             Usuário: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.username}</span>
@@ -2607,12 +2623,10 @@ export const AdminDashboard: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {/* REDEFINIR SENHA
-                              É assim que alguém que esqueceu a senha volta a
-                              entrar. Não existe "ver a senha": nem o
-                              administrador consegue. A antiga é substituída por
-                              uma nova, mostrada uma única vez, e quem recebe é
-                              obrigado a trocá-la ao entrar. */}
+                          {/* REDEFINIR SENHA — não faz sentido para quem não
+                              tem login (não existe senha nenhuma pra
+                              redefinir). */}
+                          {!semLogin && (
                           <button
                             type="button"
                             disabled={redefinindoSenhaDe === u.id}
@@ -2664,6 +2678,7 @@ export const AdminDashboard: React.FC = () => {
                           >
                             <Key className="h-3.5 w-3.5" />
                           </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -2696,7 +2711,7 @@ export const AdminDashboard: React.FC = () => {
                               mais na escola. (Antes desta correção, excluir um aluno
                               apagava o histórico acadêmico inteiro dele; foi
                               corrigido.) */}
-                          {currentUser?.role === UserRole.ADMIN && (
+                          {currentUser?.role === UserRole.ADMIN && !semLogin && (
                           <button
                             type="button"
                             disabled={confirmandoExclusaoDe === u.id}
@@ -2719,7 +2734,14 @@ export const AdminDashboard: React.FC = () => {
                                     mostrarAviso('Senha incorreta', 'A senha digitada não confere com a sua senha de administrador. Nenhum acesso foi removido.');
                                     return;
                                   }
-                                  deleteUser(u.id);
+                                  const resultado = await deleteUser(u.id);
+                                  if (!resultado.ok) {
+                                    mostrarAviso(
+                                      'Não foi possível excluir',
+                                      `A senha estava certa, mas o banco de dados recusou a exclusão: ${resultado.erro || 'motivo não informado'}. ` +
+                                      `Nada foi removido — "${u.name}" continua com acesso normal. Tente novamente; se persistir, pode ser sessão expirada (saia e entre de novo).`
+                                    );
+                                  }
                                 } finally {
                                   setConfirmandoExclusaoDe(null);
                                   setConfirmDeleteUserId(null);
