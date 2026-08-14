@@ -1466,10 +1466,36 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {smartAlerts.map(alert => (
+          {smartAlerts.map(alert => {
+            // PARA ONDE CADA ALERTA LEVA AO CLICAR.
+            //
+            // O card já tinha aparência de botão (cursor de mãozinha, texto
+            // "Ver Pendências" com seta) e a função para trocar de aba já
+            // existia (`onNavigateTab`, recebida como prop) — só nunca
+            // tinha sido ligada a nenhum clique. Cada alerta levava a nada.
+            //
+            // 'alt_7' (Diplomas Aguardando Emissão) fica de fora de
+            // propósito: é só uma estatística hoje, não existe nenhuma tela
+            // de emissão de diploma no sistema ainda — então não navega
+            // para lugar nenhum em vez de levar a uma tela errada.
+            const destinoPorAlerta: Record<string, string> = {
+              alt_1: 'financeiro',           // Mensalidades em Atraso
+              alt_2: 'reg',                  // Documentos Pendentes → Cadastros Acadêmicos
+              alt_3: 'msg',                  // Professores com Diários Pendentes → Mensagens
+              alt_4: 'sec',                  // Turmas Sem Diário Criado → Gerenciador de Acessos de Professores
+              alt_5: 'reg',                  // Alunos em Dependência sem Turma → Cadastros Acadêmicos (aba Dependências fica lá dentro)
+              alt_6: 'estagio',              // Estágios Vencendo em 30 Dias
+            };
+            const destino = destinoPorAlerta[alert.id];
+
+            return (
             <div
               key={alert.id}
-              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 cursor-pointer hover:shadow-md ${
+              onClick={destino ? () => onNavigateTab?.(destino) : undefined}
+              role={destino ? 'button' : undefined}
+              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 hover:shadow-md ${
+                destino ? 'cursor-pointer' : 'cursor-default'
+              } ${
                 alert.type === 'danger'
                   ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
                   : alert.type === 'amber'
@@ -1494,12 +1520,19 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               </div>
 
               <div className="flex items-center justify-end pt-2">
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                  {alert.actionText} <ChevronRight className="h-3 w-3" />
-                </span>
+                {destino ? (
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                    {alert.actionText} <ChevronRight className="h-3 w-3" />
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1" title="Ainda não existe uma tela dedicada para esta ação">
+                    {alert.actionText}
+                  </span>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
