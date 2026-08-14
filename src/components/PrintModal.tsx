@@ -1206,7 +1206,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
               </thead>
               <tbody className="divide-y divide-black font-medium text-[9px]">
                 {classSubjects.map((sub) => {
-                  const score = grades.find(g => g.studentId === student.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true)) || grades.find(g => g.studentId === student.id && g.subjectId === sub.id);
+                  // Mesma correção do boletim individual: nunca cair pra nota
+                  // de outro período quando falta a deste. Ver comentário
+                  // completo na outra ocorrência deste padrão.
+                  const score = grades.find(g => g.studentId === student.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true));
                   const absences = getStudentAbsences(student.id, sub.id);
                   return (
                     <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
@@ -1560,7 +1563,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </thead>
                       <tbody className="divide-y divide-black font-medium text-[9px]">
                         {classSubjects.map((sub, i) => {
-                          const score = grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true)) || grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id);
+                          // A NOTA PRECISA SER DA TURMA CERTA, NUNCA "A MAIS PARECIDA".
+                          // Antes, se não achasse nota do aluno nesta disciplina NESTA
+                          // turma/período, a busca caía num fallback que pegava QUALQUER
+                          // nota do aluno naquela disciplina — de qualquer outro
+                          // período. Como disciplina é cadastrada por curso+módulo (não
+                          // por período), um aluno com a mesma disciplina em 2025/2 e
+                          // 2026/1 podia ver, no boletim de um período, a nota lançada
+                          // no OUTRO — sem nenhum aviso. Sem essa nota do período certo,
+                          // o correto é mostrar "Pendente", não adivinhar.
+                          const score = grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true));
                           const absences = getStudentAbsences(targetStudent.id, sub.id);
                           return (
                             <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
@@ -1590,6 +1602,19 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                 {documentType === 'historico_completo' && targetStudent && (() => {
                   const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
                   const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+                  // GARANTE QUE A MATRÍCULA ATUAL APAREÇA, MESMO SEM NENHUMA
+                  // NOTA LANÇADA AINDA.
+                  //
+                  // Antes, a lista de turmas do histórico vinha só das
+                  // notas já lançadas — um período recém-matriculado (sem
+                  // nenhum professor ter lançado nota ainda) simplesmente
+                  // não aparecia, como se o aluno não estivesse matriculado
+                  // ali. A exibição já sabe mostrar "Pendente"/"0.0" quando
+                  // não há nota (veja abaixo); só faltava a turma entrar na
+                  // lista para começar.
+                  if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
+                    uniqueClassIds.push(targetStudent.classId);
+                  }
                   const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
                   
                   studentClasses.sort((a, b) => {
@@ -1892,7 +1917,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                             Aulas Dadas: <span className="font-mono">{attendance.filter(a => a.subjectId === targetSubject.id).length || '0'}</span>
                           </th>
                           <th className="py-1 text-center border-r border-black uppercase text-[8px] bg-slate-50" colSpan={6}>
-                            Período: <span className="font-mono">2026/1</span>
+                            Período: <span className="font-mono">{targetClass?.year}/{targetClass?.semester}</span>
                           </th>
                         </tr>
                         {/* Level 2 Headers */}
