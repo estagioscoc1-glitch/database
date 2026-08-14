@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -156,7 +156,7 @@ interface AppContextType {
   deleteSubject: (id: string) => void;
   addUser: (user: User) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
-  deleteUser: (id: string) => void;
+  deleteUser: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
   unifyDuplicateSubjects: (correctSubjectId: string, duplicateSubjectIds: string[]) => void;
   syncSubjectsWithOfficialCurriculum: () => {
@@ -2999,16 +2999,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
     const userToDelete = users.find(u => u.id === id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-
-    addSecurityLog(
-      'USUARIO_REMOVIDO',
-      `Acesso de login de ${userToDelete?.name || ''} (ID: ${id}) foi removido. ` +
-      `O histórico acadêmico (notas, frequência, matrícula, histórico escolar) NÃO foi apagado — só o login.`,
-      'medium'
-    );
 
     // "EXCLUIR USUÁRIO" REMOVE SÓ O ACESSO DE LOGIN, NUNCA O HISTÓRICO.
     //
@@ -3028,11 +3020,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // `contaId` é o id de login de verdade; para aluno/professor, `id` aqui
     // é o id da FICHA (troca proposital em `montarUsuario`), não o de login.
     const contaId = userToDelete?.contaId || id;
-    excluirContaDeLogin(contaId).then(res => {
-      if (!res.ok) {
-        addSecurityLog('SISTEMA_ERRO', `Falha ao remover o acesso de login de ${id}: ${res.erro}`, 'high');
-      }
-    });
+
+    // ESPERA O BANCO CONFIRMAR ANTES DE TIRAR DA LISTA.
+    //
+    // Antes, a tela tirava o usuário da lista IMEDIATAMENTE, sem esperar o
+    // banco responder. Se a exclusão de verdade falhasse (sessão expirada,
+    // sem internet, RLS bloqueando por algum motivo), isso só ficava
+    // registrado num log escondido — o Admin via a lixeira "funcionar" (o
+    // nome sumia da tela), mas ao recarregar a página o usuário voltava a
+    // aparecer, porque nunca tinha sido apagado de verdade. Agora só
+    // atualiza a lista depois do banco confirmar, e devolve o erro pra tela
+    // poder avisar.
+    const resultado = await excluirContaDeLogin(contaId);
+
+    if (!resultado.ok) {
+      addSecurityLog('SISTEMA_ERRO', `Falha ao remover o acesso de login de ${id}: ${resultado.erro}`, 'high');
+      return { ok: false, erro: resultado.erro };
+    }
+
+    setUsers(prev => prev.filter(u => u.id !== id));
+    addSecurityLog(
+      'USUARIO_REMOVIDO',
+      `Acesso de login de ${userToDelete?.name || ''} (ID: ${id}) foi removido. ` +
+      `O histórico acadêmico (notas, frequência, matrícula, histórico escolar) NÃO foi apagado — só o login.`,
+      'medium'
+    );
+    return { ok: true };
   };
 
   const unifyDuplicateStudents = (principalId: string, duplicateIds: string[]) => {
@@ -4903,6 +4916,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Log security activity
     addSecurityLog('SISTEMA', `Aluno [${student.name}] transferido com sucesso para a turma [${targetClass.name}].`, 'low');
     addNotification(studentId, `Você foi transferido para a turma ${targetClass.name} do curso ${targetCourse?.name || 'Técnico'}.`);
+
+    // LIMPA A "FICHA FANTASMA" QUE FICAVA NA TURMA ANTIGA QUANDO A
+    // TRANSFERÊNCIA TROCA DE CURSO (ex.: Enfermagem presencial → Enfermagem
+    // EAD, ou o caminho inverso).
+    //
+    // Progressão normal de módulo dentro do MESMO curso é preservada do
+    // jeito que sempre foi (a turma antiga continua no histórico, porque é
+    // nota de verdade de um módulo já cursado). O problema era só quando a
+    // pessoa muda de TRILHA: a turma antiga ficava com uma matrícula e
+    // notas zeradas fantasma, para sempre, aparecendo como "NÃO APTO" no
+    // histórico dela mesmo sem ter cursado nada ali de fato.
+    //
+    // A função só apaga se realmente não houver nenhuma nota de verdade
+    // lançada na turma antiga — se houver, preserva como histórico
+    // legítimo, sem risco de apagar nada real.
+    if (oldClass && oldClassId && oldClass.courseId !== targetClass.courseId) {
+      excluirVinculoTurmaSeVazio(studentId, oldClassId).then(res => {
+        if (!res.ok) {
+          addSecurityLog(
+            'SISTEMA_ERRO',
+            `Falha ao limpar o vínculo antigo de ${student.name} na turma ${oldClass.name}: ${res.erro}`,
+            'medium'
+          );
+        }
+      });
+      // Some da lista de notas em tela também, sem esperar o próximo
+      // recarregamento — evita mostrar por um instante a nota fantasma que
+      // acabou de ser apagada do banco.
+      setGrades(prev => prev.filter(g => !(g.studentId === studentId && g.classId === oldClassId)));
+    }
   };
 
   // Security Audit Logging
