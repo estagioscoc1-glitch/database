@@ -1647,15 +1647,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                             <table className="w-full table-fixed text-left border-collapse text-[9px] text-black border border-black">
                               <colgroup>
                                 <col /> {/* Disciplina */}
-                                <col style={{ width: '45px' }} /> {/* S1 */}
-                                <col style={{ width: '45px' }} /> {/* S2 */}
-                                <col style={{ width: '45px' }} /> {/* AFC */}
-                                <col style={{ width: '40px' }} /> {/* EX */}
-                                <col style={{ width: '40px' }} /> {/* CS */}
-                                <col style={{ width: '45px' }} /> {/* PF */}
-                                <col style={{ width: '50px' }} /> {/* Faltas */}
-                                <col style={{ width: '60px' }} /> {/* Conceito */}
-                                <col style={{ width: '75px' }} /> {/* Resultado */}
+                                <col style={{ width: '42px' }} /> {/* S1 */}
+                                <col style={{ width: '42px' }} /> {/* S2 */}
+                                <col style={{ width: '42px' }} /> {/* AFC */}
+                                <col style={{ width: '36px' }} /> {/* EX */}
+                                <col style={{ width: '36px' }} /> {/* CS */}
+                                <col style={{ width: '42px' }} /> {/* PF */}
+                                <col style={{ width: '38px' }} /> {/* Faltas */}
+                                <col style={{ width: '45px' }} /> {/* Conceito */}
+                                <col style={{ width: '68px' }} /> {/* Resultado */}
                               </colgroup>
                               <thead>
                                 <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[8px]">
@@ -1677,7 +1677,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                   const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
                                   return (
                                     <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
-                                      <td className="py-1 px-1.5 border-r border-black font-bold truncate">{sub.name}</td>
+                                      <td className="py-1 px-1.5 border-r border-black font-bold leading-tight break-words" title={sub.name}>{sub.name}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s1.toFixed(1) : '0.0'}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s2.toFixed(1) : '0.0'}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.afc ? score.afc.toFixed(1) : '0.0'}</td>
