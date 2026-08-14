@@ -1267,6 +1267,55 @@ export async function salvarNota(
   return { ok: true };
 }
 
+/**
+ * Remove a matrícula e as notas de UM aluno em UMA turma — usado quando o
+ * aluno é transferido para outro curso/trilha (ex.: presencial → EAD) e a
+ * turma antiga era só um vínculo vazio, sem nota real lançada.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR: transferir um aluno criava notas zeradas
+ * na turma nova E deixava as notas zeradas da turma antiga penduradas para
+ * sempre, como "histórico" — mas eram notas fantasma, nunca realmente
+ * lançadas por um professor. O boletim/histórico do aluno passava a
+ * mostrar "NÃO APTO" em disciplinas que ele nunca cursou de verdade.
+ *
+ * Só remove se REALMENTE não houver nota lançada de verdade (todo campo em
+ * zero/branco) — se o aluno tiver cursado parte da turma antiga de
+ * verdade, essa nota é preservada como histórico legítimo.
+ */
+export async function excluirVinculoTurmaSeVazio(alunoId: string, turmaId: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { data: diarios, error: erroDiarios } = await supabase
+    .from('diarios').select('id').eq('turma_id', turmaId);
+  if (erroDiarios) return falha('localizar diários da turma antiga', erroDiarios);
+
+  const diarioIds = (diarios ?? []).map((d: any) => d.id);
+  if (diarioIds.length > 0) {
+    // Confere se existe QUALQUER nota com algum valor real lançado — se
+    // existir, não mexe em nada (histórico legítimo, preserva).
+    const { data: notasReais, error: erroNotas } = await supabase
+      .from('notas')
+      .select('id')
+      .eq('aluno_id', alunoId)
+      .in('diario_id', diarioIds)
+      .or('s1.gt.0,s2.gt.0,pf.gt.0,afc.gt.0');
+    if (erroNotas) return falha('conferir notas reais na turma antiga', erroNotas);
+    if (notasReais && notasReais.length > 0) {
+      return { ok: true }; // tem nota de verdade — não apaga, mantém como histórico
+    }
+
+    const { error: erroDelNotas } = await supabase
+      .from('notas').delete().eq('aluno_id', alunoId).in('diario_id', diarioIds);
+    if (erroDelNotas) return falha('excluir notas fantasma da turma antiga', erroDelNotas);
+  }
+
+  const { error: erroDelMatricula } = await supabase
+    .from('matriculas').delete().eq('aluno_id', alunoId).eq('turma_id', turmaId);
+  if (erroDelMatricula) return falha('excluir matrícula da turma antiga', erroDelMatricula);
+
+  return { ok: true };
+}
+
 /** Grava o total de faltas de UM aluno em UMA disciplina. */
 export async function salvarFaltas(
   classId: string,
