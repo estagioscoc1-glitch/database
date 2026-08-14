@@ -1220,6 +1220,48 @@ async function garantirDiario(
 }
 
 /**
+ * Atribui (ou remove) o professor de UM diário específico, gravando DIRETO
+ * no banco, na hora — não espera o ciclo de sincronização periódica.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * A tela "Gerenciador de Acessos de Professores" só atualizava o estado
+ * local do navegador ao marcar/desmarcar uma disciplina — a gravação de
+ * verdade dependia inteiramente do ciclo de sincronização automática (que
+ * roda a cada poucos segundos e só publica se detectar mudança desde a
+ * última vez). Isso deixava uma janela onde a marcação existia só na tela:
+ * se a sincronização rodasse usando um estado desatualizado (por exemplo,
+ * outra aba do navegador aberta ao mesmo tempo, com uma visão antiga),
+ * a atribuição sumia sozinha, sem nenhum aviso.
+ *
+ * Agora o clique grava direto — sem esperar, sem depender do que outra
+ * aba possa achar que é verdade.
+ */
+export async function atribuirProfessorAoDiario(
+  classId: string,
+  subjectId: string,
+  periodo: string,
+  professorId: string | null
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const id = idDiario(classId, subjectId, periodo);
+  const { error } = await supabase.from('diarios').upsert(
+    {
+      id,
+      turma_id: classId,
+      disciplina_id: subjectId,
+      periodo,
+      professor_id: professorId,
+    },
+    { onConflict: 'id' }
+  );
+
+  if (error) return falha('atribuir professor ao diário', error);
+  return { ok: true };
+}
+
+/**
  * Grava UMA nota. Só a linha daquele aluno naquele diário é tocada.
  *
  * O banco recusa se: o diário não é deste professor, ou o diário está fechado.
