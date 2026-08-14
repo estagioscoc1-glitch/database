@@ -176,11 +176,18 @@ function MainAppLayout() {
 
         <div className="flex items-center gap-4">
           
-          {/* Chat / Message Center Trigger Button — só para Admin e Secretaria.
-              Aluno e professor não veem mais este botão no cabeçalho (pedido
-              explícito). A Central de Mensagens em si continua existindo no
-              código; só o atalho no topo some para esses dois papéis. */}
-          {activeDisplayRole !== UserRole.STUDENT && activeDisplayRole !== UserRole.TEACHER && (
+          {/* Chat / Message Center Trigger Button.
+              Pedido específico: só Admin e a conta de Secretaria do Yan têm
+              esse botão. Aluno e professor não têm (nem o perfil de
+              professor do próprio Yan, se ele tiver um) — e nenhuma outra
+              conta de Secretaria que venha a existir tem por padrão, só
+              essa em especial.
+              Identificado pelo usuário de login exato dele
+              ('admin_yan.neres', visto em "Gerenciar Usuários Cadastrados").
+              Se esse usuário mudar (ex.: recadastro, troca de login), ajuste
+              aqui — é a única linha que precisa mudar. */}
+          {(activeDisplayRole === UserRole.ADMIN ||
+            (activeDisplayRole === UserRole.STAFF && currentUser.username?.toLowerCase() === 'admin_yan.neres')) && (
           <button
             onClick={() => setIsChatOpen(true)}
             type="button"
