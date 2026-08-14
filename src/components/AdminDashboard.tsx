@@ -506,6 +506,46 @@ export const AdminDashboard: React.FC = () => {
   const [novoAdminLogin, setNovoAdminLogin] = useState('');
   const [novoAdminEmail, setNovoAdminEmail] = useState('');
   const [criandoAdmin, setCriandoAdmin] = useState(false);
+  const [gerandoAcessoDe, setGerandoAcessoDe] = useState<string | null>(null);
+
+  // GERAR ACESSO PARA QUEM JÁ TEM FICHA MAS PERDEU (OU NUNCA TEVE) O LOGIN.
+  //
+  // Existiu antes um jeito de excluir o login de um professor sem pedir
+  // senha nem mostrar confirmação — corrigido, mas alguém pode ter perdido
+  // o acesso por essa porta antes da correção. A ficha (com os diários,
+  // notas e tudo mais) nunca é apagada quando só o login é excluído, então
+  // dá pra recriar o login e linká-lo de volta à mesma ficha, sem perder
+  // absolutamente nada do que já estava atribuído à pessoa.
+  const gerarAcessoParaFicha = (ficha: { id: string; name: string; username: string; role: UserRole }) => {
+    const papel = ficha.role === UserRole.TEACHER ? 'PROFESSOR' : ficha.role === UserRole.STUDENT ? 'ALUNO' : null;
+    if (!papel) return;
+    pedirConfirmacao(
+      'Gerar novo acesso?',
+      `Isto cria um novo login para ${ficha.name}, linkado à ficha que já existe — os diários, notas e ` +
+      `tudo mais que já estava atribuído a ela continuam exatamente como estão.\n\n` +
+      `A senha inicial será gerada agora e mostrada uma única vez.`,
+      async () => {
+        setGerandoAcessoDe(ficha.id);
+        try {
+          const r = await criarAcesso({ nome: ficha.name, login: ficha.username, papel, vincularA: ficha.id });
+          if (r.ok) {
+            mostrarAviso(
+              'Acesso gerado',
+              `Nome: ${ficha.name}\nUsuário para entrar no portal: ${r.login}\n\n` +
+              `Entregue os dois abaixo. A senha não será mostrada de novo.`,
+              r.senhaInicial
+            );
+          } else {
+            mostrarAviso('Não foi possível gerar o acesso', String(r.mensagem));
+          }
+        } catch (err: any) {
+          mostrarAviso('Não foi possível gerar o acesso', String(err?.message || err));
+        } finally {
+          setGerandoAcessoDe(null);
+        }
+      }
+    );
+  };
 
   // Recebe os dados prontos do <FormularioDocente>. Antes lia direto do estado
   // deste componente, e era isso que fazia cada tecla redesenhar o painel todo.
@@ -2761,6 +2801,21 @@ export const AdminDashboard: React.FC = () => {
                             {confirmandoExclusaoDe === u.id ? 'Conferindo...' : isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
                           )}
+                          {/* GERAR ACESSO — aparece pra quem está sem
+                              login (aluno ou professor). Recria a conta
+                              ligada à MESMA ficha, sem perder nada do que
+                              já estava atribuído a ela. */}
+                          {currentUser?.role === UserRole.ADMIN && semLogin && (u.role === UserRole.STUDENT || u.role === UserRole.TEACHER) && (
+                          <button
+                            type="button"
+                            disabled={gerandoAcessoDe === u.id}
+                            onClick={() => gerarAcessoParaFicha({ id: u.id, name: u.name, username: u.username, role: u.role })}
+                            className="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white transition-all disabled:opacity-40"
+                            title="Gerar um novo acesso de login para esta pessoa, mantendo tudo que já tinha"
+                          >
+                            {gerandoAcessoDe === u.id ? 'Gerando...' : 'Gerar Acesso'}
+                          </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -2915,6 +2970,23 @@ export const AdminDashboard: React.FC = () => {
                             ) : (
                               <Trash2 className="h-3.5 w-3.5" />
                             )}
+                          </button>
+                          )}
+                          {/* GERAR ACESSO — aparece quando o professor não
+                              tem login. Recria a conta ligada à MESMA
+                              ficha (mesmos diários, sem perder nada). */}
+                          {currentUser?.role === UserRole.ADMIN && semLogin && (
+                          <button
+                            type="button"
+                            disabled={gerandoAcessoDe === teacher.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              gerarAcessoParaFicha({ id: teacher.id, name: teacher.name, username: teacher.username, role: UserRole.TEACHER });
+                            }}
+                            className="px-2 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white transition-all disabled:opacity-40"
+                            title="Gerar um novo acesso de login para este professor, mantendo os diários que já tem"
+                          >
+                            {gerandoAcessoDe === teacher.id ? 'Gerando...' : 'Gerar Acesso'}
                           </button>
                           )}
                         </div>
