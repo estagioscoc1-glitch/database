@@ -315,6 +315,7 @@ export const AdminDashboard: React.FC = () => {
   // State for teacher access control
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [confirmDeleteTeacherId, setConfirmDeleteTeacherId] = useState<string | null>(null);
+  const [confirmandoExclusaoProfessorDe, setConfirmandoExclusaoProfessorDe] = useState<string | null>(null);
   const [confirmDeleteClassId, setConfirmDeleteClassId] = useState<string | null>(null);
   const [classSearchQuery, setClassSearchQuery] = useState('');
   const [selectedCourseIdFilter, setSelectedCourseIdFilter] = useState<string>(courses[0]?.id || 'ENF');
@@ -2795,6 +2796,14 @@ export const AdminDashboard: React.FC = () => {
                   activeTeachers.map(teacher => {
                     const isSelected = editingTeacherId === teacher.id;
                     const assignedCount = teacher.assignedJournals?.length || 0;
+                    // MESMA CORREÇÃO JÁ FEITA EM "GERENCIAR USUÁRIOS
+                    // CADASTRADOS" — esta tela tinha o próprio botão de
+                    // excluir professor, separado daquele, que nunca
+                    // recebeu as mesmas correções: não pedia senha, não
+                    // era restrito ao Admin, e chamava `deleteUser` sem
+                    // esperar resposta nem mostrar erro — clicar parecia
+                    // não fazer nada, com ou sem falha real por trás.
+                    const semLogin = !teacher.contaId;
                     return (
                       <div
                         key={teacher.id}
@@ -2819,7 +2828,17 @@ export const AdminDashboard: React.FC = () => {
                           className="flex-1 text-left min-w-0"
                         >
                           <div className="space-y-1">
-                            <p className="text-xs font-bold truncate">{teacher.name}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-bold truncate">{teacher.name}</p>
+                              {semLogin && (
+                                <span
+                                  className="px-1.5 py-0.5 text-[8px] font-extrabold uppercase rounded bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 shrink-0"
+                                  title="Este professor não tem conta de login — não consegue entrar no portal."
+                                >
+                                  Sem login
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap">
                               <span className="truncate">Usuário: <strong className="text-slate-600 dark:text-slate-300 font-mono">{teacher.username}</strong></span>
                               <span>•</span>
@@ -2837,33 +2856,67 @@ export const AdminDashboard: React.FC = () => {
                           }`}>
                             {assignedCount} {assignedCount === 1 ? 'diário' : 'diários'}
                           </span>
+                          {/* Só Admin, e só quando ainda existe login pra excluir. */}
+                          {currentUser?.role === UserRole.ADMIN && !semLogin && (
                           <button
                             type="button"
-                            onClick={(e) => {
+                            disabled={confirmandoExclusaoProfessorDe === teacher.id}
+                            onClick={async (e) => {
                               e.stopPropagation();
                               if (confirmDeleteTeacherId === teacher.id) {
-                                deleteUser(teacher.id);
-                                if (editingTeacherId === teacher.id) {
-                                  setEditingTeacherId(null);
+                                const digitada = window.prompt(
+                                  `Isto remove só o ACESSO DE LOGIN de "${teacher.name}" — os ${assignedCount} ` +
+                                  `${assignedCount === 1 ? 'diário' : 'diários'} atribuídos a ele, com todas as notas e ` +
+                                  `frequências já lançadas, NÃO são apagados nem desvinculados.\n\n` +
+                                  `Digite a SUA senha de administrador para confirmar:`
+                                );
+                                if (digitada === null) {
+                                  setConfirmDeleteTeacherId(null);
+                                  return;
                                 }
-                                setConfirmDeleteTeacherId(null);
+                                setConfirmandoExclusaoProfessorDe(teacher.id);
+                                try {
+                                  const senhaValida = await conferirSenhaAtual(digitada);
+                                  if (!senhaValida) {
+                                    mostrarAviso('Senha incorreta', 'A senha digitada não confere com a sua senha de administrador. Nenhum acesso foi removido.');
+                                    return;
+                                  }
+                                  const resultado = await deleteUser(teacher.id);
+                                  if (!resultado.ok) {
+                                    mostrarAviso(
+                                      'Não foi possível excluir',
+                                      `A senha estava certa, mas o banco de dados recusou a exclusão: ${resultado.erro || 'motivo não informado'}. ` +
+                                      `Nada foi removido — "${teacher.name}" continua com acesso normal.`
+                                    );
+                                    return;
+                                  }
+                                  if (editingTeacherId === teacher.id) {
+                                    setEditingTeacherId(null);
+                                  }
+                                } finally {
+                                  setConfirmandoExclusaoProfessorDe(null);
+                                  setConfirmDeleteTeacherId(null);
+                                }
                               } else {
                                 setConfirmDeleteTeacherId(teacher.id);
                               }
                             }}
-                            className={`p-1.5 rounded-lg transition-all ${
+                            className={`p-1.5 rounded-lg transition-all disabled:opacity-40 ${
                               confirmDeleteTeacherId === teacher.id
                                 ? 'bg-red-600 text-white animate-pulse text-[10px] font-extrabold px-2 py-1'
                                 : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
                             }`}
                             title={confirmDeleteTeacherId === teacher.id ? 'Confirmar Exclusão?' : 'Excluir Professor'}
                           >
-                            {confirmDeleteTeacherId === teacher.id ? (
+                            {confirmandoExclusaoProfessorDe === teacher.id ? (
+                              <span>Conferindo...</span>
+                            ) : confirmDeleteTeacherId === teacher.id ? (
                               <span>Confirmar?</span>
                             ) : (
                               <Trash2 className="h-3.5 w-3.5" />
                             )}
                           </button>
+                          )}
                         </div>
                       </div>
                     );
