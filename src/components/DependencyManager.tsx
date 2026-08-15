@@ -16,7 +16,7 @@ interface DependencyManagerProps {
 export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiario }) => {
   const { 
     courses, subjects, users, classes, dependencies, 
-    createDependencyEnrollment, cancelDependencyEnrollment, setActiveClassId, setActiveSubjectId 
+    createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent, setActiveClassId, setActiveSubjectId 
   } = useApp();
 
   // Active Tab: List of Dependencies or New Enrollment Form
@@ -52,6 +52,46 @@ export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiari
     setConfirmingCancelId(null);
     if (!resultado.ok) {
       setCancelErrorMsg(resultado.erro || 'Erro desconhecido ao cancelar.');
+    }
+  };
+
+  // Aluno novo — só vai fazer dependência (não está cadastrado em turma nenhuma)
+  const [showNewStudentForm, setShowNewStudentForm] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
+  const [creatingStudent, setCreatingStudent] = useState(false);
+  const [newStudentErrorMsg, setNewStudentErrorMsg] = useState<string | null>(null);
+  const [newStudentWarningMsg, setNewStudentWarningMsg] = useState<string | null>(null);
+
+  const handleCreateDependencyOnlyStudent = async () => {
+    setNewStudentErrorMsg(null);
+    setNewStudentWarningMsg(null);
+    if (!newStudentName.trim() || !newStudentEnrollment.trim()) {
+      setNewStudentErrorMsg('Preencha nome e matrícula.');
+      return;
+    }
+    setCreatingStudent(true);
+    const resultado = await createDependencyOnlyStudent({
+      nome: newStudentName,
+      matricula: newStudentEnrollment,
+      cursoId: selectedCourseId,
+    });
+    setCreatingStudent(false);
+
+    if (!resultado.studentId) {
+      setNewStudentErrorMsg(resultado.erro || 'Erro desconhecido ao criar aluno.');
+      return;
+    }
+
+    // Ficha criada — seleciona ela automaticamente no formulário de
+    // dependência, mesmo que o acesso de login tenha falhado (aviso abaixo).
+    setSelectedStudentId(resultado.studentId);
+    setStudentSearch(newStudentName.trim().toUpperCase());
+    setShowNewStudentForm(false);
+    setNewStudentName('');
+    setNewStudentEnrollment('');
+    if (!resultado.ok) {
+      setNewStudentWarningMsg(resultado.erro || null);
     }
   };
 
@@ -345,9 +385,67 @@ export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiari
 
                 {/* Step 3: Student Selection */}
                 <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                    <UserCheck className="h-4 w-4" /> 3. Pesquisar e Selecionar o Aluno
-                  </h3>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="text-xs font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                      <UserCheck className="h-4 w-4" /> 3. Pesquisar e Selecionar o Aluno
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => { setShowNewStudentForm(v => !v); setNewStudentErrorMsg(null); }}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 underline underline-offset-2"
+                    >
+                      {showNewStudentForm ? 'Cancelar cadastro novo' : 'Aluno não está cadastrado? Cadastrar agora (só p/ dependência)'}
+                    </button>
+                  </div>
+
+                  {showNewStudentForm && (
+                    <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 rounded-2xl space-y-3">
+                      <p className="text-[11px] text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                        Use isto só quando o aluno vai fazer <strong>apenas</strong> a dependência — sem entrar em nenhuma turma regular. Ele não fica matriculado em mais nenhuma disciplina.
+                      </p>
+                      {newStudentErrorMsg && (
+                        <div className="p-2.5 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded-xl text-[11px] font-bold">
+                          ⚠️ {newStudentErrorMsg}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Nome completo</label>
+                          <input
+                            type="text"
+                            value={newStudentName}
+                            onChange={(e) => setNewStudentName(e.target.value)}
+                            placeholder="Nome do aluno"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Matrícula</label>
+                          <input
+                            type="text"
+                            value={newStudentEnrollment}
+                            onChange={(e) => setNewStudentEnrollment(e.target.value)}
+                            placeholder="Ex: 25136020"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={creatingStudent}
+                        onClick={handleCreateDependencyOnlyStudent}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                      >
+                        {creatingStudent ? 'Cadastrando...' : 'Cadastrar e selecionar este aluno'}
+                      </button>
+                    </div>
+                  )}
+
+                  {newStudentWarningMsg && (
+                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 rounded-xl text-[11px] font-bold">
+                      ⚠️ {newStudentWarningMsg}
+                    </div>
+                  )}
 
                   <div className="relative">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
