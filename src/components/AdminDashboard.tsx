@@ -1484,7 +1484,7 @@ export const AdminDashboard: React.FC = () => {
               }
 
               // Subjects of this class
-              const classSubs = subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module);
+              const classSubs = (targetClass.isDependency && targetClass.dependencySubjectId ? subjects.filter(s => s.id === targetClass.dependencySubjectId) : subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module));
 
               return (
                 <div className="space-y-4">
@@ -3058,7 +3058,7 @@ export const AdminDashboard: React.FC = () => {
                                 const allJournals: { classId: string; subjectId: string }[] = [];
                                 let collisionOccurred = false;
                                 classes.forEach(cls => {
-                                  const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                                  const classSubs = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
                                   classSubs.forEach(sub => {
                                     const otherTeacher = users.find(u => 
                                       u.role === UserRole.TEACHER && 
@@ -3147,7 +3147,7 @@ export const AdminDashboard: React.FC = () => {
                             <p className="text-xs text-slate-400 italic text-center py-6">Nenhuma turma para este filtro.</p>
                           ) : (
                             filteredClasses.map(cls => {
-                              const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                              const classSubs = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
                               return (
                                 <div key={cls.id} className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-150 dark:border-slate-800 space-y-2">
                                   <div className="flex items-center justify-between">
@@ -4540,7 +4540,7 @@ export const AdminDashboard: React.FC = () => {
                 }
 
                 const sCourse = courses.find(co => co.id === sClass.courseId);
-                const classSubs = subjects.filter(s => s.courseId === sClass.courseId && s.module === sClass.module);
+                const classSubs = (sClass.isDependency && sClass.dependencySubjectId ? subjects.filter(s => s.id === sClass.dependencySubjectId) : subjects.filter(s => s.courseId === sClass.courseId && s.module === sClass.module));
 
                 // Compute student KPI metrics
                 let totalWorkload = 0;
@@ -5040,7 +5040,7 @@ export const AdminDashboard: React.FC = () => {
                       <div className="space-y-6">
                         {studentClasses.map(cls => {
                           const classGrades = studentGrades.filter(g => g.classId === cls.id);
-                          const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                          const clsSubjects = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
 
                           return (
                             <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -5884,7 +5884,7 @@ export const AdminDashboard: React.FC = () => {
         const studentClassId = printDoc.classId || studentGrades[0]?.classId || classes[0]?.id || 'class_enf_m1_mat';
         const studentSubjectId = printDoc.subjectId || studentGrades[0]?.subjectId || subjects.find(s => {
           const cls = classes.find(c => c.id === studentClassId);
-          return cls && s.courseId === cls.courseId && s.module === cls.module;
+          return cls && (cls.isDependency && cls.dependencySubjectId ? s.id === cls.dependencySubjectId : (s.courseId === cls.courseId && s.module === cls.module));
         })?.id || 'enf_m1_anatomia';
         return (
           <PrintModal

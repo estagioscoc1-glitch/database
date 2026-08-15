@@ -40,7 +40,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   const classStudents = filteredStudents;
 
   const classSubjects = targetClass 
-    ? subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module)
+    ? (targetClass.isDependency && targetClass.dependencySubjectId
+        ? subjects.filter(s => s.id === targetClass.dependencySubjectId)
+        : subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module))
     : subjects;
 
   const isLandscape = documentType !== 'boletim' && documentType !== 'boletim_sala' && documentType !== 'decl_escolaridade' && documentType !== 'decl_ctransp' && documentType !== 'decl_vacina' && documentType !== 'historico_completo';
@@ -1627,7 +1629,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     <div className="space-y-6">
                       {studentClasses.map(cls => {
                         const classGrades = studentGrades.filter(g => g.classId === cls.id);
-                        const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                        // SEM ISTO, UMA TURMA DE DEPENDÊNCIA MOSTRAVA TODAS AS
+                        // DISCIPLINAS DO MÓDULO NO HISTÓRICO — não só a
+                        // disciplina que o aluno realmente está cursando em
+                        // dependência. O cálculo "disciplinas da turma" parte
+                        // do princípio de que toda turma ensina o módulo
+                        // inteiro, o que é verdade pra turma normal, mas
+                        // nunca pra dependência (que é sempre uma matéria só).
+                        const clsSubjects = cls.isDependency && cls.dependencySubjectId
+                          ? subjects.filter(s => s.id === cls.dependencySubjectId)
+                          : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
 
                         return (
                           <div key={cls.id} className="border border-black p-3 rounded bg-white text-black page-break-inside-avoid">
