@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -235,7 +235,7 @@ interface AppContextType {
   internships: InternshipRecord[];
   updateDeclarationConfig: (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => void;
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
-  transferStudent: (studentId: string, targetClassId: string) => void;
+  transferStudent: (studentId: string, targetClassId: string) => Promise<{ ok: boolean; erro?: string }>;
   updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null, teacherName?: string) => void;
   /** Ids de avisos já dispensados ou abertos por esta pessoa. */
   avisosVistos: string[];
@@ -4854,14 +4854,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const transferStudent = (studentId: string, targetClassId: string) => {
+  const transferStudent = async (studentId: string, targetClassId: string): Promise<{ ok: boolean; erro?: string }> => {
     const student = users.find(u => u.id === studentId);
-    if (!student) return;
+    if (!student) return { ok: false, erro: 'Aluno não encontrado.' };
 
     const oldClassId = student.classId;
     const oldClass = classes.find(c => c.id === oldClassId);
     const targetClass = classes.find(c => c.id === targetClassId);
-    if (!targetClass) return;
+    if (!targetClass) return { ok: false, erro: 'Turma de destino não encontrada.' };
+
+    // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
+    //
+    // Esta função só mexia no estado local do navegador (turma, matrícula e
+    // notas "mudavam" só na tela) e dependia do ciclo de sincronização
+    // automático pra gravar de verdade — o mesmo problema já corrigido antes
+    // para dependência e atribuição de professor. Só que aqui havia uma
+    // função pronta (`transferirAluno`, em repositorios.ts) escrita
+    // exatamente pra isso e que nunca era chamada: o aluno mudava de turma
+    // na tela, a mensagem dizia "sucesso na nuvem", mas nada era gravado no
+    // banco se a sincronização não pegasse a tempo. O aluno sumia do diário
+    // da turma nova ao recarregar a página ou em outro dispositivo, mesmo
+    // "matriculado" segundo a tela de quem fez a transferência.
+    const resultado = await transferirAluno(studentId, { turmaId: targetClassId });
+    if (!resultado.ok) {
+      return { ok: false, erro: resultado.erro || 'Não foi possível gravar a transferência no banco.' };
+    }
 
     // Get courses & subjects
     const oldSubjects = oldClass ? subjects.filter(s => s.courseId === oldClass.courseId && s.module === oldClass.module) : [];
@@ -4980,6 +4997,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // acabou de ser apagada do banco.
       setGrades(prev => prev.filter(g => !(g.studentId === studentId && g.classId === oldClassId)));
     }
+
+    return { ok: true };
   };
 
   // Security Audit Logging
