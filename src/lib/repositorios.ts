@@ -1263,6 +1263,58 @@ export async function atribuirProfessorAoDiario(
 }
 
 /**
+ * Cria a ficha de UM aluno que vai fazer SÓ dependência — sem matriculá-lo
+ * em nenhuma turma regular e sem inflar notas em disciplinas que ele não
+ * vai cursar.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * O único caminho de cadastro que a escola usa (Importar Planilhas) sempre
+ * exige escolher uma turma de destino, e ao escolher, matricula o aluno em
+ * TODAS as disciplinas do módulo daquela turma — mesmo quando ele só
+ * precisa fazer uma matéria em dependência. No banco, porém, `turma_id` na
+ * tabela `alunos` sempre foi opcional (a ficha nunca exigiu turma) — só
+ * faltava um caminho de cadastro que respeitasse isso.
+ *
+ * Não cria conta de acesso aqui — isso é feito à parte, com
+ * `criarAcessoDeUmAluno`, do mesmo jeito que a importação normal já faz.
+ */
+export async function criarAlunoSoDependencia(params: {
+  nome: string;
+  matricula: string;
+  cursoId?: string;
+}): Promise<ResultadoGravacao & { alunoId?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const nome = (params.nome || '').trim();
+  const matricula = (params.matricula || '').trim();
+  if (!nome) return { ok: false, erro: 'Nome do aluno é obrigatório.' };
+  if (matricula.length < 4) {
+    return { ok: false, erro: 'A matrícula precisa ter pelo menos 4 caracteres, porque ela também é a senha do primeiro acesso.' };
+  }
+
+  const { data: existente, error: erroExistente } = await supabase
+    .from('alunos').select('id, nome').eq('matricula', matricula).maybeSingle();
+  if (erroExistente) return falha('conferir matrícula existente', erroExistente);
+  if (existente) {
+    return { ok: false, erro: `A matrícula ${matricula} já pertence a ${(existente as any).nome}.` };
+  }
+
+  const alunoId = `aluno_dep_${Date.now()}`;
+  const { error: erroFicha } = await supabase.from('alunos').insert({
+    id: alunoId,
+    matricula,
+    nome: nome.toUpperCase(),
+    curso_id: params.cursoId || null,
+    turma_id: null,
+    situacao: 'ATIVO',
+  });
+  if (erroFicha) return falha('criar ficha do aluno', erroFicha);
+
+  return { ok: true, alunoId };
+}
+
+/**
  * Matricula UM aluno em dependência de UMA disciplina, gravando tudo DIRETO
  * no banco — turma, matrícula e a nota inicial (zerada) — sem depender do
  * ciclo de sincronização periódica.
