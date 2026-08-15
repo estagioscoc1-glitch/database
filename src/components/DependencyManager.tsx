@@ -16,7 +16,7 @@ interface DependencyManagerProps {
 export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiario }) => {
   const { 
     courses, subjects, users, classes, dependencies, 
-    createDependencyEnrollment, setActiveClassId, setActiveSubjectId 
+    createDependencyEnrollment, cancelDependencyEnrollment, setActiveClassId, setActiveSubjectId 
   } = useApp();
 
   // Active Tab: List of Dependencies or New Enrollment Form
@@ -38,6 +38,22 @@ export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiari
   const [createdResult, setCreatedResult] = useState<{ dependency: DependencyEnrollment; classSection: ClassSection } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Cancelar dependência
+  const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [cancelErrorMsg, setCancelErrorMsg] = useState<string | null>(null);
+
+  const handleCancelDependency = async (dependencyId: string) => {
+    setCancelErrorMsg(null);
+    setCancelingId(dependencyId);
+    const resultado = await cancelDependencyEnrollment(dependencyId);
+    setCancelingId(null);
+    setConfirmingCancelId(null);
+    if (!resultado.ok) {
+      setCancelErrorMsg(resultado.erro || 'Erro desconhecido ao cancelar.');
+    }
+  };
 
   // Filter subjects for selected course
   const courseSubjects = subjects.filter(s => s.courseId === selectedCourseId || !s.courseId);
@@ -433,6 +449,13 @@ export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiari
             </span>
           </div>
 
+          {cancelErrorMsg && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 rounded-xl text-xs flex items-center justify-between border border-red-150">
+              <span>⚠️ Não foi possível cancelar: {cancelErrorMsg}</span>
+              <button type="button" onClick={() => setCancelErrorMsg(null)} className="text-[10px] font-extrabold hover:underline">Fechar</button>
+            </div>
+          )}
+
           {dependencies.length === 0 ? (
             <div className="text-center py-12 text-slate-400">
               <FileText className="h-12 w-12 mx-auto mb-2 opacity-30" />
@@ -482,17 +505,50 @@ export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiari
                           {new Date(dep.createdAt).toLocaleDateString('pt-BR')}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActiveClassId(dep.createdClassId);
-                              setActiveSubjectId(dep.subjectId);
-                              onVerDiario?.(dep.createdClassId, dep.subjectId);
-                            }}
-                            className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                          >
-                            Ver Diário
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveClassId(dep.createdClassId);
+                                setActiveSubjectId(dep.subjectId);
+                                onVerDiario?.(dep.createdClassId, dep.subjectId);
+                              }}
+                              className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            >
+                              Ver Diário
+                            </button>
+
+                            {confirmingCancelId === dep.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-red-600 font-bold">Apagar de vez?</span>
+                                <button
+                                  type="button"
+                                  disabled={cancelingId === dep.id}
+                                  onClick={() => handleCancelDependency(dep.id)}
+                                  className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                                >
+                                  {cancelingId === dep.id ? 'Cancelando...' : 'Sim, cancelar'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={cancelingId === dep.id}
+                                  onClick={() => setConfirmingCancelId(null)}
+                                  className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                >
+                                  Voltar
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingCancelId(dep.id)}
+                                className="px-3 py-1.5 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 hover:bg-red-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                title="Apaga a matrícula, a nota e o diário desta dependência — o aluno some do histórico dele também."
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
