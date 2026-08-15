@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -230,6 +230,7 @@ interface AppContextType {
   updateStaffPermissions: (staffId: string, permissions: StaffPermissions) => void;
   createDependencyEnrollment: (data: { studentId: string; courseId: string; subjectId: string; semester: number; schedule: string }) => Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }>;
   cancelDependencyEnrollment: (dependencyId: string) => Promise<{ ok: boolean; erro?: string }>;
+  createDependencyOnlyStudent: (data: { nome: string; matricula: string; cursoId?: string }) => Promise<{ ok: boolean; erro?: string; studentId?: string }>;
 
   declarationConfigs: DeclarationConfigs;
   studentDocuments: StudentDocument[];
@@ -2894,6 +2895,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return { ok: true };
+  };
+
+  // Cria um aluno que vai fazer SÓ dependência — sem matriculá-lo em
+  // nenhuma turma regular. Existe porque a importação normal sempre exige
+  // escolher uma turma e, ao escolher, matricula o aluno em TODAS as
+  // disciplinas daquele módulo — errado pra quem só precisa de uma matéria.
+  // Depois de criado, o aluno aparece na busca da tela de Dependências
+  // igual a qualquer outro.
+  const createDependencyOnlyStudent = async (data: {
+    nome: string;
+    matricula: string;
+    cursoId?: string;
+  }): Promise<{ ok: boolean; erro?: string; studentId?: string }> => {
+    const resultadoFicha = await criarAlunoSoDependencia(data);
+    if (!resultadoFicha.ok || !resultadoFicha.alunoId) {
+      return { ok: false, erro: resultadoFicha.erro || 'Não foi possível criar a ficha do aluno.' };
+    }
+
+    const alunoId = resultadoFicha.alunoId;
+
+    // A conta de login (pra ela conseguir entrar no portal) é criada à
+    // parte. Se isso falhar (ex.: matrícula em uso por um login de outro
+    // papel), a FICHA já existe e ela já pode ser matriculada em
+    // dependência mesmo assim — só sem conseguir logar ainda. A secretaria
+    // pode gerar o acesso depois, pelo botão "Gerar acessos dos alunos".
+    const resultadoAcesso = await criarAcessoDeUmAluno(criarAcesso, data.matricula, data.nome);
+
+    // Reflete na tela: some na busca da tela de Dependências imediatamente.
+    setUsers(prev => [...prev, {
+      id: alunoId,
+      name: data.nome.trim().toUpperCase(),
+      username: data.matricula.trim(),
+      email: `${data.matricula.trim()}@aluno.oc.local`,
+      role: UserRole.STUDENT,
+      enrollment: data.matricula.trim(),
+      active: true,
+      courseId: data.cursoId,
+    }]);
+
+    if (!resultadoAcesso.ok) {
+      return {
+        ok: false,
+        erro: `Aluno criado, mas o acesso de login falhou (${resultadoAcesso.erro}). Ela já pode ser matriculada em dependência; gere o acesso depois em "Gerar acessos dos alunos".`,
+        studentId: alunoId,
+      };
+    }
+
+    return { ok: true, studentId: alunoId };
   };
 
   const addClass = (cls: ClassSection) => {
@@ -5568,7 +5617,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
-      dependencies, createDependencyEnrollment, cancelDependencyEnrollment,
+      dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
