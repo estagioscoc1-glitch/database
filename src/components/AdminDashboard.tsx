@@ -175,6 +175,8 @@ export const AdminDashboard: React.FC = () => {
   const [transferClassId, setTransferClassId] = useState('');
   const [transferSearch, setTransferSearch] = useState('');
   const [transferSuccess, setTransferSuccess] = useState(false);
+  const [transferErrorMsg, setTransferErrorMsg] = useState<string | null>(null);
+  const [transferLoading, setTransferLoading] = useState(false);
   const [journalError, setJournalError] = useState<string | null>(null);
 
   // Declaration configuration states
@@ -3312,6 +3314,13 @@ export const AdminDashboard: React.FC = () => {
               </div>
             )}
 
+            {transferErrorMsg && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 rounded-xl text-xs flex items-center justify-between border border-red-150">
+                <span>⚠️ Não foi possível gravar a transferência: {transferErrorMsg}</span>
+                <button type="button" onClick={() => setTransferErrorMsg(null)} className="text-[10px] font-extrabold hover:underline">Fechar</button>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Pesquisar Aluno</label>
@@ -3393,21 +3402,28 @@ export const AdminDashboard: React.FC = () => {
 
               <button
                 type="button"
-                disabled={!transferStudentId || !transferClassId}
-                onClick={() => {
-                  transferStudent(transferStudentId, transferClassId);
-                  setTransferSuccess(true);
-                  setTransferStudentId('');
-                  setTransferClassId('');
-                  setTransferSearch('');
+                disabled={!transferStudentId || !transferClassId || transferLoading}
+                onClick={async () => {
+                  setTransferErrorMsg(null);
+                  setTransferLoading(true);
+                  const resultado = await transferStudent(transferStudentId, transferClassId);
+                  setTransferLoading(false);
+                  if (resultado.ok) {
+                    setTransferSuccess(true);
+                    setTransferStudentId('');
+                    setTransferClassId('');
+                    setTransferSearch('');
+                  } else {
+                    setTransferErrorMsg(resultado.erro || 'Erro desconhecido.');
+                  }
                 }}
                 className={`w-full py-2 text-xs font-bold rounded-xl transition-all uppercase tracking-wider ${
-                  transferStudentId && transferClassId
+                  transferStudentId && transferClassId && !transferLoading
                     ? 'bg-blue-700 hover:bg-blue-800 text-white cursor-pointer'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                Confirmar Transferência
+                {transferLoading ? 'Gravando no banco...' : 'Confirmar Transferência'}
               </button>
             </div>
           </div>
