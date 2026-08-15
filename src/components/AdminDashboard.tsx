@@ -1777,7 +1777,15 @@ export const AdminDashboard: React.FC = () => {
           {/* SubTab Views */}
           {regSubTab === 'cursos' && <CourseManager />}
           {regSubTab === 'funcionarios' && <StaffManager />}
-          {regSubTab === 'dependencias' && <DependencyManager />}
+          {regSubTab === 'dependencias' && (
+            <DependencyManager
+              onVerDiario={(classId, subjectId) => {
+                setActiveClassId(classId);
+                setActiveSubjectId(subjectId);
+                setGradeWindowState('open');
+              }}
+            />
+          )}
 
           {regSubTab === 'turmas' && (
             <div className="grid md:grid-cols-12 gap-6">

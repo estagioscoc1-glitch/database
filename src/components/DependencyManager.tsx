@@ -4,7 +4,16 @@ import { DependencyEnrollment, ClassSection, Shift } from '../types';
 import { Calendar, Search, BookOpen, UserCheck, Sparkles, CheckCircle2, Clock, AlertCircle, Plus, FileText, Check, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export const DependencyManager: React.FC = () => {
+interface DependencyManagerProps {
+  // Sem isto, o botão "Ver Diário" só preparava a turma/disciplina certa
+  // (activeClassId/activeSubjectId) mas nunca mandava a janela do diário
+  // realmente ABRIR — clicar não fazia nada visível. Essa função, recebida
+  // do AdminDashboard (dono de verdade da janela flutuante de diário), faz
+  // a abertura acontecer.
+  onVerDiario?: (classId: string, subjectId: string) => void;
+}
+
+export const DependencyManager: React.FC<DependencyManagerProps> = ({ onVerDiario }) => {
   const { 
     courses, subjects, users, classes, dependencies, 
     createDependencyEnrollment, setActiveClassId, setActiveSubjectId 
@@ -478,6 +487,7 @@ export const DependencyManager: React.FC = () => {
                             onClick={() => {
                               setActiveClassId(dep.createdClassId);
                               setActiveSubjectId(dep.subjectId);
+                              onVerDiario?.(dep.createdClassId, dep.subjectId);
                             }}
                             className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all cursor-pointer"
                           >
