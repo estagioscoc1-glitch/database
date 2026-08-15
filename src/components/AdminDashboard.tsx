@@ -4930,6 +4930,15 @@ export const AdminDashboard: React.FC = () => {
                 const similarStudents = findSimilarStudents(targetStudent.id);
                 const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
                 const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+                // MESMA CORREÇÃO JÁ FEITA NA TELA DE IMPRESSÃO (PrintModal.tsx):
+                // sem isto, um aluno recém-matriculado (sem nenhuma nota lançada
+                // ainda) não aparecia aqui — a tela ficava praticamente vazia
+                // depois de selecioná-lo, parecendo que o clique não tinha feito
+                // nada. Isso afeta direto os 202 alunos importados hoje em
+                // 2026/2, que ainda não têm nota nenhuma lançada.
+                if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
+                  uniqueClassIds.push(targetStudent.classId);
+                }
                 const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
 
                 studentClasses.sort((a, b) => {
