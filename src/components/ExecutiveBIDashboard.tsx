@@ -397,7 +397,14 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // quando não havia nenhuma).
   const smartAlerts = useMemo(() => {
     const pendingDocsCount = studentDocuments.filter(d => d.status === 'PENDENTE').length;
-    const classesWithoutJournal = classes.filter(c => !c.code).length;
+    // "Turmas Sem Diário Criado" chegou a usar `!c.code` como sinal — mas
+    // `code` é só o codinome/sigla da turma (ex: "ENF-M1-MAT"), não tem
+    // nenhuma relação com o diário ter sido aberto ou não. Isso fazia o
+    // alerta contar turma com nome incompleto como se fosse turma sem
+    // diário, e vice-versa. O sistema não guarda "diário criado" em lugar
+    // nenhum do estado local hoje, então, como os outros contadores abaixo,
+    // fica em 0 (alerta escondido) até existir um dado real pra isso.
+    const classesWithoutJournal = 0;
     // "Diários pendentes de fechamento" e "estágios vencendo em 30 dias"
     // ficam em 0: o sistema não guarda data de vencimento do estágio nem um
     // indicador confiável de diário pendente ainda, então mostrar um
@@ -1482,7 +1489,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               alt_1: 'financeiro',           // Mensalidades em Atraso
               alt_2: 'reg',                  // Documentos Pendentes → Cadastros Acadêmicos
               alt_3: 'msg',                  // Professores com Diários Pendentes → Mensagens
-              alt_4: 'sec',                  // Turmas Sem Diário Criado → Gerenciador de Acessos de Professores
+              alt_4: 'reg',                  // Turmas Sem Diário Criado → Cadastros Acadêmicos (é lá dentro que fica o Gerenciador de Acessos de Professores/Diários — 'sec' é Backup & Segurança, tela errada)
               alt_5: 'reg',                  // Alunos em Dependência sem Turma → Cadastros Acadêmicos (aba Dependências fica lá dentro)
               alt_6: 'estagio',              // Estágios Vencendo em 30 Dias
             };
