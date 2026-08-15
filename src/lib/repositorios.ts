@@ -597,6 +597,7 @@ export async function publicarEstrutura(dados: {
         fechada_s2: !!c.closedS2,
         fechada_definitivo: !!c.closedDefinitive,
         eh_dependencia: !!c.isDependency,
+        disciplina_dependencia_id: c.dependencySubjectId || null,
       })), 'id', 'gravar turmas');
     if (!r.ok) erros.push(r.erro || 'turmas');
   }
@@ -1259,6 +1260,120 @@ export async function atribuirProfessorAoDiario(
 
   if (error) return falha('atribuir professor ao diário', error);
   return { ok: true };
+}
+
+/**
+ * Matricula UM aluno em dependência de UMA disciplina, gravando tudo DIRETO
+ * no banco — turma, matrícula e a nota inicial (zerada) — sem depender do
+ * ciclo de sincronização periódica.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * A tela de Dependências só atualizava o estado local do navegador
+ * (turma, matrícula e nota "criadas" só existiam ali) e dependia do ciclo
+ * de sincronização automático pra gravar de verdade no banco — o mesmo
+ * problema que já corrigimos antes pra atribuir professor a diário. Só que
+ * aqui o efeito era pior: às vezes a sincronização simplesmente não
+ * pegava a mudança a tempo (por exemplo, se a pessoa navegasse pra outra
+ * tela logo em seguida), e a matrícula de dependência NUNCA chegava a
+ * existir no banco — mesmo a tela mostrando "cadastrado com sucesso".
+ * O aluno ficava "só na memória", sumia ao recarregar a página, e o
+ * diário abria vazio (sem nome) porque não havia matrícula nenhuma.
+ *
+ * Se já existir uma turma de dependência ativa para o mesmo curso +
+ * disciplina + período, reaproveita ela (mesma lógica de antes, agora só
+ * que gravando de verdade) — vários alunos com a mesma dependência caem
+ * no mesmo diário.
+ */
+export async function matricularEmDependencia(params: {
+  alunoId: string;
+  cursoId: string;
+  disciplinaId: string;
+  ano: number;
+  semestre: number;
+  modulo: number;
+  horario: string;
+}): Promise<ResultadoGravacao & { turmaId?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { alunoId, cursoId, disciplinaId, ano, semestre, modulo, horario } = params;
+
+  // 1. Já existe uma turma de dependência pra essa disciplina, neste
+  // curso e período? Reaproveita; senão, cria uma nova.
+  const { data: turmaExistente, error: erroBusca } = await supabase
+    .from('turmas')
+    .select('id, nome')
+    .eq('curso_id', cursoId)
+    .eq('disciplina_dependencia_id', disciplinaId)
+    .eq('eh_dependencia', true)
+    .eq('ano', ano)
+    .eq('semestre', semestre)
+    .limit(1)
+    .maybeSingle();
+  if (erroBusca) return falha('procurar turma de dependência existente', erroBusca);
+
+  let turmaId = turmaExistente?.id;
+
+  if (!turmaId) {
+    const { data: disciplina, error: erroDisc } = await supabase
+      .from('disciplinas').select('nome').eq('id', disciplinaId).maybeSingle();
+    if (erroDisc) return falha('ler nome da disciplina', erroDisc);
+
+    turmaId = `class_dep_${Date.now()}`;
+    const { error: erroCriarTurma } = await supabase.from('turmas').insert({
+      id: turmaId,
+      curso_id: cursoId,
+      nome: `DEP - ${disciplina?.nome || 'Dependência'}`,
+      codigo: `DEP-${disciplinaId}`,
+      turno: 'SABADO',
+      modulo,
+      ano,
+      semestre,
+      horario,
+      eh_dependencia: true,
+      disciplina_dependencia_id: disciplinaId,
+    });
+    if (erroCriarTurma) return falha('criar turma de dependência', erroCriarTurma);
+  }
+
+  // 2. Já está matriculado nesta turma de dependência? Não duplica.
+  const { data: matriculaExistente, error: erroMatriculaExistente } = await supabase
+    .from('matriculas')
+    .select('id')
+    .eq('aluno_id', alunoId)
+    .eq('turma_id', turmaId)
+    .maybeSingle();
+  if (erroMatriculaExistente) return falha('conferir matrícula existente', erroMatriculaExistente);
+  if (matriculaExistente) {
+    return { ok: false, erro: 'Este aluno já está matriculado nesta dependência.' };
+  }
+
+  // 3. Matrícula
+  const { error: erroMatricula } = await supabase.from('matriculas').insert({
+    id: `mat_dep_${Date.now()}_${alunoId}`,
+    aluno_id: alunoId,
+    turma_id: turmaId,
+    situacao: 'ATIVA',
+  });
+  if (erroMatricula) return falha('matricular aluno na dependência', erroMatricula);
+
+  // 4. Diário + nota inicial (zerada, "Pendente")
+  const periodo = `${ano}/${semestre}`;
+  const diarioId = await garantirDiario(turmaId, disciplinaId, periodo, null);
+  if (!diarioId) return { ok: false, erro: 'Não foi possível preparar o diário da dependência.' };
+
+  const { error: erroNota } = await supabase.from('notas').upsert(
+    {
+      id: `nota_dep_${Date.now()}_${alunoId}`,
+      diario_id: diarioId,
+      aluno_id: alunoId,
+      resultado: 'PENDENTE',
+    },
+    { onConflict: 'diario_id,aluno_id' }
+  );
+  if (erroNota) return falha('criar nota inicial da dependência', erroNota);
+
+  return { ok: true, turmaId };
 }
 
 /**
@@ -2202,6 +2317,7 @@ export async function carregarEstrutura(): Promise<{
     closedS2: !!t.fechada_s2,
     closedDefinitive: !!t.fechada_definitivo,
     isDependency: !!t.eh_dependencia,
+    dependencySubjectId: t.disciplina_dependencia_id ?? undefined,
     scheduleText: t.horario ?? undefined,
   }));
 
