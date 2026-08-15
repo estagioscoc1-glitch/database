@@ -2799,7 +2799,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     const createdClassId = turmaDependenciaExistente?.id || `class_dep_${Date.now()}`;
-    const createdClassName = turmaDependenciaExistente?.name || `DEP-${subject.name.toUpperCase()} (${data.schedule.slice(0, 15)})`;
+    // NOME MAIS CURTO. Antes incluía o horário no final (ex.: "(Contra-Turno
+    // FI)"), deixando nomes como "DEP-ENFERMAGEM EM OBSTETRÍCIA (Contra-Turno
+    // FI)" longos demais — cortavam no cabeçalho do histórico e em outras
+    // telas com espaço limitado. O horário já fica salvo em `scheduleText`
+    // e aparece em outros lugares específicos; não precisa repetir no nome.
+    const createdClassName = turmaDependenciaExistente?.name || `DEP - ${subject.name}`;
 
     // 1. Create ClassSection / Diário for dependency — só se ainda não
     // existir uma turma pra essa disciplina neste período.
