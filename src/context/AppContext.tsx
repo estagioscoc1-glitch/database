@@ -2774,31 +2774,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const subject = subjects.find(s => s.id === data.subjectId);
     if (!subject) throw new Error('Disciplina não encontrada.');
 
+    const [anoAtualDep, semestreAtualDep] = currentPeriod.split('/').map(Number);
     const dependencyId = `dep_${Date.now()}`;
-    const createdClassId = `class_dep_${Date.now()}`;
-    const createdClassName = `DEP-${subject.name.toUpperCase()} (${data.schedule.slice(0, 15)})`;
 
-    // 1. Create ClassSection / Diário for dependency
-    const newClassSection: ClassSection = {
-      id: createdClassId,
-      name: createdClassName,
-      code: `DEP-${subject.id.toUpperCase()}`,
-      courseId: data.courseId,
-      shift: Shift.SABADO,
-      module: data.semester,
-      year: new Date().getFullYear(),
-      semester: 1,
-      isDependency: true,
-      dependencySubjectId: data.subjectId,
-      scheduleText: data.schedule,
-      closedS1: false,
-      closedS2: false,
-      closedDefinitive: false
-    };
+    // REAPROVEITAR O DIÁRIO SE JÁ EXISTIR UM PARA A MESMA DISCIPLINA.
+    //
+    // Antes, cada matrícula em dependência criava uma turma nova e isolada
+    // (`class_dep_${Date.now()}`) — mesmo que dois alunos estivessem de
+    // dependência na MESMA disciplina, cada um ficava sozinho numa turma
+    // só dele. Isso obrigava o professor a ficar entrando em diários
+    // diferentes pra lançar falta/nota de gente que, na prática, cursa
+    // junto.
+    //
+    // Agora, se já existir uma turma de dependência ATIVA para o mesmo
+    // curso + disciplina + período letivo, o aluno entra nela — ganhando
+    // um diário compartilhado com quem mais estiver de dependência na
+    // mesma matéria. Só cria uma turma nova se ainda não existir nenhuma.
+    const turmaDependenciaExistente = classes.find(c =>
+      c.isDependency &&
+      c.courseId === data.courseId &&
+      c.dependencySubjectId === data.subjectId &&
+      c.year === (anoAtualDep || new Date().getFullYear()) &&
+      c.semester === (semestreAtualDep || 1)
+    );
 
-    setClasses(prev => [...prev, newClassSection]);
+    const createdClassId = turmaDependenciaExistente?.id || `class_dep_${Date.now()}`;
+    const createdClassName = turmaDependenciaExistente?.name || `DEP-${subject.name.toUpperCase()} (${data.schedule.slice(0, 15)})`;
+
+    // 1. Create ClassSection / Diário for dependency — só se ainda não
+    // existir uma turma pra essa disciplina neste período.
+    let newClassSection: ClassSection;
+    if (turmaDependenciaExistente) {
+      newClassSection = turmaDependenciaExistente;
+    } else {
+      newClassSection = {
+        id: createdClassId,
+        name: createdClassName,
+        code: `DEP-${subject.id.toUpperCase()}`,
+        courseId: data.courseId,
+        shift: Shift.SABADO,
+        module: data.semester,
+        year: anoAtualDep || new Date().getFullYear(),
+        semester: semestreAtualDep || 1,
+        isDependency: true,
+        dependencySubjectId: data.subjectId,
+        scheduleText: data.schedule,
+        closedS1: false,
+        closedS2: false,
+        closedDefinitive: false
+      };
+      setClasses(prev => [...prev, newClassSection]);
+    }
 
     // 2. Bind student to this class section and create GradeRecord
+    //
+    // Se o diário já é compartilhado (turma reaproveitada) e este aluno já
+    // está matriculado nele, não duplica a nota — só avisa e sai.
+    const jaMatriculadoNaDependencia = grades.some(
+      g => g.classId === createdClassId && g.studentId === student.id
+    );
+    if (jaMatriculadoNaDependencia) {
+      throw new Error(`${student.name} já está matriculado nesta dependência.`);
+    }
+
     const newGrade: GradeRecord = {
       id: `g_dep_${Date.now()}_${data.subjectId}_${student.id}`,
       classId: createdClassId,
