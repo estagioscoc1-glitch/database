@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -229,6 +229,7 @@ interface AppContextType {
   deleteStaffMember: (id: string) => void;
   updateStaffPermissions: (staffId: string, permissions: StaffPermissions) => void;
   createDependencyEnrollment: (data: { studentId: string; courseId: string; subjectId: string; semester: number; schedule: string }) => Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }>;
+  cancelDependencyEnrollment: (dependencyId: string) => Promise<{ ok: boolean; erro?: string }>;
 
   declarationConfigs: DeclarationConfigs;
   studentDocuments: StudentDocument[];
@@ -2865,6 +2866,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDependencies(prev => [...prev, newDependency]);
 
     return { dependency: newDependency, classSection: newClassSection };
+  };
+
+  // Cancela uma dependência: apaga a nota, a matrícula e — se a turma de
+  // dependência ficou vazia — o diário e a turma também. O aluno some do
+  // diário do professor e do histórico dele, porque isso é uma matrícula
+  // desfeita, não uma reprovação a ser preservada.
+  const cancelDependencyEnrollment = async (dependencyId: string): Promise<{ ok: boolean; erro?: string }> => {
+    const dep = dependencies.find(d => d.id === dependencyId);
+    if (!dep) return { ok: false, erro: 'Dependência não encontrada.' };
+
+    const resultado = await cancelarDependencia(dep.studentId, dep.createdClassId);
+    if (!resultado.ok) {
+      return { ok: false, erro: resultado.erro || 'Não foi possível cancelar a dependência no banco.' };
+    }
+
+    // Reflete na tela o que acabou de ser apagado no banco.
+    setDependencies(prev => prev.filter(d => d.id !== dependencyId));
+    setGrades(prev => prev.filter(g => !(g.studentId === dep.studentId && g.classId === dep.createdClassId)));
+
+    // Se não sobrou mais ninguém (na tela) usando essa turma de dependência,
+    // some com ela também — senão fica uma "DEP - Disciplina" fantasma, vazia,
+    // na lista de turmas até a próxima sincronização completa.
+    const turmaAindaEmUso = dependencies.some(d => d.id !== dependencyId && d.createdClassId === dep.createdClassId);
+    if (!turmaAindaEmUso) {
+      setClasses(prev => prev.filter(c => c.id !== dep.createdClassId));
+    }
+
+    return { ok: true };
   };
 
   const addClass = (cls: ClassSection) => {
@@ -5539,7 +5568,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
-      dependencies, createDependencyEnrollment,
+      dependencies, createDependencyEnrollment, cancelDependencyEnrollment,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
