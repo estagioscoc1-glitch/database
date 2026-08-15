@@ -36,7 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -2775,71 +2775,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!subject) throw new Error('Disciplina não encontrada.');
 
     const [anoAtualDep, semestreAtualDep] = currentPeriod.split('/').map(Number);
-    const dependencyId = `dep_${Date.now()}`;
+    const ano = anoAtualDep || new Date().getFullYear();
+    const semestre = semestreAtualDep || 1;
 
-    // REAPROVEITAR O DIÁRIO SE JÁ EXISTIR UM PARA A MESMA DISCIPLINA.
+    // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
     //
-    // Antes, cada matrícula em dependência criava uma turma nova e isolada
-    // (`class_dep_${Date.now()}`) — mesmo que dois alunos estivessem de
-    // dependência na MESMA disciplina, cada um ficava sozinho numa turma
-    // só dele. Isso obrigava o professor a ficar entrando em diários
-    // diferentes pra lançar falta/nota de gente que, na prática, cursa
-    // junto.
+    // Antes, esta função só mexia no estado local do navegador (turma,
+    // matrícula e nota "existiam" só na memória) e dependia do ciclo de
+    // sincronização automático pra gravar de verdade. Às vezes essa
+    // sincronização não pegava a mudança a tempo — a matrícula de
+    // dependência nunca chegava a existir no banco, mesmo a tela
+    // mostrando "cadastrado com sucesso". O aluno sumia ao recarregar a
+    // página, e o diário abria vazio, sem nome nenhum, porque não havia
+    // matrícula de verdade nenhuma por trás.
     //
-    // Agora, se já existir uma turma de dependência ATIVA para o mesmo
-    // curso + disciplina + período letivo, o aluno entra nela — ganhando
-    // um diário compartilhado com quem mais estiver de dependência na
-    // mesma matéria. Só cria uma turma nova se ainda não existir nenhuma.
-    const turmaDependenciaExistente = classes.find(c =>
-      c.isDependency &&
-      c.courseId === data.courseId &&
-      c.dependencySubjectId === data.subjectId &&
-      c.year === (anoAtualDep || new Date().getFullYear()) &&
-      c.semester === (semestreAtualDep || 1)
-    );
+    // Agora a gravação acontece primeiro, direto — se falhar, um erro
+    // real aparece na hora, em vez de a pessoa descobrir dias depois que
+    // "não salvou".
+    const resultado = await matricularEmDependencia({
+      alunoId: student.id,
+      cursoId: data.courseId,
+      disciplinaId: data.subjectId,
+      ano,
+      semestre,
+      modulo: data.semester,
+      horario: data.schedule,
+    });
 
-    const createdClassId = turmaDependenciaExistente?.id || `class_dep_${Date.now()}`;
-    // NOME MAIS CURTO. Antes incluía o horário no final (ex.: "(Contra-Turno
-    // FI)"), deixando nomes como "DEP-ENFERMAGEM EM OBSTETRÍCIA (Contra-Turno
-    // FI)" longos demais — cortavam no cabeçalho do histórico e em outras
-    // telas com espaço limitado. O horário já fica salvo em `scheduleText`
-    // e aparece em outros lugares específicos; não precisa repetir no nome.
-    const createdClassName = turmaDependenciaExistente?.name || `DEP - ${subject.name}`;
-
-    // 1. Create ClassSection / Diário for dependency — só se ainda não
-    // existir uma turma pra essa disciplina neste período.
-    let newClassSection: ClassSection;
-    if (turmaDependenciaExistente) {
-      newClassSection = turmaDependenciaExistente;
-    } else {
-      newClassSection = {
-        id: createdClassId,
-        name: createdClassName,
-        code: `DEP-${subject.id.toUpperCase()}`,
-        courseId: data.courseId,
-        shift: Shift.SABADO,
-        module: data.semester,
-        year: anoAtualDep || new Date().getFullYear(),
-        semester: semestreAtualDep || 1,
-        isDependency: true,
-        dependencySubjectId: data.subjectId,
-        scheduleText: data.schedule,
-        closedS1: false,
-        closedS2: false,
-        closedDefinitive: false
-      };
-      setClasses(prev => [...prev, newClassSection]);
+    if (!resultado.ok || !resultado.turmaId) {
+      throw new Error(resultado.erro || 'Não foi possível gravar a dependência no banco.');
     }
 
-    // 2. Bind student to this class section and create GradeRecord
-    //
-    // Se o diário já é compartilhado (turma reaproveitada) e este aluno já
-    // está matriculado nele, não duplica a nota — só avisa e sai.
-    const jaMatriculadoNaDependencia = grades.some(
-      g => g.classId === createdClassId && g.studentId === student.id
-    );
-    if (jaMatriculadoNaDependencia) {
-      throw new Error(`${student.name} já está matriculado nesta dependência.`);
+    const createdClassId = resultado.turmaId;
+    const dependencyId = `dep_${Date.now()}`;
+
+    // Reflete na tela o que acabou de ser confirmado no banco. Se a turma
+    // já existia (reaproveitada — outro aluno com a mesma dependência),
+    // usa os dados dela; senão, monta a partir do que acabou de ser criado.
+    const turmaJaConhecida = classes.find(c => c.id === createdClassId);
+    const createdClassName = turmaJaConhecida?.name || `DEP - ${subject.name}`;
+
+    const newClassSection: ClassSection = turmaJaConhecida || {
+      id: createdClassId,
+      name: createdClassName,
+      code: `DEP-${subject.id.toUpperCase()}`,
+      courseId: data.courseId,
+      shift: Shift.SABADO,
+      module: data.semester,
+      year: ano,
+      semester: semestre,
+      isDependency: true,
+      dependencySubjectId: data.subjectId,
+      scheduleText: data.schedule,
+      closedS1: false,
+      closedS2: false,
+      closedDefinitive: false
+    };
+    if (!turmaJaConhecida) {
+      setClasses(prev => [...prev, newClassSection]);
     }
 
     const newGrade: GradeRecord = {
@@ -2853,10 +2846,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       concept: 'D',
       result: 'Pendente'
     };
-
     setGrades(prev => [...prev, newGrade]);
 
-    // 3. Create DependencyEnrollment record
     const newDependency: DependencyEnrollment = {
       id: dependencyId,
       studentId: student.id,
