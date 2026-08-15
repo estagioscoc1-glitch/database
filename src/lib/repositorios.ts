@@ -1473,6 +1473,60 @@ export async function excluirVinculoTurmaSeVazio(alunoId: string, turmaId: strin
   return { ok: true };
 }
 
+/**
+ * Cancela a matrícula de dependência de UM aluno em UMA disciplina.
+ *
+ * Diferente de `excluirVinculoTurmaSeVazio` (usada na transferência de
+ * curso), esta função SEMPRE apaga a nota e a matrícula, mesmo que já
+ * tenha algo lançado — cancelar dependência é a secretaria decidindo
+ * tirar o aluno dali (matrícula errada, aluno desistiu, etc.), não um
+ * histórico de reprovação que precise ser preservado. O aluno some do
+ * diário e do histórico dele.
+ *
+ * Se, depois de remover, não sobrar mais nenhum aluno matriculado nessa
+ * turma de dependência, apaga também o diário e a própria turma — senão
+ * fica uma "DEP - Disciplina" vazia, fantasma, para sempre nas listas.
+ */
+export async function cancelarDependencia(
+  alunoId: string,
+  turmaId: string
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { data: diarios, error: erroDiarios } = await supabase
+    .from('diarios').select('id').eq('turma_id', turmaId);
+  if (erroDiarios) return falha('localizar diário da dependência', erroDiarios);
+
+  const diarioIds = (diarios ?? []).map((d: any) => d.id);
+
+  if (diarioIds.length > 0) {
+    const { error: erroDelNotas } = await supabase
+      .from('notas').delete().eq('aluno_id', alunoId).in('diario_id', diarioIds);
+    if (erroDelNotas) return falha('excluir nota da dependência', erroDelNotas);
+  }
+
+  const { error: erroDelMatricula } = await supabase
+    .from('matriculas').delete().eq('aluno_id', alunoId).eq('turma_id', turmaId);
+  if (erroDelMatricula) return falha('excluir matrícula da dependência', erroDelMatricula);
+
+  const { data: outrasMatriculas, error: erroOutras } = await supabase
+    .from('matriculas').select('id').eq('turma_id', turmaId).limit(1);
+  if (erroOutras) return falha('conferir se a turma de dependência ficou vazia', erroOutras);
+
+  if (!outrasMatriculas || outrasMatriculas.length === 0) {
+    if (diarioIds.length > 0) {
+      const { error: erroDelDiario } = await supabase
+        .from('diarios').delete().in('id', diarioIds);
+      if (erroDelDiario) return falha('excluir diário vazio da dependência', erroDelDiario);
+    }
+    const { error: erroDelTurma } = await supabase
+      .from('turmas').delete().eq('id', turmaId).eq('eh_dependencia', true);
+    if (erroDelTurma) return falha('excluir turma vazia da dependência', erroDelTurma);
+  }
+
+  return { ok: true };
+}
+
 /** Grava o total de faltas de UM aluno em UMA disciplina. */
 export async function salvarFaltas(
   classId: string,
