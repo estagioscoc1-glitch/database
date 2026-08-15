@@ -978,7 +978,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   {Array.from({ length: Math.max(26, studentChunk.length) }).map((_, idx) => {
                     const std = studentChunk[idx];
                     const globalIdx = studentChunkIndex * 26 + idx;
-                    const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id) : null;
+                    // Nunca cair pra nota de outro período/turma quando falta a
+                    // deste (mesma correção já aplicada no boletim individual).
+                    const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id && (targetClass ? g.classId === targetClass.id : true)) : null;
 
                     if (std) {
                       const s1Part = grade ? getS1Evaluations(grade) : { av1: 0, av2: 0, av3: 0 };
@@ -1112,7 +1114,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         <td className="py-1 text-center border-r border-black font-mono">{std.enrollment}</td>
                         <td className="py-1 px-2 border-r border-black font-bold max-w-[130px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
                         {classSubjects.map(sub => {
-                          const score = grades.find(g => g.studentId === std.id && g.subjectId === sub.id);
+                          // Nunca cair pra nota de outro período/turma quando falta a
+                          // deste (mesma correção já aplicada no boletim individual).
+                          const score = grades.find(g => g.studentId === std.id && g.subjectId === sub.id && g.classId === classId);
                           const absences = getStudentAbsences(std.id, sub.id);
                           totalAbsences += absences.total;
                           if (score) {
@@ -1954,7 +1958,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       <tbody className="divide-y divide-black font-semibold text-[8.5px] text-black">
                         {Array.from({ length: Math.max(15, classStudents.length) }).map((_, idx) => {
                           const std = classStudents[idx];
-                          const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id) : null;
+                          // Nunca cair pra nota de outro período/turma quando falta a
+                          // deste (mesma correção já aplicada no boletim individual).
+                          const grade = std ? grades.find(g => g.studentId === std.id && g.subjectId === targetSubject.id && (targetClass ? g.classId === targetClass.id : true)) : null;
                           
                           if (std) {
                             const s1Part = grade ? getS1Evaluations(grade) : { av1: 0, av2: 0, av3: 0 };
@@ -2066,7 +2072,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                               <td className="py-1 text-center border-r border-black font-mono">{std.enrollment}</td>
                               <td className="py-1 px-2 border-r border-black font-bold max-w-[130px] truncate">{std.name}</td>
                               {classSubjects.map(sub => {
-                                const score = grades.find(g => g.studentId === std.id && g.subjectId === sub.id);
+                                // Nunca cair pra nota de outro período/turma quando falta a
+                                // deste (mesma correção já aplicada no boletim individual).
+                                const score = grades.find(g => g.studentId === std.id && g.subjectId === sub.id && g.classId === classId);
                                 const absences = getStudentAbsences(std.id, sub.id);
                                 totalAbsences += absences.total;
                                 if (score) {
