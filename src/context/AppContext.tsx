@@ -35,6 +35,7 @@ import {
   trocarSenha as trocarSenhaNoAuth,
   enviarRecuperacaoSenha,
   validarForcaSenha,
+  garantirSessaoAtiva,
 } from '../lib/supabase';
 import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno } from '../lib/repositorios';
 import {
@@ -1943,6 +1944,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // primeira correção.
     return () => clearInterval(tempo);
   }, [currentUser?.id, currentUser?.role, isLoading]);
+
+  // RENOVA O ACESSO AO VOLTAR PRA ABA — antes de qualquer gravação acontecer.
+  //
+  // `autoRefreshToken` (em supabase.ts) mantém a sessão renovada sozinha,
+  // mas só enquanto a aba está em primeiro plano — o navegador pausa esse
+  // relógio quando a aba vai pra segundo plano ou o computador dorme. Quem
+  // só abre o sistema nos dias de aula, com a aba esquecida aberta de um dia
+  // pro outro, pode voltar com o acesso vencido: a primeira gravação que
+  // tentar fazer falha, sem nenhum padrão claro, até recarregar a página —
+  // exatamente o "às vezes aparece um aviso, raramente" relatado.
+  //
+  // `visibilitychange` cobre trocar de aba e "computador voltando de
+  // dormir"; `focus` cobre voltar de outro programa no Windows. Rodar nos
+  // dois não duplica trabalho: a função só renova se faltar pouco tempo
+  // pro vencimento.
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const aoVoltarFoco = () => {
+      if (document.visibilityState === 'visible') {
+        void garantirSessaoAtiva();
+      }
+    };
+
+    document.addEventListener('visibilitychange', aoVoltarFoco);
+    window.addEventListener('focus', aoVoltarFoco);
+
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltarFoco);
+      window.removeEventListener('focus', aoVoltarFoco);
+    };
+  }, [currentUser?.id]);
 
   const updateCalendarEventDate = (id: string, date: string) => {
     let alterado: AcademicCalendarEvent | undefined;
