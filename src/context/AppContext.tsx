@@ -1702,6 +1702,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pendentes = (messages || []).filter(m => !mensagensGravadasRef.current.has(m.id));
       if (pendentes.length === 0) return;
 
+      let falhasMinhas = 0;
+      let ultimoErroMeu = '';
+
       for (const m of pendentes.slice(0, 50)) {
         const res = await salvarMensagem({
           id: m.id,
@@ -1715,8 +1718,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Marca mesmo em caso de recusa: mensagem antiga de outra pessoa não
         // pode ser regravada por quem está logado (o banco exige remetente = você).
         mensagensGravadasRef.current.add(m.id);
-        if (!res.ok) console.warn('[Portal] Mensagem não gravada:', res.erro);
+
+        if (!res.ok) {
+          console.warn('[Portal] Mensagem não gravada:', res.erro);
+          // MAS SE A MENSAGEM ERA MINHA, EU PRECISO SABER.
+          //
+          // A recusa é esperada e inofensiva para mensagem antiga de OUTRA
+          // pessoa (o banco exige remetente = você) — por isso o silêncio
+          // fazia sentido. Só que ele também engolia a falha da mensagem que
+          // a pessoa ACABOU de escrever: ela via a mensagem na tela, achava
+          // que tinha enviado, e o destinatário nunca recebia. Este aviso
+          // separa os dois casos sem mexer na fila (marcar como tratada
+          // continua igual, senão viraria um laço infinito de tentativas).
+          if ((m as any).senderName && (m as any).senderName === currentUser.name) {
+            falhasMinhas++;
+            ultimoErroMeu = res.erro || '';
+          }
+        }
       }
+
+      if (falhasMinhas > 0) {
+        setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhasMinhas} mensagem(ns) que você enviou não foram gravadas. ${ultimoErroMeu}`);
+        addSecurityLog('MENSAGEM_FALHA', `${falhasMinhas} mensagem(ns) do usuário não gravada(s). ${ultimoErroMeu}`, 'high');
+      }
+
       if (pendentes.length > 50) setRodadaDeGravacao(n => n + 1);   // a fila sempre diminui: toda mensagem é marcada como tratada
     }, 1500);
 
@@ -2018,6 +2044,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('focus', aoVoltarFoco);
     };
   }, [currentUser?.id]);
+
+  // DESCARGA IMEDIATA: NÃO PERDER O QUE AINDA ESTÁ NO TEMPO DE ESPERA.
+  //
+  // Notas, faltas e aulas esperam de 1,2 a 1,5 segundo antes de gravar (para
+  // não mandar uma requisição por tecla digitada). Se a pessoa fecha a aba,
+  // troca de aba ou clica em "Sair" dentro dessa janela, o cronômetro é
+  // cancelado junto com o efeito — e o último lançamento NUNCA chega ao banco,
+  // sem faixa laranja nenhuma, porque a gravação nem chegou a ser tentada.
+  //
+  // O espelho local (`espelhoLocal.ts`) já tinha um `beforeunload`, mas ele
+  // não cobre isto: `oc_grades`, `oc_attendance` e `oc_direct_absences` estão
+  // de propósito na lista "já salvas em outro lugar" — porque têm tabela
+  // própria e passam justamente por estes efeitos.
+  //
+  // `visibilitychange -> hidden` é o gatilho principal (é o mais confiável em
+  // celular e o que dispara ao fechar a aba); `beforeunload` fica como rede de
+  // segurança para o desktop.
+  const dadosDoDiarioRef = React.useRef<any>({});
+  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser };
+
+  const descarregarPendenciasDoDiario = React.useCallback(async () => {
+    const d = dadosDoDiarioRef.current;
+    if (!bancoDisponivel || !d.currentUser) return;
+
+    const professorId = d.currentUser.role === UserRole.TEACHER ? d.currentUser.id : null;
+    const periodoDe = (classId: string) => {
+      const t = (d.classes || []).find((c: any) => c.id === classId);
+      return (t?.year && t?.semester) ? `${t.year}/${t.semester}` : d.currentPeriod;
+    };
+
+    // Notas
+    for (const nota of (d.grades || [])) {
+      if (!nota.classId || !nota.subjectId || !nota.studentId) continue;
+      if (!podeGravarNoDiario(nota.classId, nota.subjectId)) continue;
+      if (notasGravadasRef.current.get(nota.id) === JSON.stringify(nota)) continue;
+      const res = await salvarNota(nota, periodoDe(nota.classId), professorId);
+      if (res.ok) notasGravadasRef.current.set(nota.id, JSON.stringify(nota));
+    }
+
+    // Aulas (frequência + conteúdo programático)
+    for (const aula of (d.attendance || [])) {
+      if (!aula.classId || !aula.subjectId || !aula.date) continue;
+      if (!podeGravarNoDiario(aula.classId, aula.subjectId)) continue;
+      if (aulasGravadasRef.current.get(aula.id) === JSON.stringify(aula)) continue;
+      const res = await salvarAula(
+        aula.classId, aula.subjectId, periodoDe(aula.classId),
+        { id: aula.id, date: aula.date, lessonsCount: aula.lessonsCount, topic: aula.topic, records: aula.records },
+        professorId
+      );
+      if (res.ok) aulasGravadasRef.current.set(aula.id, JSON.stringify(aula));
+    }
+
+    // Faltas lançadas direto
+    for (const [chave, total] of Object.entries(d.directAbsences || {})) {
+      if (faltasGravadasRef.current.get(chave) === total) continue;
+      const alvo = (d.grades || []).find(
+        (g: any) => `${g.classId}_${g.subjectId}_${g.studentId}` === chave
+      );
+      if (!alvo || !podeGravarNoDiario(alvo.classId, alvo.subjectId)) continue;
+      const res = await salvarFaltas(
+        alvo.classId, alvo.subjectId, alvo.studentId, total as number, periodoDe(alvo.classId)
+      );
+      if (res.ok) faltasGravadasRef.current.set(chave, total as number);
+    }
+  }, [podeGravarNoDiario]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const aoEsconder = () => {
+      if (document.visibilityState === 'hidden') void descarregarPendenciasDoDiario();
+    };
+    const aoFechar = () => { void descarregarPendenciasDoDiario(); };
+
+    document.addEventListener('visibilitychange', aoEsconder);
+    window.addEventListener('beforeunload', aoFechar);
+
+    return () => {
+      document.removeEventListener('visibilitychange', aoEsconder);
+      window.removeEventListener('beforeunload', aoFechar);
+    };
+  }, [currentUser?.id, descarregarPendenciasDoDiario]);
 
   // MANTÉM OS DIÁRIOS DO PROFESSOR ATUALIZADOS DURANTE A SESSÃO.
   //
@@ -2480,6 +2588,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let mudou = false;
       const novo = prev.map(g => {
         if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classId) return g;
+
+        // ESTE ERA O QUARTO CAMINHO DE REESCRITA — O QUE APAGAVA O DISPENSADO.
+        //
+        // O registrador "[DISPENSADO PERDIDO]" foi instalado porque a dispensa
+        // sumia sozinha e três lugares já a protegiam (o recálculo por
+        // frequência, `computeCalculatedGrade` e a carga inicial). Faltava
+        // proteger AQUI: `getStudentResult` só sabe devolver
+        // 'APTO' | 'NÃO APTO' | 'REP. FALTAS' | 'Pendente' — ela não conhece
+        // DISPENSADO nem DESISTENTE. Então, ao abonar ou ajustar a falta de um
+        // aluno dispensado, o resultado calculado NUNCA batia com 'DISPENSADO',
+        // `mudou` virava true, e a dispensa era sobrescrita. Silenciosamente:
+        // a secretaria marcava a dispensa, mexia na falta depois, e a dispensa
+        // ia embora sem nenhum aviso.
+        //
+        // Nota importada de mapa antigo entra na mesma proteção, pelo mesmo
+        // motivo já documentado nos outros três caminhos: a conta só conhece
+        // nota e frequência, e reescrevia "F. NOTA" (aluno sem nota lançada)
+        // como "NÃO APTO", que significa outra coisa no histórico.
+        if (g.result === 'DISPENSADO' || g.result === 'DESISTENTE') return g;
+        if (g.isHistoricalImport) return g;
+
         const resultado = getStudentResult(g, frequencia);
         if (resultado === g.result) return g;
         mudou = true;
@@ -2617,6 +2746,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    // GRAVA NOTA/FALTA/AULA PENDENTE ANTES DE ENCERRAR A SESSÃO.
+    //
+    // O caminho abaixo (`saveStateToCloud`) só roda para a gestão — e, mesmo
+    // para ela, o retrato geral não é o que grava nota, falta e aula: essas
+    // têm tabela própria e passam pelos efeitos com tempo de espera. Ao sair,
+    // esses efeitos são desmontados e o cronômetro cancelado, então o último
+    // lançamento do professor (o caso mais comum: lança a nota e clica em
+    // Sair) ia embora sem nenhum aviso.
+    //
+    // A descarga entra na MESMA corrente de promessas do encerramento, não
+    // solta em paralelo: `sairDoPortal()` invalida o acesso no servidor, e se
+    // ele corresse junto, a gravação que acabou de começar perderia permissão
+    // no meio do caminho — trocando uma perda silenciosa por outra.
+    const descarga = descarregarPendenciasDoDiario()
+      .catch(err => console.warn('[Portal] Falha ao gravar o diário na saída:', err?.message || err));
+
     // Envia o que estiver pendente do CRM/estágios/financeiro e desliga o espelho.
     try { enviarEspelhoAgora(); pararEspelho(); } catch { /* não impede a saída */ }
 
@@ -2629,7 +2774,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const ehGestaoSaida = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.STAFF;
-    (ehGestaoSaida ? saveStateToCloud(payload) : Promise.resolve(true))
+    descarga
+      .then(() => (ehGestaoSaida ? saveStateToCloud(payload) : Promise.resolve(true)))
       .then(gravou => {
         if (!gravou) {
           console.warn('[Portal] Havia alterações que não foram gravadas na nuvem antes da saída.');
