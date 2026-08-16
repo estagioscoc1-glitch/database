@@ -31,7 +31,7 @@ const COLORS = {
 const CHART_PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 
 interface ExecutiveBIDashboardProps {
-  onNavigateTab?: (tabKey: string) => void;
+  onNavigateTab?: (tabKey: string, subTab?: string) => void;
 }
 
 export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNavigateTab }) => {
@@ -160,12 +160,31 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       result = result.filter(u => u.classId && targetClassIds.has(u.classId));
     }
 
+    // Ano Letivo e Semestre — os selects existiam e mudavam de valor, mas
+    // nada aqui embaixo olhava pra eles: escolher "2027" ou "2º Semestre"
+    // não mudava um único número na tela. O ano/semestre do aluno vem da
+    // turma dele (`ClassSection.year` / `.semester`), então é por ali que
+    // dá pra filtrar de verdade.
+    if (filterYear !== 'ALL') {
+      result = result.filter(u => {
+        const turma = classes.find(c => c.id === u.classId);
+        return !!turma && String(turma.year) === filterYear;
+      });
+    }
+
+    if (filterSemester !== 'ALL') {
+      result = result.filter(u => {
+        const turma = classes.find(c => c.id === u.classId);
+        return !!turma && String(turma.semester) === filterSemester;
+      });
+    }
+
     if (filterStatus !== 'ALL') {
       result = result.filter(u => u.status === filterStatus || (filterStatus === 'ATIVO' && u.active));
     }
 
     return result;
-  }, [users, globalSearch, filterCourse, filterClass, filterShift, filterStatus, classes]);
+  }, [users, globalSearch, filterCourse, filterClass, filterShift, filterYear, filterSemester, filterStatus, classes]);
 
   // KPI Numbers
   const totalStudents = users.filter(u => u.role === UserRole.STUDENT).length;
@@ -175,10 +194,22 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     return filteredStudents.filter(u => u.createdAt && u.createdAt.startsWith(currentMonthStr)).length;
   }, [filteredStudents]);
 
-  // "Matrículas do semestre": usa o 1º (Jan-Jun) ou 2º (Jul-Dez) semestre do calendário
-  // como aproximação, já que o sistema não guarda uma data exata de início/fim de
-  // semestre letivo por matrícula.
+  // "Matrículas do semestre": se a pessoa escolheu um Ano Letivo e/ou
+  // Semestre no filtro, respeita a escolha (conta pela turma de cada
+  // aluno). Sem filtro escolhido, cai de volta pra aproximação de antes —
+  // o 1º (Jan-Jun) ou 2º (Jul-Dez) semestre do calendário de HOJE — já que
+  // o sistema não guarda uma data exata de início/fim de semestre letivo
+  // por matrícula.
   const semesterEnrolled = useMemo(() => {
+    if (filterYear !== 'ALL' || filterSemester !== 'ALL') {
+      return filteredStudents.filter(u => {
+        const turma = classes.find(c => c.id === u.classId);
+        if (!turma) return false;
+        if (filterYear !== 'ALL' && String(turma.year) !== filterYear) return false;
+        if (filterSemester !== 'ALL' && String(turma.semester) !== filterSemester) return false;
+        return true;
+      }).length;
+    }
     const now = new Date();
     const year = now.getFullYear();
     const isFirstHalf = now.getMonth() < 6;
@@ -189,7 +220,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       const d = new Date(u.createdAt);
       return d >= start && d < end;
     }).length;
-  }, [filteredStudents]);
+  }, [filteredStudents, filterYear, filterSemester, classes]);
   const yearEnrolled = enrolledStudents;
   const generalEnrolled = totalStudents;
 
@@ -199,11 +230,26 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     return Math.max(activeInterns.length, studentStatusInterns);
   }, [internships, filteredStudents]);
 
+  // "Em Dependência" — a contagem por dependência (`activeDeps`) usava a
+  // lista inteira de dependências, sem nunca olhar pros filtros de curso,
+  // ano ou semestre: escolher um período diferente não mudava esse número.
+  // O ano/semestre de cada dependência vem da turma que foi criada pra ela
+  // (`createdClassId`).
   const dependencyCount = useMemo(() => {
-    const activeDeps = dependencies.filter(d => d.status === 'ATIVO').length;
+    const activeDeps = dependencies.filter(d => {
+      if (d.status !== 'ATIVO') return false;
+      if (filterCourse !== 'ALL' && d.courseId !== filterCourse) return false;
+      if (filterYear !== 'ALL' || filterSemester !== 'ALL') {
+        const turma = classes.find(c => c.id === d.createdClassId);
+        if (!turma) return false;
+        if (filterYear !== 'ALL' && String(turma.year) !== filterYear) return false;
+        if (filterSemester !== 'ALL' && String(turma.semester) !== filterSemester) return false;
+      }
+      return true;
+    }).length;
     const studentStatusDeps = filteredStudents.filter(u => u.status === 'DEPENDÊNCIA').length;
     return Math.max(activeDeps, studentStatusDeps);
-  }, [dependencies, filteredStudents]);
+  }, [dependencies, filteredStudents, classes, filterCourse, filterYear, filterSemester]);
 
   const diplomasRequested = useMemo(() => {
     return filteredStudents.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
@@ -1493,12 +1539,25 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               alt_5: 'reg',                  // Alunos em Dependência sem Turma → Cadastros Acadêmicos (aba Dependências fica lá dentro)
               alt_6: 'estagio',              // Estágios Vencendo em 30 Dias
             };
+            // A aba 'reg' (Cadastros Acadêmicos) tem 4 sub-abas por dentro
+            // (Cursos, Funcionários, Dependências, Turmas) e sempre abre na
+            // primeira ('Cursos'). O clique já levava pra 'reg' certinho,
+            // mas parava aí — quem clicava em "Documentos Pendentes" caía
+            // em Cursos, sem pista nenhuma de que o que procurava estava
+            // dentro de "Turmas". Isso completa o caminho até a sub-aba
+            // exata onde cada coisa realmente está.
+            const subTabPorAlerta: Record<string, string> = {
+              alt_2: 'turmas',        // Documentos Pendentes está no quadro dentro de Turmas
+              alt_4: 'turmas',        // Gerenciador de Acessos de Professores/Diários também está em Turmas
+              alt_5: 'dependencias',  // Dependências tem sub-aba própria
+            };
             const destino = destinoPorAlerta[alert.id];
+            const subTab = subTabPorAlerta[alert.id];
 
             return (
             <div
               key={alert.id}
-              onClick={destino ? () => onNavigateTab?.(destino) : undefined}
+              onClick={destino ? () => onNavigateTab?.(destino, subTab) : undefined}
               role={destino ? 'button' : undefined}
               className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 hover:shadow-md ${
                 destino ? 'cursor-pointer' : 'cursor-default'

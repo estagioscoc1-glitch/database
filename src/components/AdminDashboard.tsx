@@ -1355,7 +1355,12 @@ export const AdminDashboard: React.FC = () => {
           className="space-y-6"
         >
           {/* Executive BI Dashboard */}
-          <ExecutiveBIDashboard onNavigateTab={(tabKey) => setActiveTab(tabKey as any)} />
+          <ExecutiveBIDashboard onNavigateTab={(tabKey, subTab) => {
+            setActiveTab(tabKey as any);
+            if (subTab === 'turmas' || subTab === 'dependencias' || subTab === 'cursos' || subTab === 'funcionarios') {
+              setRegSubTab(subTab);
+            }
+          }} />
 
           {/* CONTROL CENTER: Automated closing and simulated dates */}
           <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
