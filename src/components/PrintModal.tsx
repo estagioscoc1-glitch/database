@@ -208,6 +208,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return lower.charAt(0).toUpperCase() + lower.slice(1);
   };
 
+  // SÓ PARA AS DECLARAÇÕES DO ALUNO (Escolaridade, SETRANSP, Vacina).
+  //
+  // Pedido da secretaria: nesses 3 documentos, aluno de "Técnico em
+  // Enfermagem EAD" deve aparecer só como "Enfermagem" — sem o "EAD".
+  // Em qualquer outro lugar do sistema (boletim, histórico, diário, mapa de
+  // notas, o próprio nome do curso nos cadastros) continua exatamente como
+  // está, "Técnico em Enfermagem EAD". Por isso este helper só é chamado
+  // dentro dos 3 blocos de declaração lá embaixo — não mexe no restante do
+  // arquivo, que continua usando `targetCourse?.name` direto.
+  const nomeCursoParaDeclaracao = (curso?: { id?: string; name?: string } | null) => {
+    if (curso?.id === 'ENF_EAD') return 'Enfermagem';
+    return curso?.name || '';
+  };
+
   const formatCourseName = (name: string) => {
     if (!name) return 'Técnico em Enfermagem';
     if (name.toUpperCase().startsWith('TÉCNICO') || name.toUpperCase().startsWith('TECNICO')) {
@@ -1769,7 +1783,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-10">
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          Declaramos, para os devidos fins, que o aluno <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong>, está regularmente matriculado neste estabelecimento de ensino, no curso <strong className="underline font-bold text-black">{formatCourseName(targetCourse?.name || '').toUpperCase()}</strong>, com número de matrícula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong>. O referido aluno está matriculado no turno <strong className="underline font-bold text-black">{capitalizeWord(targetClass?.shift || 'Noturno').toUpperCase()}</strong>, com início em <strong className="underline font-bold text-black font-mono">{getFormattedStartDateEscolaridade().toUpperCase()}</strong> e término do curso na data de <strong className="underline font-bold text-black font-mono">{getFormattedEndDateEscolaridade().toUpperCase()}</strong>.
+                          Declaramos, para os devidos fins, que o aluno <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong>, está regularmente matriculado neste estabelecimento de ensino, no curso <strong className="underline font-bold text-black">{formatCourseName(nomeCursoParaDeclaracao(targetCourse)).toUpperCase()}</strong>, com número de matrícula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong>. O referido aluno está matriculado no turno <strong className="underline font-bold text-black">{capitalizeWord(targetClass?.shift || 'Noturno').toUpperCase()}</strong>, com início em <strong className="underline font-bold text-black font-mono">{getFormattedStartDateEscolaridade().toUpperCase()}</strong> e término do curso na data de <strong className="underline font-bold text-black font-mono">{getFormattedEndDateEscolaridade().toUpperCase()}</strong>.
                         </p>
                       </div>
                     </div>
@@ -1817,7 +1831,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-10">
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          Declaramos para os fins de AQUISIÇÃO DE PASSE ESCOLAR junto SETRANSP, que <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) deste Estabelecimento de Ensino no curso de <strong className="underline font-bold text-black">{formatCourseName(targetCourse?.name || '').toUpperCase()}</strong>, com o numero de matricula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong> com início em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(inicioModulo, true)}</strong> e término em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(terminoModulo, false)}</strong>.
+                          Declaramos para os fins de AQUISIÇÃO DE PASSE ESCOLAR junto SETRANSP, que <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) deste Estabelecimento de Ensino no curso de <strong className="underline font-bold text-black">{formatCourseName(nomeCursoParaDeclaracao(targetCourse)).toUpperCase()}</strong>, com o numero de matricula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong> com início em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(inicioModulo, true)}</strong> e término em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(terminoModulo, false)}</strong>.
                         </p>
                       </div>
                     </div>
@@ -1853,7 +1867,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-8 select-text">
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          A Gerência de Estágios do Colégio Oswaldo Cruz, vem por intermédio desta, declarar junto à Secretaria Municipal de Saúde de desse município que o Sr (a). <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) desta instituição de ensino e está regularmente matriculado no Curso Técnico em <strong className="underline font-bold text-black">{targetCourse?.name ? targetCourse.name.toUpperCase() : 'ENFERMAGEM'}</strong>, para o <strong className="underline font-bold text-black">{getSemesterTextAutomatic().toUpperCase()}</strong>.
+                          A Gerência de Estágios do Colégio Oswaldo Cruz, vem por intermédio desta, declarar junto à Secretaria Municipal de Saúde de desse município que o Sr (a). <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) desta instituição de ensino e está regularmente matriculado no Curso Técnico em <strong className="underline font-bold text-black">{targetCourse ? nomeCursoParaDeclaracao(targetCourse).toUpperCase() : 'ENFERMAGEM'}</strong>, para o <strong className="underline font-bold text-black">{getSemesterTextAutomatic().toUpperCase()}</strong>.
                         </p>
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
                           Para tanto solicitamos que o aluno supracitado receba as seguintes vacinas e todas as demais que tiver disponível nessa unidade de saúde e que componha o PNI do nosso País. (Programa nacional de imunização)
