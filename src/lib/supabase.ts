@@ -40,9 +40,50 @@ export const supabase: SupabaseClient = createClient(
   }
 );
 
+/**
+ * Força a renovação do acesso quando a pessoa volta pra aba depois de um
+ * tempo fora — chamada em resposta a `visibilitychange`/`focus`, não sozinha.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * `autoRefreshToken: true` mantém a sessão renovada sozinha, mas só enquanto
+ * a aba está em primeiro plano: o relógio interno da biblioteca é pausado
+ * pelo próprio navegador quando a aba vai pra segundo plano ou o computador
+ * dorme — comportamento do Chrome/Firefox, não bug da biblioteca. Professor
+ * ou aluno que só abre o sistema nos dias de aula, com a aba esquecida aberta
+ * de um dia pro outro, pode voltar com o acesso vencido sem nenhum aviso: a
+ * PRIMEIRA gravação que tentar fazer falha (é assim que "às vezes aparece um
+ * aviso de erro, sem padrão claro" acontece), até a página ser recarregada.
+ *
+ * Chamando isto ao voltar o foco, a renovação acontece ANTES da pessoa
+ * clicar em qualquer coisa — a falha nunca chega a existir.
+ */
+export async function garantirSessaoAtiva(): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const sessao = data.session;
+    if (!sessao || !sessao.expires_at) return; // ninguém logado: nada a renovar
+
+    const expiraEmMs = sessao.expires_at * 1000;
+    const faltamMs = expiraEmMs - Date.now();
+
+    // Menos de 5 minutos pro vencimento (ou já vencido): renova agora, sem
+    // esperar o relógio interno perceber sozinho.
+    if (faltamMs < 5 * 60 * 1000) {
+      const { error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.warn('[Portal] Não foi possível renovar o acesso ao voltar o foco:', error.message);
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Portal] Falha ao conferir sessão ao voltar o foco:', err?.message || err);
+  }
+}
+
 /* ==========================================================================
  * GRAVAÇÃO DIRETA (sem a biblioteca)
  * ========================================================================== */
+
 
 /**
  * Fala com o banco por HTTP puro, sem passar pela biblioteca do Supabase.
