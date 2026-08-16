@@ -36,6 +36,7 @@ import {
   enviarRecuperacaoSenha,
   validarForcaSenha,
   garantirSessaoAtiva,
+  carregarDiariosDoProfessor,
 } from '../lib/supabase';
 import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno } from '../lib/repositorios';
 import {
@@ -2017,6 +2018,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('focus', aoVoltarFoco);
     };
   }, [currentUser?.id]);
+
+  // MANTÉM OS DIÁRIOS DO PROFESSOR ATUALIZADOS DURANTE A SESSÃO.
+  //
+  // `assignedJournals` só era montado no login (ver `montarUsuario`, em
+  // supabase.ts). Se a secretaria atribuir um diário novo a um professor que
+  // já está com o sistema aberto, ele não conseguia gravar nada ali até
+  // recarregar a página — e SEM nenhum aviso na tela, porque a gravação nem
+  // chegava a ser tentada (`podeGravarNoDiario` barra antes). Isto confere de
+  // novo a cada minuto e também ao voltar o foco na aba — mesmo gatilho da
+  // renovação de sessão logo acima, mesmo motivo: professor que só abre o
+  // sistema nos dias de aula precisa que isto esteja em dia assim que ele
+  // volta, não um minuto depois.
+  const diariosProfessorRef = React.useRef<string>('');
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== UserRole.TEACHER) return;
+
+    const atualizarDiarios = async () => {
+      const diarios = await carregarDiariosDoProfessor(currentUser.id);
+      if (!diarios) return; // falha de rede: mantém o que já tinha, tenta de novo no próximo ciclo
+      const assinatura = diarios.map(d => `${d.classId}|${d.subjectId}`).sort().join(',');
+      if (assinatura === diariosProfessorRef.current) return; // nada mudou
+
+      diariosProfessorRef.current = assinatura;
+      setCurrentUser(prev => (prev ? { ...prev, assignedJournals: diarios } : prev));
+    };
+
+    diariosProfessorRef.current = (currentUser.assignedJournals ?? [])
+      .map(j => `${j.classId}|${j.subjectId}`).sort().join(',');
+
+    const intervalo = setInterval(atualizarDiarios, 60000);
+
+    const aoVoltarFoco = () => {
+      if (document.visibilityState === 'visible') void atualizarDiarios();
+    };
+    document.addEventListener('visibilitychange', aoVoltarFoco);
+    window.addEventListener('focus', aoVoltarFoco);
+
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoVoltarFoco);
+      window.removeEventListener('focus', aoVoltarFoco);
+    };
+  }, [currentUser?.id, currentUser?.role]);
 
   const updateCalendarEventDate = (id: string, date: string) => {
     let alterado: AcademicCalendarEvent | undefined;
