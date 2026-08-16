@@ -1632,12 +1632,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pendentes.length === 0) return;
 
       let gravados = 0;
+      let falhas = 0;
+      let ultimoErro = '';
       for (const doc of pendentes.slice(0, 60)) {
         const res = await salvarDocumentoAluno(doc as any);
-        if (res.ok) { documentosGravadosRef.current.set(doc.id, JSON.stringify(doc)); gravados++; }
-        else console.warn('[Portal] Documento não gravado:', res.erro);
+        if (res.ok) {
+          documentosGravadosRef.current.set(doc.id, JSON.stringify(doc));
+          gravados++;
+        } else {
+          falhas++;
+          ultimoErro = res.erro || '';
+        }
       }
       if (pendentes.length > 60 && gravados > 0) setRodadaDeGravacao(n => n + 1);
+
+      // O ALUNO PRECISA SABER SE O ENVIO NÃO FOI PRA FRENTE.
+      //
+      // Até aqui, uma falha ao gravar o documento do aluno só virava um
+      // `console.warn` — visível pra quem abrisse o DevTools, invisível pro
+      // aluno, que via a tela dizer "enviado" e seguia a vida. Notas, faltas
+      // e estágio já acendem o aviso laranja quando a gravação falha; isto
+      // faz o envio de documento seguir a mesma regra.
+      if (falhas > 0) {
+        setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhas} documento(s) enviado(s) pelo aluno não foram gravados. ${ultimoErro}`);
+        addSecurityLog('DOCUMENTO_ALUNO_FALHA', `${falhas} documento(s) não gravado(s). ${ultimoErro}`, 'high');
+      }
     }, 1500);
 
     return () => clearTimeout(tempo);
