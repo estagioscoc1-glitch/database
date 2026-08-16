@@ -1466,6 +1466,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * seguinte, a segunda não resolveria nunca e não pode ficar em laço.
    */
   const tentativasDeRetentativaRef = React.useRef(0);
+  // Mesmo contador que as notas já tinham — aulas (frequência + conteúdo
+  // programático) e faltas nunca tiveram o deles, então uma falha passageira
+  // ficava a faixa laranja acesa até a pessoa mexer de novo naquele mesmo
+  // campo, o que raramente acontece (ela já preencheu, não volta lá).
+  const tentativasDeRetentativaAulaRef = React.useRef(0);
+  const tentativasDeRetentativaFaltaRef = React.useRef(0);
   const faltasGravadasRef = React.useRef<Map<string, number>>(new Map());
 
   /** O usuário logado pode gravar neste diário? Evita tentativas que o banco vai recusar. */
@@ -1607,8 +1613,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         registrarFalhaDeGravacao(`${falhas} aula(s) de chamada não gravada(s). ${ultimoErro}`);
         addSecurityLog('GRAVACAO_AULA_FALHA', `${falhas} aula(s) não gravada(s). ${ultimoErro}`, 'high');
+      } else {
+        tentativasDeRetentativaAulaRef.current = 0;
       }
-      if (pendentes.length > 60 && falhas < pendentes.length) setRodadaDeGravacao(n => n + 1);
+      if (pendentes.length > 60 && falhas < pendentes.length) {
+        setRodadaDeGravacao(n => n + 1);
+        return;
+      }
+
+      // TENTAR DE NOVO O QUE FALHOU — mesma correção que as notas já tinham.
+      //
+      // Sem isto, uma falha passageira (sessão vencida por um instante,
+      // diário ainda sendo criado, aluno chegando na tabela um segundo
+      // depois da chamada) deixava a aula de frequência ou o conteúdo
+      // programático PARADOS ali para sempre: nada fazia o navegador tentar
+      // de novo sozinho, porque nada muda em `attendance` até o professor
+      // mexer de novo naquele mesmo campo — o que ele raramente faz, já que
+      // pra ele a chamada daquele dia está pronta.
+      if (falhas > 0 && tentativasDeRetentativaAulaRef.current < 6) {
+        tentativasDeRetentativaAulaRef.current++;
+        setTimeout(() => setRodadaDeGravacao(n => n + 1), 2500);
+      }
     }, 1500);
 
     return () => clearTimeout(tempo);
@@ -1738,11 +1763,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         registrarFalhaDeGravacao(`${falhas} lançamento(s) de falta não gravado(s).`);
         addSecurityLog('GRAVACAO_FALTA_FALHA', `${falhas} lançamento(s) de falta não gravado(s).`, 'high');
+
+        // TENTAR DE NOVO O QUE FALHOU — mesma correção que notas e aulas.
+        //
+        // Faltava aqui, e faltava também `rodadaDeGravacao` na lista de
+        // dependências logo abaixo: mesmo se algo chamasse
+        // `setRodadaDeGravacao`, este efeito específico não reagia, porque
+        // React só roda de novo o que está listado como dependência. Uma
+        // falta que falhasse ficava errada até a secretaria digitar aquele
+        // mesmo número de novo — e ela não tem como saber que precisa fazer
+        // isso, porque a tela já mostra o número "certo".
+        if (tentativasDeRetentativaFaltaRef.current < 6) {
+          tentativasDeRetentativaFaltaRef.current++;
+          setTimeout(() => setRodadaDeGravacao(n => n + 1), 2500);
+        }
+      } else {
+        tentativasDeRetentativaFaltaRef.current = 0;
       }
     }, 1200);
 
     return () => clearTimeout(tempo);
-  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades]);
+  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades, rodadaDeGravacao]);
 
   // --- salvamento automático do estado geral
   //
