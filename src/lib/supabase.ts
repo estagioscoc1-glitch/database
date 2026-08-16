@@ -80,6 +80,44 @@ export async function garantirSessaoAtiva(): Promise<void> {
   }
 }
 
+/**
+ * Recarrega só a lista de diários de UM professor — sem refazer o login
+ * inteiro (`montarUsuario`), que puxaria de novo dados de aluno/estágio/CRM
+ * à toa.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * `assignedJournals` (usado por `podeGravarNoDiario` no AppContext, pra
+ * decidir se aquele professor pode gravar naquela disciplina) só era
+ * montado no login. Se a secretaria atribuísse um diário novo a um
+ * professor que já estava com o sistema aberto, a tela dele continuava
+ * achando que ele não tinha aquele diário — a nota lançada ali ficava só na
+ * tela, sem gravar, e SEM NENHUM AVISO (a faixa laranja só acende quando uma
+ * gravação é tentada e falha; aqui a gravação nem chegava a ser tentada).
+ * O professor só voltava a funcionar recarregando a página ou saindo e
+ * entrando de novo — e não tinha como ele saber que precisava fazer isso.
+ */
+export async function carregarDiariosDoProfessor(
+  professorId: string
+): Promise<{ classId: string; subjectId: string }[] | null> {
+  if (!supabaseConfigurado || !professorId) return null;
+
+  const { data, error } = await supabase
+    .from('diarios')
+    .select('turma_id, disciplina_id')
+    .eq('professor_id', professorId);
+
+  if (error) {
+    console.warn('[Portal] Falha ao atualizar diários do professor:', error.message);
+    return null;
+  }
+
+  return (data ?? []).map((d: any) => ({
+    classId: d.turma_id,
+    subjectId: d.disciplina_id,
+  }));
+}
+
 /* ==========================================================================
  * GRAVAÇÃO DIRETA (sem a biblioteca)
  * ========================================================================== */
