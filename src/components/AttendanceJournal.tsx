@@ -127,9 +127,15 @@ export const AttendanceJournal: React.FC = () => {
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [attendance, targetSubject.id, targetClass.id]);
 
-  // Derived 30 columns for the grid
+  // 48 colunas — igual ao PDF do Diário de Frequência (era 30, e por isso o
+  // professor não conseguia nem VER, nem preencher, nenhuma aula lançada
+  // depois da 30ª: as colunas 31-48 simplesmente não existiam nesta tela,
+  // mesmo já existindo no PDF gerado a partir dos mesmos dados. A tela já
+  // tem rolagem horizontal (`overflow-x-auto`, com Nº/Matrícula/Aluno fixos
+  // do lado esquerdo), então isso só precisa gerar mais colunas — não precisa
+  // caber tudo numa largura fixa como o PDF precisa.
   const cols = useMemo(() => {
-    return Array.from({ length: 30 }).map((_, index) => {
+    return Array.from({ length: 48 }).map((_, index) => {
       const sess = subjectSessions[index];
       let month = '';
       let day = '';

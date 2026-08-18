@@ -768,14 +768,21 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
             <div className="overflow-hidden mb-4">
               <table className="w-full table-fixed text-left border-collapse text-[8.5px] text-black border border-black">
                 <colgroup>
-                  <col style={{ width: '22px' }} />
-                  <col style={{ width: '48px' }} />
-                  <col style={{ width: '130px' }} />
-                  <col style={{ width: '22px' }} />
+                  {/* Contas refeitas usando a largura REAL de impressão desta
+                      página — que não é 29.7cm inteiro, é `calc(29.7cm - 1cm)`
+                      (ver a regra .print-page.freq-page, uns parágrafos acima).
+                      A conta anterior usava os 29.7cm cheios e por isso ficou
+                      1cm larga demais: sobrava só ~2px de fato, e qualquer
+                      arredondamento de borda cortava a última coluna. Agora
+                      sobra ~22px de verdade. */}
+                  <col style={{ width: '18px' }} />
+                  <col style={{ width: '44px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '18px' }} />
                   {pageCols.map((_, index) => (
                     <col key={`col-freq-${index}`} style={{ width: '16px' }} />
                   ))}
-                  <col style={{ width: '36px' }} />
+                  <col style={{ width: '32px' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[7.5px]">
