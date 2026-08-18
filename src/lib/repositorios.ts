@@ -16,7 +16,7 @@
  */
 
 import { supabase, supabaseConfigurado, chamarBancoDireto } from './supabase';
-import type { GradeRecord, User, Course, ClassSection, Subject } from '../types';
+import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment } from '../types';
 import { UserRole } from '../types';
 
 /* ==========================================================================
@@ -2482,6 +2482,60 @@ export async function carregarEstrutura(): Promise<{
   })) as User[];
 
   return { courses, subjects, classes, users: [...professores, ...alunos] };
+}
+
+/**
+ * Reconstrói o "Histórico de Dependências" DIRETO das tabelas reais
+ * (matriculas + turmas + alunos) — em vez de depender do retrato geral do
+ * sistema, que é onde essa lista vinha até agora.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * "Histórico de Dependências (0)" aparecia sempre zerado, mesmo com alunos
+ * matriculados de verdade (o diário deles funcionava, a nota gravava — o
+ * problema era só essa lista de acompanhamento). Causa: essa lista nunca
+ * teve tabela própria no banco. Ela só existia dentro do retrato geral do
+ * sistema (o mesmo JSON único usado para mensagens, calendário etc.) — que
+ * só é regravado quando ADMIN/SECRETARIA está com a aba aberta tempo
+ * suficiente, e é sobrescrito por completo a cada gravação. Se existissem
+ * duas pessoas da gestão logadas ao mesmo tempo, a aba que gravasse por
+ * último apagava a dependência que a outra tinha acabado de matricular.
+ *
+ * A matrícula de dependência em si sempre foi salva direito, na tabela
+ * `matriculas` de verdade (é o que faz o diário e a nota funcionarem) — só
+ * a "lista bonita" pra mostrar na tela é que nunca foi lida de lá. Esta
+ * função lê exatamente dessa fonte confiável.
+ */
+export async function carregarDependencias(): Promise<DependencyEnrollment[] | null> {
+  if (!supabaseConfigurado) return null;
+
+  const { data, error } = await supabase
+    .from('matriculas')
+    .select(`
+      aluno_id, turma_id, data_matricula,
+      alunos ( nome, matricula ),
+      turmas!inner ( curso_id, disciplina_dependencia_id, semestre, horario, eh_dependencia )
+    `)
+    .eq('turmas.eh_dependencia', true);
+
+  if (error) {
+    console.warn('[Banco] Falha ao carregar histórico de dependências:', error.message);
+    return null;
+  }
+
+  return (data ?? []).map((m: any): DependencyEnrollment => ({
+    id: `dep_${m.aluno_id}_${m.turma_id}`,
+    studentId: m.aluno_id,
+    studentName: m.alunos?.nome || '',
+    enrollment: m.alunos?.matricula || '',
+    courseId: m.turmas?.curso_id || '',
+    subjectId: m.turmas?.disciplina_dependencia_id || '',
+    semester: m.turmas?.semestre ?? 1,
+    schedule: m.turmas?.horario || '',
+    createdClassId: m.turma_id,
+    createdAt: m.data_matricula || new Date().toISOString(),
+    status: 'ATIVO',
+  }));
 }
 
 /** 'SABADO' (banco) -> 'SÁBADO' (front-end) */
