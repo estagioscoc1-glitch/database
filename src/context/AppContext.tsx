@@ -5237,7 +5237,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // banco se a sincronização não pegasse a tempo. O aluno sumia do diário
     // da turma nova ao recarregar a página ou em outro dispositivo, mesmo
     // "matriculado" segundo a tela de quem fez a transferência.
-    const resultado = await transferirAluno(studentId, { turmaId: targetClassId });
+    // Manda também o curso de destino, não só a turma.
+    //
+    // `transferirAluno` já sabia atualizar `curso_id` (recebe isso em
+    // `destino.cursoId`), mas esta chamada nunca mandava — só `turmaId`.
+    // Pra transferência dentro do MESMO curso (só mudar de turno/módulo)
+    // isso nunca fez diferença. Mas pra transferência entre cursos
+    // diferentes (o caso real: aluna saindo do Enfermagem Presencial pro
+    // Enfermagem EAD, que são dois cursos distintos no cadastro) a ficha
+    // dela ficava com a turma nova mas o curso velho — as declarações e o
+    // histórico continuavam lendo o curso errado.
+    const resultado = await transferirAluno(studentId, {
+      turmaId: targetClassId,
+      cursoId: targetClass.courseId,
+    });
     if (!resultado.ok) {
       return { ok: false, erro: resultado.erro || 'Não foi possível gravar a transferência no banco.' };
     }
