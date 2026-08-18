@@ -38,7 +38,7 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -926,6 +926,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Restaurar aqui ressuscitaria a versão congelada no JSON por cima do que
       // foi lido do banco — foi assim que as turmas antigas voltavam do nada.
       if (state.staffMembers) { setStaffMembers(state.staffMembers); safeLocalStorage.setItem('oc_staff_members', JSON.stringify(state.staffMembers)); }
+      // Isto só serve de reserva pra quando `carregarDependencias()` (mais
+      // abaixo, com dado real de `matriculas`) falhar por algum motivo
+      // transitório — ela é quem manda por último no carregamento normal.
       if (state.dependencies) { setDependencies(state.dependencies); safeLocalStorage.setItem('oc_dependencies', JSON.stringify(state.dependencies)); }
       if (state.lastBackupTime) {
         setLastCloudBackupTime(state.lastBackupTime);
@@ -1155,6 +1158,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar faltas:', err?.message || err);
+          }
+
+          try {
+            const dependenciasReais = await carregarDependencias();
+            if (dependenciasReais && !desmontado) {
+              // "HISTÓRICO DE DEPENDÊNCIAS (0)" MESMO COM ALUNO MATRICULADO.
+              //
+              // Essa lista nunca teve tabela própria — só existia dentro do
+              // retrato geral do sistema, que só é regravado por ADMIN/
+              // SECRETARIA e é sobrescrito por inteiro a cada gravação (duas
+              // pessoas da gestão logadas ao mesmo tempo faziam uma apagar a
+              // dependência que a outra tinha acabado de matricular). Aqui ela
+              // é reconstruída direto de `matriculas` + `turmas` — a mesma
+              // fonte que já faz o diário e a nota da dependência funcionarem
+              // de verdade — em vez de confiar no retrato frágil.
+              setDependencies(dependenciasReais);
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar histórico de dependências:', err?.message || err);
           }
 
           try {
