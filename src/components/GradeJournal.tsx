@@ -311,6 +311,10 @@ export const GradeJournal: React.FC = () => {
                 }
 
                 const isTransferred = stud.classId !== targetClass.id;
+                // Mesma regra do diário de chamada: admin/secretaria vê o
+                // aviso, professor não — pra ele a linha fica normal.
+                const podeVerAvisoDeTransferencia =
+                  currentUser?.role === 'ADMIN' || currentUser?.role === 'STAFF';
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
                 const isEvenRow = idx % 2 === 1;
 
@@ -323,7 +327,7 @@ export const GradeJournal: React.FC = () => {
                       hoveredRow === stud.id 
                         ? 'bg-slate-50/80 dark:bg-slate-800/40' 
                         : 'odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50/20 dark:even:bg-slate-800/10'
-                    } ${isTransferred ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}
+                    } ${isTransferred && podeVerAvisoDeTransferencia ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}
                   >
                     {/* Index */}
                     <td className={`py-2.5 px-2 text-center text-slate-400 font-mono sticky left-0 border-r border-slate-200 dark:border-slate-750 z-10 w-[45px] min-w-[45px] max-w-[45px] transition-colors ${
@@ -359,7 +363,7 @@ export const GradeJournal: React.FC = () => {
                           }`}>
                             <div className="flex flex-col min-w-0 max-w-[190px]">
                               <span className="truncate" title={stud.name}>{stud.name}</span>
-                              {isTransferred && (
+                              {isTransferred && podeVerAvisoDeTransferencia && (
                                 <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
                                   Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
                                 </span>

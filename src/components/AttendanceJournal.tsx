@@ -793,9 +793,16 @@ export const AttendanceJournal: React.FC = () => {
                 const studentGrade = grades.find(g => g.studentId === stud.id && g.classId === targetClass.id && g.subjectId === targetSubject.id);
                 const isStudentInactive = studentGrade?.result === 'DISPENSADO' || studentGrade?.result === 'DESISTENTE';
                 const isStudentBlockedForTeacher = currentUser?.role !== 'ADMIN' && isStudentInactive;
+                // Admin/secretaria vê o aviso de transferência (precisa saber
+                // por que aquele aluno está ali e por que não dá pra editar);
+                // professor não vê — pra ele, a linha fica igual a qualquer
+                // outra, sem parecer estranha. A trava de edição (mais abaixo,
+                // `isDisabled`) continua valendo pros dois, independente disso.
+                const podeVerAvisoDeTransferencia =
+                  currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.STAFF;
 
                 return (
-                  <tr key={stud.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all h-12 ${isTransferred ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}>
+                  <tr key={stud.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all h-12 ${isTransferred && podeVerAvisoDeTransferencia ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}>
                     {/* Sticky left columns */}
                     <td className="py-2 px-2 text-center text-slate-400 font-mono sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-750 z-10 w-[45px] min-w-[45px] max-w-[45px]">{idx + 1}</td>
                     <td className="py-2 px-2 font-mono text-slate-500 dark:text-slate-400 sticky left-[45px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-750 z-10 w-[95px] min-w-[95px] max-w-[95px]">{stud.enrollment}</td>
@@ -804,7 +811,7 @@ export const AttendanceJournal: React.FC = () => {
                         <span className="font-bold text-slate-900 dark:text-white text-xs truncate" title={stud.name}>
                           {stud.name}
                         </span>
-                        {isTransferred && (
+                        {isTransferred && podeVerAvisoDeTransferencia && (
                           <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
                             Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
                           </span>
