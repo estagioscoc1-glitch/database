@@ -134,7 +134,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   }, [documentType, classId, subjectId]);
 
   const [colsData, setColsData] = useState(() => {
-    return Array.from({ length: 90 }).map((_, index) => {
+    // 144 = 3 páginas × 48 colunas (era 90 = 3 × 30, do tempo em que cada
+    // página tinha 30 colunas). Sem isso, a 3ª página de um curso mais longo
+    // ficaria sem nenhuma coluna de dia — o `slice` simplesmente não teria
+    // mais dado pra pegar.
+    return Array.from({ length: 144 }).map((_, index) => {
       const sess = subjectSessions[index];
       let month = '';
       let day = '';
@@ -746,8 +750,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const renderDiarioFreqPage = (page: any, pIndex: number, clampedActivePage: number) => {
     const { studentChunk, studentChunkIndex, datePageIndex } = page;
-    const pageStartIndex = datePageIndex * 30;
-    const pageCols = colsData.slice(pageStartIndex, pageStartIndex + 30);
+    // 48 colunas por página — igual ao modelo oficial da escola (contado a
+    // mão no print: 48 quadradinhos de MÊS/DIA numa página só). Era 30.
+    const pageStartIndex = datePageIndex * 48;
+    const pageCols = colsData.slice(pageStartIndex, pageStartIndex + 48);
     const screenHiddenClass = pIndex === clampedActivePage ? '' : 'screen-hidden';
 
     return (
@@ -762,14 +768,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
             <div className="overflow-hidden mb-4">
               <table className="w-full table-fixed text-left border-collapse text-[8.5px] text-black border border-black">
                 <colgroup>
-                  <col style={{ width: '30px' }} />
-                  <col style={{ width: '60px' }} />
-                  <col />
-                  <col style={{ width: '30px' }} />
+                  <col style={{ width: '22px' }} />
+                  <col style={{ width: '48px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '22px' }} />
                   {pageCols.map((_, index) => (
-                    <col key={`col-freq-${index}`} style={{ width: '18px' }} />
+                    <col key={`col-freq-${index}`} style={{ width: '16px' }} />
                   ))}
-                  <col style={{ width: '45px' }} />
+                  <col style={{ width: '36px' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[7.5px]">
@@ -778,7 +784,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     </th>
                     <th className="py-1 px-1 text-center w-[65px] border-r border-black" rowSpan={3}>Matr.</th>
                     <th className="py-1 px-2 border-r border-black min-w-[120px]" rowSpan={3}>ALUNO</th>
-                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={7}>
+                    {/* colSpan somando 48 = a mesma contagem das colunas de dia lá
+                        embaixo (11+12+12+13). Antes somava 31 pra 30 colunas —
+                        um descompasso que já existia, corrigido de brinde. */}
+                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={11}>
                       Aulas Previstas: 
                       <input
                         type="text"
@@ -787,7 +796,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         className="bg-transparent border-none text-center outline-none font-mono font-bold text-[9px] text-black w-[35px] ml-0.5 p-0 inline-block focus:bg-blue-50/50"
                       />h
                     </th>
-                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={8}>
+                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={12}>
                       Aulas Dadas: 
                       <input
                         type="text"
@@ -796,7 +805,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         className="bg-transparent border-none text-center outline-none font-mono font-bold text-[9px] text-black w-[30px] ml-0.5 p-0 inline-block focus:bg-blue-50/50"
                       />h
                     </th>
-                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={8}>
+                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={12}>
                       Início: 
                       <input
                         type="text"
@@ -806,7 +815,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         className="bg-transparent border-none text-center outline-none font-mono font-bold text-[9px] text-black w-[75px] ml-1 p-0 inline-block focus:bg-blue-50/50"
                       />
                     </th>
-                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={8}>
+                    <th className="py-1 px-2 border-r border-black text-center bg-slate-50 uppercase" colSpan={13}>
                       Término: 
                       <input
                         type="text"
