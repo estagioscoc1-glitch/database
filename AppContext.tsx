@@ -35,8 +35,10 @@ import {
   trocarSenha as trocarSenhaNoAuth,
   enviarRecuperacaoSenha,
   validarForcaSenha,
+  garantirSessaoAtiva,
+  carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -229,13 +231,15 @@ interface AppContextType {
   deleteStaffMember: (id: string) => void;
   updateStaffPermissions: (staffId: string, permissions: StaffPermissions) => void;
   createDependencyEnrollment: (data: { studentId: string; courseId: string; subjectId: string; semester: number; schedule: string }) => Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }>;
+  cancelDependencyEnrollment: (dependencyId: string) => Promise<{ ok: boolean; erro?: string }>;
+  createDependencyOnlyStudent: (data: { nome: string; matricula: string; cursoId?: string }) => Promise<{ ok: boolean; erro?: string; studentId?: string }>;
 
   declarationConfigs: DeclarationConfigs;
   studentDocuments: StudentDocument[];
   internships: InternshipRecord[];
   updateDeclarationConfig: (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => void;
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
-  transferStudent: (studentId: string, targetClassId: string) => void;
+  transferStudent: (studentId: string, targetClassId: string) => Promise<{ ok: boolean; erro?: string }>;
   updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null, teacherName?: string) => void;
   /** Ids de avisos já dispensados ou abertos por esta pessoa. */
   avisosVistos: string[];
@@ -922,6 +926,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Restaurar aqui ressuscitaria a versão congelada no JSON por cima do que
       // foi lido do banco — foi assim que as turmas antigas voltavam do nada.
       if (state.staffMembers) { setStaffMembers(state.staffMembers); safeLocalStorage.setItem('oc_staff_members', JSON.stringify(state.staffMembers)); }
+      // Isto só serve de reserva pra quando `carregarDependencias()` (mais
+      // abaixo, com dado real de `matriculas`) falhar por algum motivo
+      // transitório — ela é quem manda por último no carregamento normal.
       if (state.dependencies) { setDependencies(state.dependencies); safeLocalStorage.setItem('oc_dependencies', JSON.stringify(state.dependencies)); }
       if (state.lastBackupTime) {
         setLastCloudBackupTime(state.lastBackupTime);
@@ -1151,6 +1158,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar faltas:', err?.message || err);
+          }
+
+          try {
+            const dependenciasReais = await carregarDependencias();
+            if (dependenciasReais && !desmontado) {
+              // "HISTÓRICO DE DEPENDÊNCIAS (0)" MESMO COM ALUNO MATRICULADO.
+              //
+              // Essa lista nunca teve tabela própria — só existia dentro do
+              // retrato geral do sistema, que só é regravado por ADMIN/
+              // SECRETARIA e é sobrescrito por inteiro a cada gravação (duas
+              // pessoas da gestão logadas ao mesmo tempo faziam uma apagar a
+              // dependência que a outra tinha acabado de matricular). Aqui ela
+              // é reconstruída direto de `matriculas` + `turmas` — a mesma
+              // fonte que já faz o diário e a nota da dependência funcionarem
+              // de verdade — em vez de confiar no retrato frágil.
+              setDependencies(dependenciasReais);
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar histórico de dependências:', err?.message || err);
           }
 
           try {
@@ -1463,6 +1489,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    * seguinte, a segunda não resolveria nunca e não pode ficar em laço.
    */
   const tentativasDeRetentativaRef = React.useRef(0);
+  // Mesmo contador que as notas já tinham — aulas (frequência + conteúdo
+  // programático) e faltas nunca tiveram o deles, então uma falha passageira
+  // ficava a faixa laranja acesa até a pessoa mexer de novo naquele mesmo
+  // campo, o que raramente acontece (ela já preencheu, não volta lá).
+  const tentativasDeRetentativaAulaRef = React.useRef(0);
+  const tentativasDeRetentativaFaltaRef = React.useRef(0);
   const faltasGravadasRef = React.useRef<Map<string, number>>(new Map());
 
   /** O usuário logado pode gravar neste diário? Evita tentativas que o banco vai recusar. */
@@ -1604,8 +1636,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         registrarFalhaDeGravacao(`${falhas} aula(s) de chamada não gravada(s). ${ultimoErro}`);
         addSecurityLog('GRAVACAO_AULA_FALHA', `${falhas} aula(s) não gravada(s). ${ultimoErro}`, 'high');
+      } else {
+        tentativasDeRetentativaAulaRef.current = 0;
       }
-      if (pendentes.length > 60 && falhas < pendentes.length) setRodadaDeGravacao(n => n + 1);
+      if (pendentes.length > 60 && falhas < pendentes.length) {
+        setRodadaDeGravacao(n => n + 1);
+        return;
+      }
+
+      // TENTAR DE NOVO O QUE FALHOU — mesma correção que as notas já tinham.
+      //
+      // Sem isto, uma falha passageira (sessão vencida por um instante,
+      // diário ainda sendo criado, aluno chegando na tabela um segundo
+      // depois da chamada) deixava a aula de frequência ou o conteúdo
+      // programático PARADOS ali para sempre: nada fazia o navegador tentar
+      // de novo sozinho, porque nada muda em `attendance` até o professor
+      // mexer de novo naquele mesmo campo — o que ele raramente faz, já que
+      // pra ele a chamada daquele dia está pronta.
+      if (falhas > 0 && tentativasDeRetentativaAulaRef.current < 6) {
+        tentativasDeRetentativaAulaRef.current++;
+        setTimeout(() => setRodadaDeGravacao(n => n + 1), 2500);
+      }
     }, 1500);
 
     return () => clearTimeout(tempo);
@@ -1630,12 +1681,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pendentes.length === 0) return;
 
       let gravados = 0;
+      let falhas = 0;
+      let ultimoErro = '';
       for (const doc of pendentes.slice(0, 60)) {
         const res = await salvarDocumentoAluno(doc as any);
-        if (res.ok) { documentosGravadosRef.current.set(doc.id, JSON.stringify(doc)); gravados++; }
-        else console.warn('[Portal] Documento não gravado:', res.erro);
+        if (res.ok) {
+          documentosGravadosRef.current.set(doc.id, JSON.stringify(doc));
+          gravados++;
+        } else {
+          falhas++;
+          ultimoErro = res.erro || '';
+        }
       }
       if (pendentes.length > 60 && gravados > 0) setRodadaDeGravacao(n => n + 1);
+
+      // O ALUNO PRECISA SABER SE O ENVIO NÃO FOI PRA FRENTE.
+      //
+      // Até aqui, uma falha ao gravar o documento do aluno só virava um
+      // `console.warn` — visível pra quem abrisse o DevTools, invisível pro
+      // aluno, que via a tela dizer "enviado" e seguia a vida. Notas, faltas
+      // e estágio já acendem o aviso laranja quando a gravação falha; isto
+      // faz o envio de documento seguir a mesma regra.
+      if (falhas > 0) {
+        setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhas} documento(s) enviado(s) pelo aluno não foram gravados. ${ultimoErro}`);
+        addSecurityLog('DOCUMENTO_ALUNO_FALHA', `${falhas} documento(s) não gravado(s). ${ultimoErro}`, 'high');
+      }
     }, 1500);
 
     return () => clearTimeout(tempo);
@@ -1653,6 +1724,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pendentes = (messages || []).filter(m => !mensagensGravadasRef.current.has(m.id));
       if (pendentes.length === 0) return;
 
+      let falhasMinhas = 0;
+      let ultimoErroMeu = '';
+
       for (const m of pendentes.slice(0, 50)) {
         const res = await salvarMensagem({
           id: m.id,
@@ -1666,8 +1740,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Marca mesmo em caso de recusa: mensagem antiga de outra pessoa não
         // pode ser regravada por quem está logado (o banco exige remetente = você).
         mensagensGravadasRef.current.add(m.id);
-        if (!res.ok) console.warn('[Portal] Mensagem não gravada:', res.erro);
+
+        if (!res.ok) {
+          console.warn('[Portal] Mensagem não gravada:', res.erro);
+          // MAS SE A MENSAGEM ERA MINHA, EU PRECISO SABER.
+          //
+          // A recusa é esperada e inofensiva para mensagem antiga de OUTRA
+          // pessoa (o banco exige remetente = você) — por isso o silêncio
+          // fazia sentido. Só que ele também engolia a falha da mensagem que
+          // a pessoa ACABOU de escrever: ela via a mensagem na tela, achava
+          // que tinha enviado, e o destinatário nunca recebia. Este aviso
+          // separa os dois casos sem mexer na fila (marcar como tratada
+          // continua igual, senão viraria um laço infinito de tentativas).
+          if ((m as any).senderName && (m as any).senderName === currentUser.name) {
+            falhasMinhas++;
+            ultimoErroMeu = res.erro || '';
+          }
+        }
       }
+
+      if (falhasMinhas > 0) {
+        setCloudBackupStatus('error');
+        registrarFalhaDeGravacao(`${falhasMinhas} mensagem(ns) que você enviou não foram gravadas. ${ultimoErroMeu}`);
+        addSecurityLog('MENSAGEM_FALHA', `${falhasMinhas} mensagem(ns) do usuário não gravada(s). ${ultimoErroMeu}`, 'high');
+      }
+
       if (pendentes.length > 50) setRodadaDeGravacao(n => n + 1);   // a fila sempre diminui: toda mensagem é marcada como tratada
     }, 1500);
 
@@ -1715,11 +1812,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         registrarFalhaDeGravacao(`${falhas} lançamento(s) de falta não gravado(s).`);
         addSecurityLog('GRAVACAO_FALTA_FALHA', `${falhas} lançamento(s) de falta não gravado(s).`, 'high');
+
+        // TENTAR DE NOVO O QUE FALHOU — mesma correção que notas e aulas.
+        //
+        // Faltava aqui, e faltava também `rodadaDeGravacao` na lista de
+        // dependências logo abaixo: mesmo se algo chamasse
+        // `setRodadaDeGravacao`, este efeito específico não reagia, porque
+        // React só roda de novo o que está listado como dependência. Uma
+        // falta que falhasse ficava errada até a secretaria digitar aquele
+        // mesmo número de novo — e ela não tem como saber que precisa fazer
+        // isso, porque a tela já mostra o número "certo".
+        if (tentativasDeRetentativaFaltaRef.current < 6) {
+          tentativasDeRetentativaFaltaRef.current++;
+          setTimeout(() => setRodadaDeGravacao(n => n + 1), 2500);
+        }
+      } else {
+        tentativasDeRetentativaFaltaRef.current = 0;
       }
     }, 1200);
 
     return () => clearTimeout(tempo);
-  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades]);
+  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades, rodadaDeGravacao]);
 
   // --- salvamento automático do estado geral
   //
@@ -1921,6 +2034,163 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // primeira correção.
     return () => clearInterval(tempo);
   }, [currentUser?.id, currentUser?.role, isLoading]);
+
+  // RENOVA O ACESSO AO VOLTAR PRA ABA — antes de qualquer gravação acontecer.
+  //
+  // `autoRefreshToken` (em supabase.ts) mantém a sessão renovada sozinha,
+  // mas só enquanto a aba está em primeiro plano — o navegador pausa esse
+  // relógio quando a aba vai pra segundo plano ou o computador dorme. Quem
+  // só abre o sistema nos dias de aula, com a aba esquecida aberta de um dia
+  // pro outro, pode voltar com o acesso vencido: a primeira gravação que
+  // tentar fazer falha, sem nenhum padrão claro, até recarregar a página —
+  // exatamente o "às vezes aparece um aviso, raramente" relatado.
+  //
+  // `visibilitychange` cobre trocar de aba e "computador voltando de
+  // dormir"; `focus` cobre voltar de outro programa no Windows. Rodar nos
+  // dois não duplica trabalho: a função só renova se faltar pouco tempo
+  // pro vencimento.
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const aoVoltarFoco = () => {
+      if (document.visibilityState === 'visible') {
+        void garantirSessaoAtiva();
+      }
+    };
+
+    document.addEventListener('visibilitychange', aoVoltarFoco);
+    window.addEventListener('focus', aoVoltarFoco);
+
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltarFoco);
+      window.removeEventListener('focus', aoVoltarFoco);
+    };
+  }, [currentUser?.id]);
+
+  // DESCARGA IMEDIATA: NÃO PERDER O QUE AINDA ESTÁ NO TEMPO DE ESPERA.
+  //
+  // Notas, faltas e aulas esperam de 1,2 a 1,5 segundo antes de gravar (para
+  // não mandar uma requisição por tecla digitada). Se a pessoa fecha a aba,
+  // troca de aba ou clica em "Sair" dentro dessa janela, o cronômetro é
+  // cancelado junto com o efeito — e o último lançamento NUNCA chega ao banco,
+  // sem faixa laranja nenhuma, porque a gravação nem chegou a ser tentada.
+  //
+  // O espelho local (`espelhoLocal.ts`) já tinha um `beforeunload`, mas ele
+  // não cobre isto: `oc_grades`, `oc_attendance` e `oc_direct_absences` estão
+  // de propósito na lista "já salvas em outro lugar" — porque têm tabela
+  // própria e passam justamente por estes efeitos.
+  //
+  // `visibilitychange -> hidden` é o gatilho principal (é o mais confiável em
+  // celular e o que dispara ao fechar a aba); `beforeunload` fica como rede de
+  // segurança para o desktop.
+  const dadosDoDiarioRef = React.useRef<any>({});
+  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser };
+
+  const descarregarPendenciasDoDiario = React.useCallback(async () => {
+    const d = dadosDoDiarioRef.current;
+    if (!bancoDisponivel || !d.currentUser) return;
+
+    const professorId = d.currentUser.role === UserRole.TEACHER ? d.currentUser.id : null;
+    const periodoDe = (classId: string) => {
+      const t = (d.classes || []).find((c: any) => c.id === classId);
+      return (t?.year && t?.semester) ? `${t.year}/${t.semester}` : d.currentPeriod;
+    };
+
+    // Notas
+    for (const nota of (d.grades || [])) {
+      if (!nota.classId || !nota.subjectId || !nota.studentId) continue;
+      if (!podeGravarNoDiario(nota.classId, nota.subjectId)) continue;
+      if (notasGravadasRef.current.get(nota.id) === JSON.stringify(nota)) continue;
+      const res = await salvarNota(nota, periodoDe(nota.classId), professorId);
+      if (res.ok) notasGravadasRef.current.set(nota.id, JSON.stringify(nota));
+    }
+
+    // Aulas (frequência + conteúdo programático)
+    for (const aula of (d.attendance || [])) {
+      if (!aula.classId || !aula.subjectId || !aula.date) continue;
+      if (!podeGravarNoDiario(aula.classId, aula.subjectId)) continue;
+      if (aulasGravadasRef.current.get(aula.id) === JSON.stringify(aula)) continue;
+      const res = await salvarAula(
+        aula.classId, aula.subjectId, periodoDe(aula.classId),
+        { id: aula.id, date: aula.date, lessonsCount: aula.lessonsCount, topic: aula.topic, records: aula.records },
+        professorId
+      );
+      if (res.ok) aulasGravadasRef.current.set(aula.id, JSON.stringify(aula));
+    }
+
+    // Faltas lançadas direto
+    for (const [chave, total] of Object.entries(d.directAbsences || {})) {
+      if (faltasGravadasRef.current.get(chave) === total) continue;
+      const alvo = (d.grades || []).find(
+        (g: any) => `${g.classId}_${g.subjectId}_${g.studentId}` === chave
+      );
+      if (!alvo || !podeGravarNoDiario(alvo.classId, alvo.subjectId)) continue;
+      const res = await salvarFaltas(
+        alvo.classId, alvo.subjectId, alvo.studentId, total as number, periodoDe(alvo.classId)
+      );
+      if (res.ok) faltasGravadasRef.current.set(chave, total as number);
+    }
+  }, [podeGravarNoDiario]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const aoEsconder = () => {
+      if (document.visibilityState === 'hidden') void descarregarPendenciasDoDiario();
+    };
+    const aoFechar = () => { void descarregarPendenciasDoDiario(); };
+
+    document.addEventListener('visibilitychange', aoEsconder);
+    window.addEventListener('beforeunload', aoFechar);
+
+    return () => {
+      document.removeEventListener('visibilitychange', aoEsconder);
+      window.removeEventListener('beforeunload', aoFechar);
+    };
+  }, [currentUser?.id, descarregarPendenciasDoDiario]);
+
+  // MANTÉM OS DIÁRIOS DO PROFESSOR ATUALIZADOS DURANTE A SESSÃO.
+  //
+  // `assignedJournals` só era montado no login (ver `montarUsuario`, em
+  // supabase.ts). Se a secretaria atribuir um diário novo a um professor que
+  // já está com o sistema aberto, ele não conseguia gravar nada ali até
+  // recarregar a página — e SEM nenhum aviso na tela, porque a gravação nem
+  // chegava a ser tentada (`podeGravarNoDiario` barra antes). Isto confere de
+  // novo a cada minuto e também ao voltar o foco na aba — mesmo gatilho da
+  // renovação de sessão logo acima, mesmo motivo: professor que só abre o
+  // sistema nos dias de aula precisa que isto esteja em dia assim que ele
+  // volta, não um minuto depois.
+  const diariosProfessorRef = React.useRef<string>('');
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== UserRole.TEACHER) return;
+
+    const atualizarDiarios = async () => {
+      const diarios = await carregarDiariosDoProfessor(currentUser.id);
+      if (!diarios) return; // falha de rede: mantém o que já tinha, tenta de novo no próximo ciclo
+      const assinatura = diarios.map(d => `${d.classId}|${d.subjectId}`).sort().join(',');
+      if (assinatura === diariosProfessorRef.current) return; // nada mudou
+
+      diariosProfessorRef.current = assinatura;
+      setCurrentUser(prev => (prev ? { ...prev, assignedJournals: diarios } : prev));
+    };
+
+    diariosProfessorRef.current = (currentUser.assignedJournals ?? [])
+      .map(j => `${j.classId}|${j.subjectId}`).sort().join(',');
+
+    const intervalo = setInterval(atualizarDiarios, 60000);
+
+    const aoVoltarFoco = () => {
+      if (document.visibilityState === 'visible') void atualizarDiarios();
+    };
+    document.addEventListener('visibilitychange', aoVoltarFoco);
+    window.addEventListener('focus', aoVoltarFoco);
+
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoVoltarFoco);
+      window.removeEventListener('focus', aoVoltarFoco);
+    };
+  }, [currentUser?.id, currentUser?.role]);
 
   const updateCalendarEventDate = (id: string, date: string) => {
     let alterado: AcademicCalendarEvent | undefined;
@@ -2340,6 +2610,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let mudou = false;
       const novo = prev.map(g => {
         if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classId) return g;
+
+        // ESTE ERA O QUARTO CAMINHO DE REESCRITA — O QUE APAGAVA O DISPENSADO.
+        //
+        // O registrador "[DISPENSADO PERDIDO]" foi instalado porque a dispensa
+        // sumia sozinha e três lugares já a protegiam (o recálculo por
+        // frequência, `computeCalculatedGrade` e a carga inicial). Faltava
+        // proteger AQUI: `getStudentResult` só sabe devolver
+        // 'APTO' | 'NÃO APTO' | 'REP. FALTAS' | 'Pendente' — ela não conhece
+        // DISPENSADO nem DESISTENTE. Então, ao abonar ou ajustar a falta de um
+        // aluno dispensado, o resultado calculado NUNCA batia com 'DISPENSADO',
+        // `mudou` virava true, e a dispensa era sobrescrita. Silenciosamente:
+        // a secretaria marcava a dispensa, mexia na falta depois, e a dispensa
+        // ia embora sem nenhum aviso.
+        //
+        // Nota importada de mapa antigo entra na mesma proteção, pelo mesmo
+        // motivo já documentado nos outros três caminhos: a conta só conhece
+        // nota e frequência, e reescrevia "F. NOTA" (aluno sem nota lançada)
+        // como "NÃO APTO", que significa outra coisa no histórico.
+        if (g.result === 'DISPENSADO' || g.result === 'DESISTENTE') return g;
+        if (g.isHistoricalImport) return g;
+
         const resultado = getStudentResult(g, frequencia);
         if (resultado === g.result) return g;
         mudou = true;
@@ -2477,6 +2768,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    // GRAVA NOTA/FALTA/AULA PENDENTE ANTES DE ENCERRAR A SESSÃO.
+    //
+    // O caminho abaixo (`saveStateToCloud`) só roda para a gestão — e, mesmo
+    // para ela, o retrato geral não é o que grava nota, falta e aula: essas
+    // têm tabela própria e passam pelos efeitos com tempo de espera. Ao sair,
+    // esses efeitos são desmontados e o cronômetro cancelado, então o último
+    // lançamento do professor (o caso mais comum: lança a nota e clica em
+    // Sair) ia embora sem nenhum aviso.
+    //
+    // A descarga entra na MESMA corrente de promessas do encerramento, não
+    // solta em paralelo: `sairDoPortal()` invalida o acesso no servidor, e se
+    // ele corresse junto, a gravação que acabou de começar perderia permissão
+    // no meio do caminho — trocando uma perda silenciosa por outra.
+    const descarga = descarregarPendenciasDoDiario()
+      .catch(err => console.warn('[Portal] Falha ao gravar o diário na saída:', err?.message || err));
+
     // Envia o que estiver pendente do CRM/estágios/financeiro e desliga o espelho.
     try { enviarEspelhoAgora(); pararEspelho(); } catch { /* não impede a saída */ }
 
@@ -2489,7 +2796,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const ehGestaoSaida = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.STAFF;
-    (ehGestaoSaida ? saveStateToCloud(payload) : Promise.resolve(true))
+    descarga
+      .then(() => (ehGestaoSaida ? saveStateToCloud(payload) : Promise.resolve(true)))
       .then(gravou => {
         if (!gravou) {
           console.warn('[Portal] Havia alterações que não foram gravadas na nuvem antes da saída.');
@@ -2775,66 +3083,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!subject) throw new Error('Disciplina não encontrada.');
 
     const [anoAtualDep, semestreAtualDep] = currentPeriod.split('/').map(Number);
-    const dependencyId = `dep_${Date.now()}`;
+    const ano = anoAtualDep || new Date().getFullYear();
+    const semestre = semestreAtualDep || 1;
 
-    // REAPROVEITAR O DIÁRIO SE JÁ EXISTIR UM PARA A MESMA DISCIPLINA.
+    // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
     //
-    // Antes, cada matrícula em dependência criava uma turma nova e isolada
-    // (`class_dep_${Date.now()}`) — mesmo que dois alunos estivessem de
-    // dependência na MESMA disciplina, cada um ficava sozinho numa turma
-    // só dele. Isso obrigava o professor a ficar entrando em diários
-    // diferentes pra lançar falta/nota de gente que, na prática, cursa
-    // junto.
+    // Antes, esta função só mexia no estado local do navegador (turma,
+    // matrícula e nota "existiam" só na memória) e dependia do ciclo de
+    // sincronização automático pra gravar de verdade. Às vezes essa
+    // sincronização não pegava a mudança a tempo — a matrícula de
+    // dependência nunca chegava a existir no banco, mesmo a tela
+    // mostrando "cadastrado com sucesso". O aluno sumia ao recarregar a
+    // página, e o diário abria vazio, sem nome nenhum, porque não havia
+    // matrícula de verdade nenhuma por trás.
     //
-    // Agora, se já existir uma turma de dependência ATIVA para o mesmo
-    // curso + disciplina + período letivo, o aluno entra nela — ganhando
-    // um diário compartilhado com quem mais estiver de dependência na
-    // mesma matéria. Só cria uma turma nova se ainda não existir nenhuma.
-    const turmaDependenciaExistente = classes.find(c =>
-      c.isDependency &&
-      c.courseId === data.courseId &&
-      c.dependencySubjectId === data.subjectId &&
-      c.year === (anoAtualDep || new Date().getFullYear()) &&
-      c.semester === (semestreAtualDep || 1)
-    );
+    // Agora a gravação acontece primeiro, direto — se falhar, um erro
+    // real aparece na hora, em vez de a pessoa descobrir dias depois que
+    // "não salvou".
+    const resultado = await matricularEmDependencia({
+      alunoId: student.id,
+      cursoId: data.courseId,
+      disciplinaId: data.subjectId,
+      ano,
+      semestre,
+      modulo: data.semester,
+      horario: data.schedule,
+    });
 
-    const createdClassId = turmaDependenciaExistente?.id || `class_dep_${Date.now()}`;
-    const createdClassName = turmaDependenciaExistente?.name || `DEP-${subject.name.toUpperCase()} (${data.schedule.slice(0, 15)})`;
-
-    // 1. Create ClassSection / Diário for dependency — só se ainda não
-    // existir uma turma pra essa disciplina neste período.
-    let newClassSection: ClassSection;
-    if (turmaDependenciaExistente) {
-      newClassSection = turmaDependenciaExistente;
-    } else {
-      newClassSection = {
-        id: createdClassId,
-        name: createdClassName,
-        code: `DEP-${subject.id.toUpperCase()}`,
-        courseId: data.courseId,
-        shift: Shift.SABADO,
-        module: data.semester,
-        year: anoAtualDep || new Date().getFullYear(),
-        semester: semestreAtualDep || 1,
-        isDependency: true,
-        dependencySubjectId: data.subjectId,
-        scheduleText: data.schedule,
-        closedS1: false,
-        closedS2: false,
-        closedDefinitive: false
-      };
-      setClasses(prev => [...prev, newClassSection]);
+    if (!resultado.ok || !resultado.turmaId) {
+      throw new Error(resultado.erro || 'Não foi possível gravar a dependência no banco.');
     }
 
-    // 2. Bind student to this class section and create GradeRecord
-    //
-    // Se o diário já é compartilhado (turma reaproveitada) e este aluno já
-    // está matriculado nele, não duplica a nota — só avisa e sai.
-    const jaMatriculadoNaDependencia = grades.some(
-      g => g.classId === createdClassId && g.studentId === student.id
-    );
-    if (jaMatriculadoNaDependencia) {
-      throw new Error(`${student.name} já está matriculado nesta dependência.`);
+    const createdClassId = resultado.turmaId;
+    const dependencyId = `dep_${Date.now()}`;
+
+    // Reflete na tela o que acabou de ser confirmado no banco. Se a turma
+    // já existia (reaproveitada — outro aluno com a mesma dependência),
+    // usa os dados dela; senão, monta a partir do que acabou de ser criado.
+    const turmaJaConhecida = classes.find(c => c.id === createdClassId);
+    const createdClassName = turmaJaConhecida?.name || `DEP - ${subject.name}`;
+
+    const newClassSection: ClassSection = turmaJaConhecida || {
+      id: createdClassId,
+      name: createdClassName,
+      code: `DEP-${subject.id.toUpperCase()}`,
+      courseId: data.courseId,
+      shift: Shift.SABADO,
+      module: data.semester,
+      year: ano,
+      semester: semestre,
+      isDependency: true,
+      dependencySubjectId: data.subjectId,
+      scheduleText: data.schedule,
+      closedS1: false,
+      closedS2: false,
+      closedDefinitive: false
+    };
+    if (!turmaJaConhecida) {
+      setClasses(prev => [...prev, newClassSection]);
     }
 
     const newGrade: GradeRecord = {
@@ -2848,10 +3154,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       concept: 'D',
       result: 'Pendente'
     };
-
     setGrades(prev => [...prev, newGrade]);
 
-    // 3. Create DependencyEnrollment record
     const newDependency: DependencyEnrollment = {
       id: dependencyId,
       studentId: student.id,
@@ -2869,6 +3173,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDependencies(prev => [...prev, newDependency]);
 
     return { dependency: newDependency, classSection: newClassSection };
+  };
+
+  // Cancela uma dependência: apaga a nota, a matrícula e — se a turma de
+  // dependência ficou vazia — o diário e a turma também. O aluno some do
+  // diário do professor e do histórico dele, porque isso é uma matrícula
+  // desfeita, não uma reprovação a ser preservada.
+  const cancelDependencyEnrollment = async (dependencyId: string): Promise<{ ok: boolean; erro?: string }> => {
+    const dep = dependencies.find(d => d.id === dependencyId);
+    if (!dep) return { ok: false, erro: 'Dependência não encontrada.' };
+
+    const resultado = await cancelarDependencia(dep.studentId, dep.createdClassId);
+    if (!resultado.ok) {
+      return { ok: false, erro: resultado.erro || 'Não foi possível cancelar a dependência no banco.' };
+    }
+
+    // Reflete na tela o que acabou de ser apagado no banco.
+    setDependencies(prev => prev.filter(d => d.id !== dependencyId));
+    setGrades(prev => prev.filter(g => !(g.studentId === dep.studentId && g.classId === dep.createdClassId)));
+
+    // Se não sobrou mais ninguém (na tela) usando essa turma de dependência,
+    // some com ela também — senão fica uma "DEP - Disciplina" fantasma, vazia,
+    // na lista de turmas até a próxima sincronização completa.
+    const turmaAindaEmUso = dependencies.some(d => d.id !== dependencyId && d.createdClassId === dep.createdClassId);
+    if (!turmaAindaEmUso) {
+      setClasses(prev => prev.filter(c => c.id !== dep.createdClassId));
+    }
+
+    return { ok: true };
+  };
+
+  // Cria um aluno que vai fazer SÓ dependência — sem matriculá-lo em
+  // nenhuma turma regular. Existe porque a importação normal sempre exige
+  // escolher uma turma e, ao escolher, matricula o aluno em TODAS as
+  // disciplinas daquele módulo — errado pra quem só precisa de uma matéria.
+  // Depois de criado, o aluno aparece na busca da tela de Dependências
+  // igual a qualquer outro.
+  const createDependencyOnlyStudent = async (data: {
+    nome: string;
+    matricula: string;
+    cursoId?: string;
+  }): Promise<{ ok: boolean; erro?: string; studentId?: string }> => {
+    const resultadoFicha = await criarAlunoSoDependencia(data);
+    if (!resultadoFicha.ok || !resultadoFicha.alunoId) {
+      return { ok: false, erro: resultadoFicha.erro || 'Não foi possível criar a ficha do aluno.' };
+    }
+
+    const alunoId = resultadoFicha.alunoId;
+
+    // A conta de login (pra ela conseguir entrar no portal) é criada à
+    // parte. Se isso falhar (ex.: matrícula em uso por um login de outro
+    // papel), a FICHA já existe e ela já pode ser matriculada em
+    // dependência mesmo assim — só sem conseguir logar ainda. A secretaria
+    // pode gerar o acesso depois, pelo botão "Gerar acessos dos alunos".
+    const resultadoAcesso = await criarAcessoDeUmAluno(criarAcesso, data.matricula, data.nome);
+
+    // Reflete na tela: some na busca da tela de Dependências imediatamente.
+    setUsers(prev => [...prev, {
+      id: alunoId,
+      name: data.nome.trim().toUpperCase(),
+      username: data.matricula.trim(),
+      email: `${data.matricula.trim()}@aluno.oc.local`,
+      role: UserRole.STUDENT,
+      enrollment: data.matricula.trim(),
+      active: true,
+      courseId: data.cursoId,
+    }]);
+
+    if (!resultadoAcesso.ok) {
+      return {
+        ok: false,
+        erro: `Aluno criado, mas o acesso de login falhou (${resultadoAcesso.erro}). Ela já pode ser matriculada em dependência; gere o acesso depois em "Gerar acessos dos alunos".`,
+        studentId: alunoId,
+      };
+    }
+
+    return { ok: true, studentId: alunoId };
   };
 
   const addClass = (cls: ClassSection) => {
@@ -4858,14 +5238,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const transferStudent = (studentId: string, targetClassId: string) => {
+  const transferStudent = async (studentId: string, targetClassId: string): Promise<{ ok: boolean; erro?: string }> => {
     const student = users.find(u => u.id === studentId);
-    if (!student) return;
+    if (!student) return { ok: false, erro: 'Aluno não encontrado.' };
 
     const oldClassId = student.classId;
     const oldClass = classes.find(c => c.id === oldClassId);
     const targetClass = classes.find(c => c.id === targetClassId);
-    if (!targetClass) return;
+    if (!targetClass) return { ok: false, erro: 'Turma de destino não encontrada.' };
+
+    // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
+    //
+    // Esta função só mexia no estado local do navegador (turma, matrícula e
+    // notas "mudavam" só na tela) e dependia do ciclo de sincronização
+    // automático pra gravar de verdade — o mesmo problema já corrigido antes
+    // para dependência e atribuição de professor. Só que aqui havia uma
+    // função pronta (`transferirAluno`, em repositorios.ts) escrita
+    // exatamente pra isso e que nunca era chamada: o aluno mudava de turma
+    // na tela, a mensagem dizia "sucesso na nuvem", mas nada era gravado no
+    // banco se a sincronização não pegasse a tempo. O aluno sumia do diário
+    // da turma nova ao recarregar a página ou em outro dispositivo, mesmo
+    // "matriculado" segundo a tela de quem fez a transferência.
+    // Manda também o curso de destino, não só a turma.
+    //
+    // `transferirAluno` já sabia atualizar `curso_id` (recebe isso em
+    // `destino.cursoId`), mas esta chamada nunca mandava — só `turmaId`.
+    // Pra transferência dentro do MESMO curso (só mudar de turno/módulo)
+    // isso nunca fez diferença. Mas pra transferência entre cursos
+    // diferentes (o caso real: aluna saindo do Enfermagem Presencial pro
+    // Enfermagem EAD, que são dois cursos distintos no cadastro) a ficha
+    // dela ficava com a turma nova mas o curso velho — as declarações e o
+    // histórico continuavam lendo o curso errado.
+    const resultado = await transferirAluno(studentId, {
+      turmaId: targetClassId,
+      cursoId: targetClass.courseId,
+    });
+    if (!resultado.ok) {
+      return { ok: false, erro: resultado.erro || 'Não foi possível gravar a transferência no banco.' };
+    }
 
     // Get courses & subjects
     const oldSubjects = oldClass ? subjects.filter(s => s.courseId === oldClass.courseId && s.module === oldClass.module) : [];
@@ -4984,6 +5394,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // acabou de ser apagada do banco.
       setGrades(prev => prev.filter(g => !(g.studentId === studentId && g.classId === oldClassId)));
     }
+
+    return { ok: true };
   };
 
   // Security Audit Logging
@@ -5524,7 +5936,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
-      dependencies, createDependencyEnrollment,
+      dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
