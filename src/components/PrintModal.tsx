@@ -858,10 +858,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     
                     if (std) {
                       return (
-                        <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
+                        <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 `}>
                           <td className="py-0.5 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
                           <td className="py-0.5 text-center border-r border-black font-mono">{std.enrollment}</td>
-                          <td className="py-0.5 px-2 border-r border-black font-bold max-w-[120px] truncate">{std.name}{std.classId !== classId ? ' (T)' : ''}</td>
+                          <td className="py-0.5 px-2 border-r border-black font-bold max-w-[120px] truncate">{std.name}</td>
                           <td className="py-0.5 border-r border-black bg-gray-50 text-center"></td>
                           {pageCols.map((col, index) => {
                             const isAbsent = col.records[std.id] === 'F';
@@ -1001,10 +1001,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       const s2Part = grade ? getS2Evaluations(grade) : { av4: 0, av5: 0, av6: 0 };
 
                       return (
-                        <tr key={std.id} className={`h-[21px] hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
+                        <tr key={std.id} className={`h-[21px] hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 `}>
                           <td className="py-0.5 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
                           <td className="py-0.5 text-center border-r border-black font-mono">{std.enrollment}</td>
-                          <td className="py-0.5 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
+                          <td className="py-0.5 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}</td>
 
                           <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s1Part.av1.toFixed(1) : '-'}</td>
                           <td className="py-0.5 text-center border-r border-black font-mono">{grade ? s1Part.av2.toFixed(1) : '-'}</td>
@@ -1123,10 +1123,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     let totalAbsences = 0;
 
                     return (
-                      <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
+                      <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 `}>
                         <td className="py-1 text-center border-r border-black font-mono text-gray-500">{globalIdx + 1}</td>
                         <td className="py-1 text-center border-r border-black font-mono">{std.enrollment}</td>
-                        <td className="py-1 px-2 border-r border-black font-bold max-w-[130px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
+                        <td className="py-1 px-2 border-r border-black font-bold max-w-[130px] truncate">{std.name}</td>
                         {classSubjects.map(sub => {
                           // Nunca cair pra nota de outro período/turma quando falta a
                           // deste (mesma correção já aplicada no boletim individual).
@@ -1981,10 +1981,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                             const s2Part = grade ? getS2Evaluations(grade) : { av4: 0, av5: 0, av6: 0 };
                             
                             return (
-                              <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 ${std.classId !== classId ? 'opacity-75' : ''}`}>
+                              <tr key={std.id} className={`hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50 `}>
                                 <td className="py-1 text-center border-r border-black font-mono text-gray-500">{idx + 1}</td>
                                 <td className="py-1 text-center border-r border-black font-mono">{std.enrollment}</td>
-                                <td className="py-1 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}{std.classId !== classId ? ' (Transferido)' : ''}</td>
+                                <td className="py-1 px-2 border-r border-black font-bold max-w-[140px] truncate">{std.name}</td>
                                 
                                 {/* S1 Grades */}
                                 <td className="py-1 text-center border-r border-black font-mono">{grade ? s1Part.av1.toFixed(1) : '-'}</td>
