@@ -2586,7 +2586,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStudentAbsences = (studentId: string, subjectId: string, classId: string, total: number) => {
-    const key = `${classId}_${subjectId}_${studentId}`;
+    // A TURMA DA TELA NEM SEMPRE É A TURMA DO REGISTRO DE VERDADE.
+    //
+    // Isto vinha usando `classId` (a turma que está ABERTA na tela) direto,
+    // sem checar se o registro de nota da aluna REALMENTE está gravado sob
+    // essa turma. Quando os dois não batem — mesma família de problema já
+    // visto com matrícula duplicada em turma trocada — a gravação "funciona"
+    // só na aparência: o número digitado é salvo, mas embaixo de uma chave
+    // que ninguém mais lê, e o registro que o boletim e o histórico usam de
+    // verdade nunca é tocado. Abonar a falta parecia não fazer efeito nenhum.
+    //
+    // Se existir um único registro dessa aluna nessa disciplina (sem
+    // ambiguidade — não é caso de dependência repetindo a mesma matéria em
+    // duas turmas), usa a turma DELE, não a da tela.
+    const registrosDoAluno = grades.filter(g => g.studentId === studentId && g.subjectId === subjectId);
+    const classIdEfetivo = registrosDoAluno.some(g => g.classId === classId)
+      ? classId
+      : (registrosDoAluno.length === 1 ? registrosDoAluno[0].classId : classId);
+
+    const key = `${classIdEfetivo}_${subjectId}_${studentId}`;
     const limpo = Math.max(0, Math.trunc(total || 0));
     setDirectAbsences(prev => ({ ...prev, [key]: limpo }));
 
@@ -2609,7 +2627,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prev => {
       let mudou = false;
       const novo = prev.map(g => {
-        if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classId) return g;
+        if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classIdEfetivo) return g;
 
         // ESTE ERA O QUARTO CAMINHO DE REESCRITA — O QUE APAGAVA O DISPENSADO.
         //
@@ -2623,15 +2641,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // `mudou` virava true, e a dispensa era sobrescrita. Silenciosamente:
         // a secretaria marcava a dispensa, mexia na falta depois, e a dispensa
         // ia embora sem nenhum aviso.
-        //
-        // Nota importada de mapa antigo entra na mesma proteção, pelo mesmo
-        // motivo já documentado nos outros três caminhos: a conta só conhece
-        // nota e frequência, e reescrevia "F. NOTA" (aluno sem nota lançada)
-        // como "NÃO APTO", que significa outra coisa no histórico.
         if (g.result === 'DISPENSADO' || g.result === 'DESISTENTE') return g;
-        if (g.isHistoricalImport) return g;
+
+        // CORREÇÃO DE UMA CORREÇÃO ANTERIOR (mesma sessão): eu tinha colocado
+        // `if (g.isHistoricalImport) return g;` bem aqui — copiando, sem
+        // pensar direito, a proteção que existe no recálculo AUTOMÁTICO (que
+        // roda sozinho toda vez que a frequência muda em segundo plano) e em
+        // `computeCalculatedGrade`. Só que essa segunda função já documentava
+        // a distinção certa, que eu ignorei: recálculo AUTOMÁTICO em nota
+        // importada não deve mexer (não tem chamada de verdade por trás pra
+        // confiar); mas quando é a SECRETARIA digitando um novo total de
+        // faltas de propósito — abonando falta —, isso é uma ação explícita,
+        // e precisa recalcular sim, senão o abono simplesmente não faz efeito
+        // nenhum na tela. Foi exatamente isso que aconteceu: a aluna tinha
+        // nota vinda de importação antiga, a secretaria zerou a falta dela, e
+        // o resultado continuou "REP. FALTAS" porque esta função se recusava
+        // a tocar em qualquer nota marcada como importada — mesmo sendo
+        // exatamente o tipo de correção manual que essa marcação nunca teve a
+        // intenção de bloquear.
 
         const resultado = getStudentResult(g, frequencia);
+
+        // MAS SEM DEIXAR "F. NOTA" (sem nota lançada) VIRAR "NÃO APTO" À TOA.
+        //
+        // `getStudentResult` não conhece o estado "F. NOTA" — ela só sabe
+        // devolver APTO/NÃO APTO/REP. FALTAS/Pendente. Um aluno importado sem
+        // nenhuma nota lançada tem PF=0, e 0 < 60 vira "NÃO APTO" na conta,
+        // mesmo o aluno nunca tendo sido reprovado de verdade — só falta
+        // lançar a nota dele. Isso é diferente de REP. FALTAS: falta é real
+        // independente de nota, então essa parte pode e deve continuar
+        // valendo mesmo em nota importada.
+        if (g.isHistoricalImport && g.result === 'F. NOTA' && resultado === 'NÃO APTO') return g;
+
         if (resultado === g.result) return g;
         mudou = true;
         return { ...g, result: resultado };
