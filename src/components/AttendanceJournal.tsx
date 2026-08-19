@@ -887,7 +887,22 @@ export const AttendanceJournal: React.FC = () => {
                           defaultValue={absStats.total}
                           onBlur={(e) => {
                             const novoTotal = Math.max(0, Math.trunc(Number(e.target.value) || 0));
-                            if (novoTotal === absStats.total) return;
+                            // NÃO PULAR SÓ PORQUE O NÚMERO NÃO MUDOU.
+                            //
+                            // Existia um atalho aqui: "se o total digitado é
+                            // igual ao total já salvo, não faz nada" — pensado
+                            // pra evitar gravação à toa. Só que isso tem um
+                            // efeito colateral sério: se o RESULTADO ficou
+                            // preso desatualizado por algum motivo (foi
+                            // exatamente o que aconteceu com um bug que já foi
+                            // corrigido, mas o estrago que ele deixou não se
+                            // desfaz sozinho), digitar o MESMO número de novo
+                            // — a tentativa óbvia de "consertar" — não fazia
+                            // nada, porque o sistema achava que não tinha
+                            // mudado nada. `updateStudentAbsences` já sabe não
+                            // gravar de novo se o resultado calculado já bate
+                            // com o salvo (é barato chamar sempre), então não
+                            // custa nada tirar esse atalho e sempre recalcular.
                             updateStudentAbsences(stud.id, targetSubject.id, activeClassId!, novoTotal);
                           }}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
