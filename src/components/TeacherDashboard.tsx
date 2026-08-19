@@ -49,10 +49,30 @@ export const TeacherDashboard: React.FC = () => {
     return diffDays;
   };
 
-  // Parse active period
-  const [yearStr, semStr] = currentPeriod.split('/');
-  const currentYear = parseInt(yearStr) || 2026;
-  const currentSemester = parseInt(semStr) || 1;
+  // TRAVA DO PERÍODO DO PROFESSOR: sempre pelo mês, nunca pelo ajuste da secretaria.
+  //
+  // Antes, a tela do professor usava `currentPeriod` — um valor ÚNICO e
+  // GLOBAL, que a secretaria muda (por exemplo lá no Dashboard, ao trocar o
+  // "Ano Letivo" pra consultar um período antigo) e que vale pra escola
+  // inteira, sem separar "o que a secretaria está consultando agora" de "o
+  // semestre em que o professor realmente está dando aula". A secretaria
+  // mudou esse valor pra 2026/1 (provavelmente só pra consultar algo antigo)
+  // e, no instante seguinte, TODOS os professores passaram a ver 2026/1 nas
+  // próprias telas — e como os diários deles são de 2026/2, sumiram todos.
+  //
+  // A partir daqui, o professor nunca mais lê esse valor global: o período
+  // dele é sempre calculado pelo mês de hoje (ou pela data simulada, quando
+  // a secretaria está testando fechamento automático) — Janeiro a Junho é
+  // 1º semestre, Julho a Dezembro é 2º. Ninguém a mais pode mudar isso pra
+  // ele, nem sem querer.
+  const hojeOuSimulado = simulatedDate || new Date().toISOString().slice(0, 10);
+  const [anoDeHoje, mesDeHoje] = hojeOuSimulado.split('-').map(Number);
+  const currentYear = anoDeHoje || new Date().getFullYear();
+  const currentSemester = (mesDeHoje >= 1 && mesDeHoje <= 6) ? 1 : 2;
+  // Pra exibir na tela — sempre o período calculado acima, nunca o
+  // `currentPeriod` global (é exatamente essa troca que resolve o professor
+  // ver um texto de período diferente do diário que está sendo mostrado).
+  const periodoDoProfessor = `${currentYear}/${currentSemester}`;
 
   // Filter classes belonging to the active academic period and assigned to this teacher
   const activePeriodClasses = classes.filter(c => {
@@ -163,9 +183,9 @@ export const TeacherDashboard: React.FC = () => {
     setPrazosAssentados(false);
     const t = setTimeout(() => setPrazosAssentados(true), 1500);
     return () => clearTimeout(t);
-  }, [currentPeriod, s1Date, s2Date, defDate]);
+  }, [periodoDoProfessor, s1Date, s2Date, defDate]);
 
-  const assinaturaAviso = `${currentPeriod}|${activeAlerts.map(a => `${a.name}@${a.date}`).join(';')}`;
+  const assinaturaAviso = `${periodoDoProfessor}|${activeAlerts.map(a => `${a.name}@${a.date}`).join(';')}`;
   const chaveAviso = `coc_aviso_prazo_${currentUser?.id || 'anon'}_${assinaturaAviso}`;
 
   const avisoJaDispensado =
@@ -232,7 +252,7 @@ export const TeacherDashboard: React.FC = () => {
 
             <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-150/40 dark:border-red-900/30 rounded-2xl space-y-3">
               <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
-                Identificamos que existem prazos de lançamentos de diários prestes a se encerrar neste período letivo (<span className="font-bold">{currentPeriod}</span>). Por favor, certifique-se de realizar todos os lançamentos para evitar bloqueios automáticos:
+                Identificamos que existem prazos de lançamentos de diários prestes a se encerrar neste período letivo (<span className="font-bold">{periodoDoProfessor}</span>). Por favor, certifique-se de realizar todos os lançamentos para evitar bloqueios automáticos:
               </p>
               
               <div className="space-y-2">
@@ -267,7 +287,7 @@ export const TeacherDashboard: React.FC = () => {
 
         <div>
           <span className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[10px] font-black uppercase rounded-lg tracking-wider border border-blue-100 dark:border-blue-900/30">
-            Painel Docente Ativo • Período {currentPeriod}
+            Painel Docente Ativo • Período {periodoDoProfessor}
           </span>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight mt-1.5">
             Olá, {currentUser?.name || 'Professor(a)'}!
@@ -314,7 +334,7 @@ export const TeacherDashboard: React.FC = () => {
       <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
           <CalendarDays className="h-5 w-5 text-blue-700 dark:text-blue-400" />
-          <h3 className="font-extrabold text-slate-800 dark:text-white text-sm">Cronograma de Prazos do Período ({currentPeriod})</h3>
+          <h3 className="font-extrabold text-slate-800 dark:text-white text-sm">Cronograma de Prazos do Período ({periodoDoProfessor})</h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -417,7 +437,7 @@ export const TeacherDashboard: React.FC = () => {
                 </span>
               )}
             </div>
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-2.5">Conselho de Classe de {currentPeriod}</p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mt-2.5">Conselho de Classe de {periodoDoProfessor}</p>
             <p className="text-xs font-mono font-bold text-slate-850 dark:text-slate-400 mt-1 flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5 text-amber-500" />
               <span>{formatDateBR(conselhoDate)}</span>
@@ -530,7 +550,7 @@ export const TeacherDashboard: React.FC = () => {
                 </select>
               ) : (
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-bold p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-100 dark:border-amber-900/30">
-                  Nenhuma turma ou diário atribuído pelo administrador para você neste período ({currentPeriod}).
+                  Nenhuma turma ou diário atribuído pelo administrador para você neste período ({periodoDoProfessor}).
                 </p>
               )}
             </div>
