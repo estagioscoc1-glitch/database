@@ -35,7 +35,7 @@ import { motivoDaUltimaFalha } from './lib/nuvem';
 import HelperBot from './components/HelperBot';
 
 function MainAppLayout() {
-  const { currentUser, logout, notifications, isLoading, cloudBackupStatus, precisaTrocarSenha, aviso, fecharAviso } = useApp();
+  const { currentUser, logout, notifications, isLoading, cloudBackupStatus, precisaTrocarSenha, aviso, fecharAviso, usuarioAdminOriginal, voltarParaAdmin } = useApp();
 
   // Messaging center state
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
@@ -304,6 +304,30 @@ function MainAppLayout() {
 
         </div>
       </header>
+
+      {/* "VER COMO" — o admin está com os olhos (e as permissões) de outra
+          pessoa. Isto precisa ser impossível de não notar: se sumisse de
+          vista com a rolagem da página, dava pra esquecer que está "vestido"
+          e mexer em nota/diário pensando que é o próprio admin agindo. */}
+      {usuarioAdminOriginal && (
+        <div className="bg-violet-600 dark:bg-violet-800 sticky top-16 z-30 select-none no-print">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 px-6 sm:px-8 py-2.5">
+            <span className="text-white text-xs sm:text-sm font-bold flex items-center gap-2">
+              👁️ Vendo como <span className="underline underline-offset-2">{currentUser?.name}</span>
+              {currentUser?.role === UserRole.TEACHER && ' (Professor)'}
+              {currentUser?.role === UserRole.STUDENT && ' (Aluno)'}
+              — qualquer nota ou falta lançada agora fica registrada como se fosse essa pessoa.
+            </span>
+            <button
+              type="button"
+              onClick={voltarParaAdmin}
+              className="shrink-0 bg-white text-violet-700 hover:bg-violet-50 font-extrabold text-xs sm:text-sm px-4 py-1.5 rounded-full transition-all"
+            >
+              ← Voltar para {usuarioAdminOriginal.name}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Aviso de gravação pendente.
           Antes este aviso só aparecia no caso específico de cota do Firestore.
