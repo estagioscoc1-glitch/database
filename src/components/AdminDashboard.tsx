@@ -142,7 +142,7 @@ export const AdminDashboard: React.FC = () => {
     declarationConfigs, studentDocuments,
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
     unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum,
-    currentUser
+    currentUser, verComoUsuario
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
@@ -150,7 +150,9 @@ export const AdminDashboard: React.FC = () => {
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
   );
-  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas'>('cursos');
+  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo'>('cursos');
+  const [verComoSearch, setVerComoSearch] = useState('');
+  const [verComoErro, setVerComoErro] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
 
@@ -1779,6 +1781,18 @@ export const AdminDashboard: React.FC = () => {
             >
               <FolderPlus className="h-4 w-4" /> Turmas, Professores & Alunos
             </button>
+            <button
+              type="button"
+              id="subtab-ver-como"
+              onClick={() => setRegSubTab('vercomo')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'vercomo'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Users className="h-4 w-4" /> Ver Como
+            </button>
           </div>
 
           {/* SubTab Views */}
@@ -1792,6 +1806,81 @@ export const AdminDashboard: React.FC = () => {
                 setGradeWindowState('open');
               }}
             />
+          )}
+
+          {regSubTab === 'vercomo' && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4 max-w-2xl">
+              <div>
+                <h3 className="text-base font-black text-slate-800 dark:text-white">Ver Como</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Entra no sistema com os olhos (e as permissões) de um professor ou aluno específico —
+                  dá pra abrir diário, lançar nota, ver exatamente o que essa pessoa vê. Um aviso roxo fica
+                  fixo no topo da tela o tempo todo, com um botão pra voltar pra sua conta quando quiser.
+                </p>
+              </div>
+
+              {verComoErro && (
+                <div className="p-2.5 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded-xl text-xs font-bold">
+                  ⚠️ {verComoErro}
+                </div>
+              )}
+
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Nome, matrícula ou usuário do professor/aluno..."
+                  value={verComoSearch}
+                  onChange={(e) => { setVerComoSearch(e.target.value); setVerComoErro(null); }}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                />
+              </div>
+
+              {verComoSearch.trim().length >= 2 && (
+                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
+                  {users
+                    .filter(u =>
+                      (u.role === UserRole.TEACHER || u.role === UserRole.STUDENT) &&
+                      ((u.name ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
+                       (u.enrollment ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
+                       (u.username ?? '').toLowerCase().includes(verComoSearch.toLowerCase()))
+                    )
+                    .slice(0, 15)
+                    .map(u => (
+                      <div key={u.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{u.name}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {u.role === UserRole.TEACHER ? 'Professor' : 'Aluno'} · {u.enrollment || u.username}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const resultado = verComoUsuario(u.id);
+                            if (!resultado.ok) {
+                              setVerComoErro(resultado.erro || 'Erro desconhecido.');
+                              return;
+                            }
+                            setVerComoSearch('');
+                          }}
+                          className="shrink-0 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Ver como
+                        </button>
+                      </div>
+                    ))}
+                  {users.filter(u =>
+                    (u.role === UserRole.TEACHER || u.role === UserRole.STUDENT) &&
+                    ((u.name ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
+                     (u.enrollment ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
+                     (u.username ?? '').toLowerCase().includes(verComoSearch.toLowerCase()))
+                  ).length === 0 && (
+                    <p className="px-4 py-4 text-xs text-slate-400 text-center">Nenhum professor ou aluno encontrado.</p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {regSubTab === 'turmas' && (
