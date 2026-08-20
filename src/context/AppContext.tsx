@@ -141,6 +141,9 @@ interface AppContextType {
    */
   login: (usuario: string, senha: string) => Promise<boolean>;
   logout: () => void;
+  usuarioAdminOriginal: User | null;
+  verComoUsuario: (userId: string) => { ok: boolean; erro?: string };
+  voltarParaAdmin: () => void;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -667,6 +670,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     return safeJsonParse(safeLocalStorage.getItem('oc_current_user'), null);
   });
+
+  // "VER COMO" — admin/secretaria olhando o sistema com os olhos de um
+  // professor ou aluno específico, e conseguindo agir de verdade (lançar
+  // nota, abrir diário) exatamente como essa pessoa conseguiria.
+  //
+  // Guarda o admin DE VERDADE aqui enquanto ele estiver "vestindo" outra
+  // conta. `currentUser` continua sendo o único "quem está logado" que o
+  // resto do sistema já conhece — não precisou duplicar nenhuma lógica de
+  // permissão espalhada pelo código. Vazio = ninguém "vestido", é o admin
+  // mesmo usando o sistema normalmente.
+  const [usuarioAdminOriginal, setUsuarioAdminOriginal] = useState<User | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
     // O administrador de verdade vem do Supabase Auth ao entrar. Não se cria
@@ -2869,6 +2883,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setCurrentUser(null);
+    setUsuarioAdminOriginal(null);
+  };
+
+  // "VER COMO" — entra na sessão como o professor ou aluno escolhido,
+  // exatamente como se essa pessoa tivesse logado. Guarda o admin de
+  // verdade pra dar pra voltar. Restrito a Admin/Secretaria, e só pra ver
+  // como PROFESSOR ou ALUNO — não dá pra "vestir" outro admin.
+  const verComoUsuario = (userId: string): { ok: boolean; erro?: string } => {
+    if (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.STAFF) {
+      return { ok: false, erro: 'Só Admin/Secretaria pode usar "Ver como".' };
+    }
+    const alvo = users.find(u => u.id === userId);
+    if (!alvo) return { ok: false, erro: 'Usuário não encontrado.' };
+    if (alvo.role !== UserRole.TEACHER && alvo.role !== UserRole.STUDENT) {
+      return { ok: false, erro: 'Só dá pra ver como professor ou aluno.' };
+    }
+
+    // Se já estiver "vestindo" alguém, guarda o admin original mesmo assim
+    // (não troca pelo usuário que estava sendo visto) — trocar de pessoa
+    // pra pessoa sem passar pelo admin de novo.
+    const adminDeVerdade = usuarioAdminOriginal || currentUser;
+    setUsuarioAdminOriginal(adminDeVerdade);
+
+    addSecurityLog(
+      'VER_COMO_INICIO',
+      `${adminDeVerdade?.name} (${adminDeVerdade?.role}) passou a ver o sistema como ${alvo.name} (${alvo.role}).`,
+      'high'
+    );
+
+    setCurrentUser(alvo);
+    return { ok: true };
+  };
+
+  // Volta pro admin de verdade — some o "disfarce".
+  const voltarParaAdmin = () => {
+    if (!usuarioAdminOriginal) return;
+    addSecurityLog(
+      'VER_COMO_FIM',
+      `${usuarioAdminOriginal.name} voltou de ver como ${currentUser?.name} (${currentUser?.role}) para a própria conta.`,
+      'high'
+    );
+    setCurrentUser(usuarioAdminOriginal);
+    setUsuarioAdminOriginal(null);
   };
 
   const updatePassword = async (userId: string, newPass: string) => {
@@ -5973,6 +6030,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentPeriod, periods, setCurrentPeriod, addPeriod,
       wipeAllData, wipeAllStudents, loadDemoData,
       login, logout, updatePassword, recoverPassword,
+      usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
