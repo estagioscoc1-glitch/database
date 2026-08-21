@@ -165,6 +165,7 @@ interface AppContextType {
   addUser: (user: User) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  apagarPessoaPorCompleto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
   unifyDuplicateSubjects: (correctSubjectId: string, duplicateSubjectIds: string[]) => void;
   syncSubjectsWithOfficialCurriculum: () => {
@@ -3649,6 +3650,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  // APAGA A PESSOA POR COMPLETO — ficha, notas, matrícula, documentos e
+  // login. SEM VOLTA.
+  //
+  // `deleteUser` (função acima) é o botão comum: some com o acesso, mas
+  // preserva a ficha pra sempre, de propósito — proteção contra apagar sem
+  // querer o histórico de um aluno de verdade. Esta função existe pro caso
+  // oposto: aluno de TESTE, cadastro duplicado, ficha criada por engano —
+  // algo que realmente precisa sumir de vez, notas e diário junto. O banco
+  // já apaga matrícula, nota e documento sozinho em cascata assim que a
+  // ficha (`alunos`/`professores`) é apagada — não precisa fazer isso um
+  // por um aqui.
+  const apagarPessoaPorCompleto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const pessoa = users.find(u => u.id === id);
+    if (!pessoa) return { ok: false, erro: 'Pessoa não encontrada.' };
+    if (pessoa.role !== UserRole.STUDENT && pessoa.role !== UserRole.TEACHER) {
+      return { ok: false, erro: 'Só dá pra apagar por completo aluno ou professor.' };
+    }
+
+    // Login primeiro (se tiver) — se essa parte falhar, ainda não mexeu na
+    // ficha, então nada fica pela metade.
+    if (pessoa.contaId) {
+      const resLogin = await excluirContaDeLogin(pessoa.contaId);
+      if (!resLogin.ok) {
+        return { ok: false, erro: `Não apagou o acesso de login: ${resLogin.erro}` };
+      }
+    }
+
+    const resFicha = pessoa.role === UserRole.STUDENT
+      ? await excluirAluno(id)
+      : await excluirProfessor(id);
+
+    if (!resFicha.ok) {
+      return { ok: false, erro: `O login foi removido, mas a ficha não: ${resFicha.erro}` };
+    }
+
+    // Limpa da tela: usuário, notas, faltas diretas e documentos dessa pessoa.
+    setUsers(prev => prev.filter(u => u.id !== id));
+    setGrades(prev => prev.filter(g => g.studentId !== id));
+    setDirectAbsences(prev => {
+      const novo = { ...prev };
+      for (const chave of Object.keys(novo)) {
+        if (chave.endsWith(`_${id}`)) delete novo[chave];
+      }
+      return novo;
+    });
+    setStudentDocuments(prev => prev.filter(d => d.studentId !== id));
+
+    addSecurityLog(
+      'PESSOA_APAGADA_POR_COMPLETO',
+      `${pessoa.name} (${pessoa.role}, ID: ${id}) foi apagado(a) por completo — ficha, notas, matrícula, ` +
+      `documentos e login. Ação irreversível.`,
+      'high'
+    );
+    return { ok: true };
+  };
+
   const unifyDuplicateStudents = (principalId: string, duplicateIds: string[]) => {
     const principal = users.find(u => u.id === principalId);
     if (!principal) return;
@@ -6119,7 +6176,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       acessos, recarregarAcessos,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
-      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
