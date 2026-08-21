@@ -2852,8 +2852,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // ACESSOS E PRESENÇA — só professor e aluno geram registro aqui (é o
       // que a tela de Acessos e Presença do admin mostra). Se isto falhar,
       // não impede o login de ninguém — é só monitoramento.
+      //
+      // usuario.id NÃO é o id da conta de login: pra aluno e professor, ele
+      // é trocado pelo id da FICHA (`alunos.id`/`professores.id`) — é assim
+      // que o resto do sistema trabalha (ver comentário em `montarUsuario`,
+      // em supabase.ts). O id da conta de verdade, o que bate com
+      // `auth.uid()` no banco, é `contaId`. A tabela `acessos` exige esse id
+      // batendo (`usuario_id = auth.uid()`, na política de segurança) — com
+      // o id errado, toda tentativa de registrar entrada era recusada, sem
+      // erro visível em lugar nenhum: "Online agora" e o histórico ficavam
+      // vazios pra sempre, mesmo com gente usando o sistema.
       if (resultado.usuario.role === UserRole.TEACHER || resultado.usuario.role === UserRole.STUDENT) {
-        registrarEntrada(resultado.usuario.id)
+        const idDaContaDeLogin = resultado.usuario.contaId || resultado.usuario.id;
+        registrarEntrada(idDaContaDeLogin)
           .then(res => { if (res.ok && res.id) acessoAtualIdRef.current = res.id; })
           .catch(() => { /* não impede o login */ });
       }
