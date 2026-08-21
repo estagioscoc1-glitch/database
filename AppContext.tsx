@@ -38,7 +38,8 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos } from '../lib/repositorios';
+import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -141,6 +142,11 @@ interface AppContextType {
    */
   login: (usuario: string, senha: string) => Promise<boolean>;
   logout: () => void;
+  usuarioAdminOriginal: User | null;
+  verComoUsuario: (userId: string) => { ok: boolean; erro?: string };
+  voltarParaAdmin: () => void;
+  acessos: RegistroDeAcesso[];
+  recarregarAcessos: () => Promise<void>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -668,6 +674,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return safeJsonParse(safeLocalStorage.getItem('oc_current_user'), null);
   });
 
+  // "VER COMO" — admin/secretaria olhando o sistema com os olhos de um
+  // professor ou aluno específico, e conseguindo agir de verdade (lançar
+  // nota, abrir diário) exatamente como essa pessoa conseguiria.
+  //
+  // Guarda o admin DE VERDADE aqui enquanto ele estiver "vestindo" outra
+  // conta. `currentUser` continua sendo o único "quem está logado" que o
+  // resto do sistema já conhece — não precisou duplicar nenhuma lógica de
+  // permissão espalhada pelo código. Vazio = ninguém "vestido", é o admin
+  // mesmo usando o sistema normalmente.
+  const [usuarioAdminOriginal, setUsuarioAdminOriginal] = useState<User | null>(null);
+
+  // ACESSOS E PRESENÇA — quem está online agora + histórico de acesso de
+  // professores e alunos. Só a gestão enxerga isto (o próprio banco já
+  // barra qualquer outro papel de ler, mas a tela também só existe pra
+  // Admin/Secretaria).
+  const [acessos, setAcessos] = useState<RegistroDeAcesso[]>([]);
+  const acessoAtualIdRef = React.useRef<string | null>(null);
+
   const [users, setUsers] = useState<User[]>(() => {
     // O administrador de verdade vem do Supabase Auth ao entrar. Não se cria
     // mais um admin fictício aqui: ele aparecia na lista de usuários como se
@@ -1177,6 +1201,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar histórico de dependências:', err?.message || err);
+          }
+
+          try {
+            // Sem checar papel aqui antes de chamar: o próprio banco só
+            // devolve linha pra Admin/Secretaria (RLS) e recusa o resto —
+            // mesmo padrão já usado por `carregarContasDeGestao`, um pouco
+            // acima neste fluxo. `currentUser` pode ainda não estar populado
+            // neste ponto exato do carregamento inicial.
+            const acessosReais = await carregarAcessos();
+            if (acessosReais && !desmontado) setAcessos(acessosReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar acessos:', err?.message || err);
           }
 
           try {
@@ -2149,6 +2185,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser?.id, descarregarPendenciasDoDiario]);
 
+  // ACESSOS E PRESENÇA — "sinal de vida" a cada minuto.
+  //
+  // É essa marca de tempo (`ultima_atividade`) que decide quem aparece como
+  // "online agora" na tela do admin: quem deu sinal nos últimos minutos está
+  // online, quem parou de dar (aba fechada de repente, internet caiu,
+  // computador desligado sem dar tempo de clicar em "Sair") deixa de
+  // aparecer sozinho, sem precisar de nenhum aviso explícito de saída.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (currentUser.role !== UserRole.TEACHER && currentUser.role !== UserRole.STUDENT) return;
+
+    // Não trava aqui esperando `acessoAtualIdRef.current` já existir: ele é
+    // preenchido de forma assíncrona, um instante depois do login (só depois
+    // que `registrarEntrada` volta do banco). Se a checagem fosse feita
+    // aqui fora, na hora exata em que este efeito nasce, o intervalo abaixo
+    // podia nunca chegar a ser criado — o efeito só roda de novo quando
+    // `currentUser` muda, não quando o ref é preenchido depois. Por isso a
+    // checagem entra DENTRO do `bater`, a cada disparo.
+    const bater = () => {
+      if (acessoAtualIdRef.current) {
+        atualizarUltimaAtividade(acessoAtualIdRef.current).catch(() => { /* tenta de novo no próximo batimento */ });
+      }
+    };
+
+    const intervalo = setInterval(bater, 60000);
+    return () => clearInterval(intervalo);
+  }, [currentUser?.id, currentUser?.role]);
+
   // MANTÉM OS DIÁRIOS DO PROFESSOR ATUALIZADOS DURANTE A SESSÃO.
   //
   // `assignedJournals` só era montado no login (ver `montarUsuario`, em
@@ -2586,7 +2650,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateStudentAbsences = (studentId: string, subjectId: string, classId: string, total: number) => {
-    const key = `${classId}_${subjectId}_${studentId}`;
+    // A TURMA DA TELA NEM SEMPRE É A TURMA DO REGISTRO DE VERDADE.
+    //
+    // Isto vinha usando `classId` (a turma que está ABERTA na tela) direto,
+    // sem checar se o registro de nota da aluna REALMENTE está gravado sob
+    // essa turma. Quando os dois não batem — mesma família de problema já
+    // visto com matrícula duplicada em turma trocada — a gravação "funciona"
+    // só na aparência: o número digitado é salvo, mas embaixo de uma chave
+    // que ninguém mais lê, e o registro que o boletim e o histórico usam de
+    // verdade nunca é tocado. Abonar a falta parecia não fazer efeito nenhum.
+    //
+    // Se existir um único registro dessa aluna nessa disciplina (sem
+    // ambiguidade — não é caso de dependência repetindo a mesma matéria em
+    // duas turmas), usa a turma DELE, não a da tela.
+    const registrosDoAluno = grades.filter(g => g.studentId === studentId && g.subjectId === subjectId);
+    const classIdEfetivo = registrosDoAluno.some(g => g.classId === classId)
+      ? classId
+      : (registrosDoAluno.length === 1 ? registrosDoAluno[0].classId : classId);
+
+    const key = `${classIdEfetivo}_${subjectId}_${studentId}`;
     const limpo = Math.max(0, Math.trunc(total || 0));
     setDirectAbsences(prev => ({ ...prev, [key]: limpo }));
 
@@ -2609,7 +2691,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prev => {
       let mudou = false;
       const novo = prev.map(g => {
-        if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classId) return g;
+        if (g.studentId !== studentId || g.subjectId !== subjectId || g.classId !== classIdEfetivo) return g;
 
         // ESTE ERA O QUARTO CAMINHO DE REESCRITA — O QUE APAGAVA O DISPENSADO.
         //
@@ -2623,15 +2705,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // `mudou` virava true, e a dispensa era sobrescrita. Silenciosamente:
         // a secretaria marcava a dispensa, mexia na falta depois, e a dispensa
         // ia embora sem nenhum aviso.
-        //
-        // Nota importada de mapa antigo entra na mesma proteção, pelo mesmo
-        // motivo já documentado nos outros três caminhos: a conta só conhece
-        // nota e frequência, e reescrevia "F. NOTA" (aluno sem nota lançada)
-        // como "NÃO APTO", que significa outra coisa no histórico.
         if (g.result === 'DISPENSADO' || g.result === 'DESISTENTE') return g;
-        if (g.isHistoricalImport) return g;
+
+        // CORREÇÃO DE UMA CORREÇÃO ANTERIOR (mesma sessão): eu tinha colocado
+        // `if (g.isHistoricalImport) return g;` bem aqui — copiando, sem
+        // pensar direito, a proteção que existe no recálculo AUTOMÁTICO (que
+        // roda sozinho toda vez que a frequência muda em segundo plano) e em
+        // `computeCalculatedGrade`. Só que essa segunda função já documentava
+        // a distinção certa, que eu ignorei: recálculo AUTOMÁTICO em nota
+        // importada não deve mexer (não tem chamada de verdade por trás pra
+        // confiar); mas quando é a SECRETARIA digitando um novo total de
+        // faltas de propósito — abonando falta —, isso é uma ação explícita,
+        // e precisa recalcular sim, senão o abono simplesmente não faz efeito
+        // nenhum na tela. Foi exatamente isso que aconteceu: a aluna tinha
+        // nota vinda de importação antiga, a secretaria zerou a falta dela, e
+        // o resultado continuou "REP. FALTAS" porque esta função se recusava
+        // a tocar em qualquer nota marcada como importada — mesmo sendo
+        // exatamente o tipo de correção manual que essa marcação nunca teve a
+        // intenção de bloquear.
 
         const resultado = getStudentResult(g, frequencia);
+
+        // MAS SEM DEIXAR "F. NOTA" (sem nota lançada) VIRAR "NÃO APTO" À TOA.
+        //
+        // `getStudentResult` não conhece o estado "F. NOTA" — ela só sabe
+        // devolver APTO/NÃO APTO/REP. FALTAS/Pendente. Um aluno importado sem
+        // nenhuma nota lançada tem PF=0, e 0 < 60 vira "NÃO APTO" na conta,
+        // mesmo o aluno nunca tendo sido reprovado de verdade — só falta
+        // lançar a nota dele. Isso é diferente de REP. FALTAS: falta é real
+        // independente de nota, então essa parte pode e deve continuar
+        // valendo mesmo em nota importada.
+        if (g.isHistoricalImport && g.result === 'F. NOTA' && resultado === 'NÃO APTO') return g;
+
         if (resultado === g.result) return g;
         mudou = true;
         return { ...g, result: resultado };
@@ -2743,6 +2848,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : [...prev, resultado.usuario!];
       });
       addSecurityLog('LOGIN_SUCESSO', `Usuário [${sanitizedUsername}] autenticado com sucesso no portal acadêmico.`, 'low');
+
+      // ACESSOS E PRESENÇA — só professor e aluno geram registro aqui (é o
+      // que a tela de Acessos e Presença do admin mostra). Se isto falhar,
+      // não impede o login de ninguém — é só monitoramento.
+      if (resultado.usuario.role === UserRole.TEACHER || resultado.usuario.role === UserRole.STUDENT) {
+        registrarEntrada(resultado.usuario.id)
+          .then(res => { if (res.ok && res.id) acessoAtualIdRef.current = res.id; })
+          .catch(() => { /* não impede o login */ });
+      }
+
       return true;
     }
 
@@ -2783,6 +2898,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // no meio do caminho — trocando uma perda silenciosa por outra.
     const descarga = descarregarPendenciasDoDiario()
       .catch(err => console.warn('[Portal] Falha ao gravar o diário na saída:', err?.message || err));
+
+    // ACESSOS E PRESENÇA — marca a hora de saída, se este acesso tinha sido
+    // registrado (só professor/aluno registram, ver `login`).
+    if (acessoAtualIdRef.current) {
+      registrarSaida(acessoAtualIdRef.current).catch(() => { /* não impede a saída */ });
+      acessoAtualIdRef.current = null;
+    }
 
     // Envia o que estiver pendente do CRM/estágios/financeiro e desliga o espelho.
     try { enviarEspelhoAgora(); pararEspelho(); } catch { /* não impede a saída */ }
@@ -2828,6 +2950,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setCurrentUser(null);
+    setUsuarioAdminOriginal(null);
+  };
+
+  // "VER COMO" — entra na sessão como o professor ou aluno escolhido,
+  // exatamente como se essa pessoa tivesse logado. Guarda o admin de
+  // verdade pra dar pra voltar. Restrito a Admin/Secretaria, e só pra ver
+  // como PROFESSOR ou ALUNO — não dá pra "vestir" outro admin.
+  const verComoUsuario = (userId: string): { ok: boolean; erro?: string } => {
+    if (currentUser?.role !== UserRole.ADMIN && currentUser?.role !== UserRole.STAFF) {
+      return { ok: false, erro: 'Só Admin/Secretaria pode usar "Ver como".' };
+    }
+    const alvo = users.find(u => u.id === userId);
+    if (!alvo) return { ok: false, erro: 'Usuário não encontrado.' };
+    if (alvo.role !== UserRole.TEACHER && alvo.role !== UserRole.STUDENT) {
+      return { ok: false, erro: 'Só dá pra ver como professor ou aluno.' };
+    }
+
+    // Se já estiver "vestindo" alguém, guarda o admin original mesmo assim
+    // (não troca pelo usuário que estava sendo visto) — trocar de pessoa
+    // pra pessoa sem passar pelo admin de novo.
+    const adminDeVerdade = usuarioAdminOriginal || currentUser;
+    setUsuarioAdminOriginal(adminDeVerdade);
+
+    addSecurityLog(
+      'VER_COMO_INICIO',
+      `${adminDeVerdade?.name} (${adminDeVerdade?.role}) passou a ver o sistema como ${alvo.name} (${alvo.role}).`,
+      'high'
+    );
+
+    setCurrentUser(alvo);
+    return { ok: true };
+  };
+
+  // Volta pro admin de verdade — some o "disfarce".
+  const voltarParaAdmin = () => {
+    if (!usuarioAdminOriginal) return;
+    addSecurityLog(
+      'VER_COMO_FIM',
+      `${usuarioAdminOriginal.name} voltou de ver como ${currentUser?.name} (${currentUser?.role}) para a própria conta.`,
+      'high'
+    );
+    setCurrentUser(usuarioAdminOriginal);
+    setUsuarioAdminOriginal(null);
+  };
+
+  // Recarrega a lista de acessos sob demanda — usado pela tela de Acessos e
+  // Presença pra atualizar "quem está online agora" sem precisar dar F5.
+  const recarregarAcessos = async (): Promise<void> => {
+    const acessosReais = await carregarAcessos();
+    if (acessosReais) setAcessos(acessosReais);
   };
 
   const updatePassword = async (userId: string, newPass: string) => {
@@ -5932,6 +6104,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentPeriod, periods, setCurrentPeriod, addPeriod,
       wipeAllData, wipeAllStudents, loadDemoData,
       login, logout, updatePassword, recoverPassword,
+      usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
+      acessos, recarregarAcessos,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
