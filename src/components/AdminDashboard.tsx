@@ -144,7 +144,7 @@ export const AdminDashboard: React.FC = () => {
     declarationConfigs, studentDocuments,
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
     unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum,
-    currentUser, verComoUsuario, acessos, recarregarAcessos
+    currentUser, verComoUsuario, acessos, recarregarAcessos, apagarPessoaPorCompleto
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
@@ -156,6 +156,19 @@ export const AdminDashboard: React.FC = () => {
   const [verComoSearch, setVerComoSearch] = useState('');
   const [verComoErro, setVerComoErro] = useState<string | null>(null);
   const [acessosSearch, setAcessosSearch] = useState('');
+
+  // IGNORA ACENTO, MAIÚSCULA E ESPAÇO SOBRANDO NA BUSCA.
+  //
+  // "leticia" não achava "Letícia": a busca comparava texto igual,
+  // caractere por caractere, e "í" não é a mesma letra que "i" pra essa
+  // comparação. Numa escola brasileira, ninguém deveria precisar lembrar
+  // o acento certo pra achar um nome. Usado nas buscas de "Ver Como" e de
+  // "Histórico de Acessos".
+  const normalizarBusca = (texto: string) =>
+    (texto || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // tira os acentos
+      .toLowerCase()
+      .trim();
   const [acessosAtualizando, setAcessosAtualizando] = useState(false);
 
   // ACESSOS E PRESENÇA — cálculos derivados da lista crua de `acessos`.
@@ -187,12 +200,12 @@ export const AdminDashboard: React.FC = () => {
   // diferentes essa pessoa acessou (não quantas sessões — duas entradas no
   // mesmo dia contam como 1 dia), e a lista de sessões (mais recente primeiro).
   const historicoPorPessoa = React.useMemo(() => {
-    const busca = acessosSearch.trim().toLowerCase();
+    const busca = normalizarBusca(acessosSearch);
     if (busca.length < 2) return [];
 
     const porPessoa = new Map<string, { nome: string; papel: string; sessoes: RegistroDeAcesso[] }>();
     for (const a of acessos) {
-      if (!a.nome.toLowerCase().includes(busca)) continue;
+      if (!normalizarBusca(a.nome).includes(busca)) continue;
       const grupo = porPessoa.get(a.usuarioId) || { nome: a.nome, papel: a.papel, sessoes: [] as RegistroDeAcesso[] };
       grupo.sessoes.push(a);
       porPessoa.set(a.usuarioId, grupo);
@@ -593,6 +606,8 @@ export const AdminDashboard: React.FC = () => {
   // Redefinição de senha (quando alguém esquece a senha e procura a secretaria).
   const [redefinindoSenhaDe, setRedefinindoSenhaDe] = useState<string | null>(null);
   const [confirmandoExclusaoDe, setConfirmandoExclusaoDe] = useState<string | null>(null);
+  const [confirmApagarCompletoId, setConfirmApagarCompletoId] = useState<string | null>(null);
+  const [apagandoCompletoDe, setApagandoCompletoDe] = useState<string | null>(null);
 
   // Cadastro de novo administrador.
   const [novoAdminNome, setNovoAdminNome] = useState('');
@@ -2050,9 +2065,9 @@ export const AdminDashboard: React.FC = () => {
                   {users
                     .filter(u =>
                       (u.role === UserRole.TEACHER || u.role === UserRole.STUDENT) &&
-                      ((u.name ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
-                       (u.enrollment ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
-                       (u.username ?? '').toLowerCase().includes(verComoSearch.toLowerCase()))
+                      ((normalizarBusca(u.name ?? '')).includes(normalizarBusca(verComoSearch)) ||
+                       (normalizarBusca(u.enrollment ?? '')).includes(normalizarBusca(verComoSearch)) ||
+                       (normalizarBusca(u.username ?? '')).includes(normalizarBusca(verComoSearch)))
                     )
                     .slice(0, 15)
                     .map(u => (
@@ -2081,9 +2096,9 @@ export const AdminDashboard: React.FC = () => {
                     ))}
                   {users.filter(u =>
                     (u.role === UserRole.TEACHER || u.role === UserRole.STUDENT) &&
-                    ((u.name ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
-                     (u.enrollment ?? '').toLowerCase().includes(verComoSearch.toLowerCase()) ||
-                     (u.username ?? '').toLowerCase().includes(verComoSearch.toLowerCase()))
+                    ((normalizarBusca(u.name ?? '')).includes(normalizarBusca(verComoSearch)) ||
+                     (normalizarBusca(u.enrollment ?? '')).includes(normalizarBusca(verComoSearch)) ||
+                     (normalizarBusca(u.username ?? '')).includes(normalizarBusca(verComoSearch)))
                   ).length === 0 && (
                     <p className="px-4 py-4 text-xs text-slate-400 text-center">Nenhum professor ou aluno encontrado.</p>
                   )}
@@ -3146,6 +3161,62 @@ export const AdminDashboard: React.FC = () => {
                             title="Gerar um novo acesso de login para esta pessoa, mantendo tudo que já tinha"
                           >
                             {gerandoAcessoDe === u.id ? 'Gerando...' : 'Gerar Acesso'}
+                          </button>
+                          )}
+                          {/* APAGAR POR COMPLETO — ação irreversível, separada
+                              de propósito do botão comum de excluir (que só
+                              tira o login). É pra aluno/professor de TESTE,
+                              cadastro duplicado — algo que não deveria ter
+                              histórico nenhum pra preservar. Mesma trava de
+                              senha do botão comum, mas com aviso bem mais forte. */}
+                          {currentUser?.role === UserRole.ADMIN && (u.role === UserRole.STUDENT || u.role === UserRole.TEACHER) && (
+                          <button
+                            type="button"
+                            disabled={apagandoCompletoDe === u.id}
+                            onClick={async () => {
+                              const confirmandoCompleto = confirmApagarCompletoId === u.id;
+                              if (confirmandoCompleto) {
+                                const digitada = window.prompt(
+                                  `⚠️ ISTO APAGA "${u.name}" POR COMPLETO — ficha, notas, faltas, matrícula, ` +
+                                  `documentos e login. NÃO é reversível, e não é o mesmo que "excluir usuário" ` +
+                                  `(aquele preserva o histórico; este apaga tudo).\n\n` +
+                                  `Use isto só para cadastro de TESTE ou duplicado — nunca para um aluno de verdade.\n\n` +
+                                  `Digite a SUA senha de administrador para confirmar:`
+                                );
+                                if (digitada === null) {
+                                  setConfirmApagarCompletoId(null);
+                                  return;
+                                }
+                                setApagandoCompletoDe(u.id);
+                                try {
+                                  const senhaValida = await conferirSenhaAtual(digitada);
+                                  if (!senhaValida) {
+                                    mostrarAviso('Senha incorreta', 'A senha digitada não confere. Nada foi apagado.');
+                                    return;
+                                  }
+                                  const resultado = await apagarPessoaPorCompleto(u.id);
+                                  if (!resultado.ok) {
+                                    mostrarAviso(
+                                      'Não foi possível apagar',
+                                      `A senha estava certa, mas o banco recusou: ${resultado.erro || 'motivo não informado'}. Nada foi apagado.`
+                                    );
+                                  }
+                                } finally {
+                                  setApagandoCompletoDe(null);
+                                  setConfirmApagarCompletoId(null);
+                                }
+                              } else {
+                                setConfirmApagarCompletoId(u.id);
+                              }
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all disabled:opacity-40 ${
+                              confirmApagarCompletoId === u.id
+                                ? 'bg-red-700 text-white animate-pulse'
+                                : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50'
+                            }`}
+                            title="Apaga ficha, notas, matrícula, documentos e login por completo — sem volta. Só para cadastro de teste."
+                          >
+                            {apagandoCompletoDe === u.id ? 'Conferindo...' : confirmApagarCompletoId === u.id ? 'Apagar de vez?' : 'Apagar Tudo'}
                           </button>
                           )}
                         </div>
