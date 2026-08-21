@@ -957,26 +957,44 @@ export async function publicarEstrutura(dados: {
  * trazia o curso "excluído" de volta — porque, para o banco, ele nunca tinha
  * saído.
  */
+// O `.select()` no fim de cada exclusão abaixo é essencial: sem ele, uma
+// exclusão barrada pela segurança do banco volta SEM erro e com zero linhas
+// apagadas — e o portal acreditava que tinha dado certo. O que foi
+// "excluído" sumia da tela, continuava intacto no servidor, e voltava na
+// sincronização seguinte, como se a exclusão nunca tivesse acontecido.
+// Silêncio, não recusa. Só `excluirMensagem` já tinha essa proteção; as
+// outras seis exclusões (curso, disciplina, turma, conta de login, aluno,
+// professor) ficaram de fora até agora.
+
 export async function excluirCurso(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('cursos').delete().eq('id', id);
+  const { data, error } = await supabase.from('cursos').delete().eq('id', id).select('id');
   if (error) return falha('excluir curso', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar este curso — ele continua lá.' };
+  }
   return { ok: true };
 }
 
 /** Mesma lógica do curso, para quando uma disciplina é excluída pela tela. */
 export async function excluirDisciplina(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('disciplinas').delete().eq('id', id);
+  const { data, error } = await supabase.from('disciplinas').delete().eq('id', id).select('id');
   if (error) return falha('excluir disciplina', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar esta disciplina — ela continua lá.' };
+  }
   return { ok: true };
 }
 
 /** Mesma lógica do curso, para quando uma turma é excluída pela tela. */
 export async function excluirTurma(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('turmas').delete().eq('id', id);
+  const { data, error } = await supabase.from('turmas').delete().eq('id', id).select('id');
   if (error) return falha('excluir turma', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar esta turma — ela continua lá.' };
+  }
   return { ok: true };
 }
 
@@ -998,16 +1016,22 @@ export async function excluirTurma(id: string): Promise<ResultadoGravacao> {
  */
 export async function excluirContaDeLogin(usuarioId: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('usuarios').delete().eq('id', usuarioId);
+  const { data, error } = await supabase.from('usuarios').delete().eq('id', usuarioId).select('id');
   if (error) return falha('excluir conta de login', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar esta conta de login — ela continua lá.' };
+  }
   return { ok: true };
 }
 
 /** Mesma lógica do curso, para quando um aluno é excluído pela tela. */
 export async function excluirAluno(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('alunos').delete().eq('id', id);
+  const { data, error } = await supabase.from('alunos').delete().eq('id', id).select('id');
   if (error) return falha('excluir aluno', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar este aluno — ele continua lá (é por isso que ele "voltava").' };
+  }
   return { ok: true };
 }
 
@@ -1038,10 +1062,14 @@ export async function excluirMensagem(id: string): Promise<ResultadoGravacao> {
 
 export async function excluirProfessor(id: string): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { error } = await supabase.from('professores').delete().eq('id', id);
+  const { data, error } = await supabase.from('professores').delete().eq('id', id).select('id');
   if (error) return falha('excluir professor', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar este professor — ele continua lá.' };
+  }
   return { ok: true };
 }
+
 
 /**
  * Liga ou desliga o ACESSO de uma conta, pelo login.
@@ -1596,14 +1624,21 @@ export async function excluirVinculoTurmaSeVazio(alunoId: string, turmaId: strin
       return { ok: true }; // tem nota de verdade — não apaga, mantém como histórico
     }
 
-    const { error: erroDelNotas } = await supabase
-      .from('notas').delete().eq('aluno_id', alunoId).in('diario_id', diarioIds);
+    const { data: notasApagadas, error: erroDelNotas } = await supabase
+      .from('notas').delete().eq('aluno_id', alunoId).in('diario_id', diarioIds).select('id');
     if (erroDelNotas) return falha('excluir notas fantasma da turma antiga', erroDelNotas);
+    if (!notasApagadas || notasApagadas.length === 0) {
+      // Não havia notas fantasma pra apagar (ou o banco recusou) — segue
+      // pra tentar apagar a matrícula de qualquer forma, sem travar aqui.
+    }
   }
 
-  const { error: erroDelMatricula } = await supabase
-    .from('matriculas').delete().eq('aluno_id', alunoId).eq('turma_id', turmaId);
+  const { data: matriculaApagada, error: erroDelMatricula } = await supabase
+    .from('matriculas').delete().eq('aluno_id', alunoId).eq('turma_id', turmaId).select('aluno_id');
   if (erroDelMatricula) return falha('excluir matrícula da turma antiga', erroDelMatricula);
+  if (!matriculaApagada || matriculaApagada.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar a matrícula da turma antiga — ela continua lá.' };
+  }
 
   return { ok: true };
 }
