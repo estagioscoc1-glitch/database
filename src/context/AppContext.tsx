@@ -38,7 +38,8 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos } from '../lib/repositorios';
+import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
   enviarTudoQueJaExiste,
@@ -144,6 +145,8 @@ interface AppContextType {
   usuarioAdminOriginal: User | null;
   verComoUsuario: (userId: string) => { ok: boolean; erro?: string };
   voltarParaAdmin: () => void;
+  acessos: RegistroDeAcesso[];
+  recarregarAcessos: () => Promise<void>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -682,6 +685,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // mesmo usando o sistema normalmente.
   const [usuarioAdminOriginal, setUsuarioAdminOriginal] = useState<User | null>(null);
 
+  // ACESSOS E PRESENÇA — quem está online agora + histórico de acesso de
+  // professores e alunos. Só a gestão enxerga isto (o próprio banco já
+  // barra qualquer outro papel de ler, mas a tela também só existe pra
+  // Admin/Secretaria).
+  const [acessos, setAcessos] = useState<RegistroDeAcesso[]>([]);
+  const acessoAtualIdRef = React.useRef<string | null>(null);
+
   const [users, setUsers] = useState<User[]>(() => {
     // O administrador de verdade vem do Supabase Auth ao entrar. Não se cria
     // mais um admin fictício aqui: ele aparecia na lista de usuários como se
@@ -1191,6 +1201,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar histórico de dependências:', err?.message || err);
+          }
+
+          try {
+            // Sem checar papel aqui antes de chamar: o próprio banco só
+            // devolve linha pra Admin/Secretaria (RLS) e recusa o resto —
+            // mesmo padrão já usado por `carregarContasDeGestao`, um pouco
+            // acima neste fluxo. `currentUser` pode ainda não estar populado
+            // neste ponto exato do carregamento inicial.
+            const acessosReais = await carregarAcessos();
+            if (acessosReais && !desmontado) setAcessos(acessosReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar acessos:', err?.message || err);
           }
 
           try {
@@ -2163,6 +2185,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser?.id, descarregarPendenciasDoDiario]);
 
+  // ACESSOS E PRESENÇA — "sinal de vida" a cada minuto.
+  //
+  // É essa marca de tempo (`ultima_atividade`) que decide quem aparece como
+  // "online agora" na tela do admin: quem deu sinal nos últimos minutos está
+  // online, quem parou de dar (aba fechada de repente, internet caiu,
+  // computador desligado sem dar tempo de clicar em "Sair") deixa de
+  // aparecer sozinho, sem precisar de nenhum aviso explícito de saída.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (currentUser.role !== UserRole.TEACHER && currentUser.role !== UserRole.STUDENT) return;
+
+    // Não trava aqui esperando `acessoAtualIdRef.current` já existir: ele é
+    // preenchido de forma assíncrona, um instante depois do login (só depois
+    // que `registrarEntrada` volta do banco). Se a checagem fosse feita
+    // aqui fora, na hora exata em que este efeito nasce, o intervalo abaixo
+    // podia nunca chegar a ser criado — o efeito só roda de novo quando
+    // `currentUser` muda, não quando o ref é preenchido depois. Por isso a
+    // checagem entra DENTRO do `bater`, a cada disparo.
+    const bater = () => {
+      if (acessoAtualIdRef.current) {
+        atualizarUltimaAtividade(acessoAtualIdRef.current).catch(() => { /* tenta de novo no próximo batimento */ });
+      }
+    };
+
+    const intervalo = setInterval(bater, 60000);
+    return () => clearInterval(intervalo);
+  }, [currentUser?.id, currentUser?.role]);
+
   // MANTÉM OS DIÁRIOS DO PROFESSOR ATUALIZADOS DURANTE A SESSÃO.
   //
   // `assignedJournals` só era montado no login (ver `montarUsuario`, em
@@ -2798,6 +2848,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : [...prev, resultado.usuario!];
       });
       addSecurityLog('LOGIN_SUCESSO', `Usuário [${sanitizedUsername}] autenticado com sucesso no portal acadêmico.`, 'low');
+
+      // ACESSOS E PRESENÇA — só professor e aluno geram registro aqui (é o
+      // que a tela de Acessos e Presença do admin mostra). Se isto falhar,
+      // não impede o login de ninguém — é só monitoramento.
+      if (resultado.usuario.role === UserRole.TEACHER || resultado.usuario.role === UserRole.STUDENT) {
+        registrarEntrada(resultado.usuario.id)
+          .then(res => { if (res.ok && res.id) acessoAtualIdRef.current = res.id; })
+          .catch(() => { /* não impede o login */ });
+      }
+
       return true;
     }
 
@@ -2838,6 +2898,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // no meio do caminho — trocando uma perda silenciosa por outra.
     const descarga = descarregarPendenciasDoDiario()
       .catch(err => console.warn('[Portal] Falha ao gravar o diário na saída:', err?.message || err));
+
+    // ACESSOS E PRESENÇA — marca a hora de saída, se este acesso tinha sido
+    // registrado (só professor/aluno registram, ver `login`).
+    if (acessoAtualIdRef.current) {
+      registrarSaida(acessoAtualIdRef.current).catch(() => { /* não impede a saída */ });
+      acessoAtualIdRef.current = null;
+    }
 
     // Envia o que estiver pendente do CRM/estágios/financeiro e desliga o espelho.
     try { enviarEspelhoAgora(); pararEspelho(); } catch { /* não impede a saída */ }
@@ -2926,6 +2993,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     setCurrentUser(usuarioAdminOriginal);
     setUsuarioAdminOriginal(null);
+  };
+
+  // Recarrega a lista de acessos sob demanda — usado pela tela de Acessos e
+  // Presença pra atualizar "quem está online agora" sem precisar dar F5.
+  const recarregarAcessos = async (): Promise<void> => {
+    const acessosReais = await carregarAcessos();
+    if (acessosReais) setAcessos(acessosReais);
   };
 
   const updatePassword = async (userId: string, newPass: string) => {
@@ -6031,6 +6105,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, wipeAllStudents, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
+      acessos, recarregarAcessos,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
