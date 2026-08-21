@@ -254,6 +254,89 @@ export async function carregarContasDeGestao(): Promise<
   }));
 }
 
+/* ------------------------------------------------------------ acessos (online + histórico) */
+
+/**
+ * Registra a ENTRADA de um professor ou aluno — chamado uma vez, no login.
+ * Devolve o id do registro, pra depois atualizar "última atividade" e "saiu em".
+ */
+export async function registrarEntrada(usuarioId: string): Promise<{ ok: boolean; id?: string; erro?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const id = `acesso_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const agora = new Date().toISOString();
+  const { error } = await supabase.from('acessos').insert({
+    id, usuario_id: usuarioId, entrou_em: agora, ultima_atividade: agora,
+  });
+  if (error) return { ok: false, erro: error.message };
+  return { ok: true, id };
+}
+
+/**
+ * "Dá sinal de vida" — chamado a cada minuto enquanto a pessoa está com a
+ * aba aberta. É essa marca de tempo que decide quem está "online agora":
+ * quem deu sinal nos últimos minutos está online, quem não dá mais há um
+ * tempo, não está (mesmo sem ter clicado em "Sair" — aba fechada de
+ * repente, computador desligado, internet caiu).
+ */
+export async function atualizarUltimaAtividade(acessoId: string): Promise<{ ok: boolean; erro?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase
+    .from('acessos')
+    .update({ ultima_atividade: new Date().toISOString() })
+    .eq('id', acessoId);
+  if (error) return { ok: false, erro: error.message };
+  return { ok: true };
+}
+
+/** Registra a SAÍDA — chamado no logout e ao fechar a aba. */
+export async function registrarSaida(acessoId: string): Promise<{ ok: boolean; erro?: string }> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { error } = await supabase
+    .from('acessos')
+    .update({ saiu_em: new Date().toISOString() })
+    .eq('id', acessoId);
+  if (error) return { ok: false, erro: error.message };
+  return { ok: true };
+}
+
+export interface RegistroDeAcesso {
+  id: string;
+  usuarioId: string;
+  nome: string;
+  papel: string;
+  entrouEm: string;
+  ultimaAtividade: string;
+  saiuEm: string | null;
+}
+
+/**
+ * Carrega o histórico de acessos de professores e alunos — só funciona pra
+ * quem é gestão (Admin/Secretaria); o RLS já barra qualquer outro papel
+ * antes mesmo de chegar aqui.
+ */
+export async function carregarAcessos(): Promise<RegistroDeAcesso[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase
+    .from('acessos')
+    .select('id, usuario_id, entrou_em, ultima_atividade, saiu_em, usuarios ( nome, papel )')
+    .order('entrou_em', { ascending: false })
+    .limit(2000);
+
+  if (error) {
+    console.warn('[Banco] Falha ao carregar acessos:', error.message);
+    return null;
+  }
+  return (data ?? []).map((a: any) => ({
+    id: a.id,
+    usuarioId: a.usuario_id,
+    nome: a.usuarios?.nome || '',
+    papel: a.usuarios?.papel || '',
+    entrouEm: a.entrou_em,
+    ultimaAtividade: a.ultima_atividade,
+    saiuEm: a.saiu_em,
+  }));
+}
+
 /* ------------------------------------------------------------ estágio */
 
 export interface EstagioGravado {
