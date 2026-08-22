@@ -51,7 +51,9 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     securityLogs,
     calendarEvents,
     declarationConfigs,
-    messages
+    messages,
+    diariosDoSistema,
+    simulatedDate
   } = useApp();
 
   // Real-time Clock
@@ -443,19 +445,54 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // quando não havia nenhuma).
   const smartAlerts = useMemo(() => {
     const pendingDocsCount = studentDocuments.filter(d => d.status === 'PENDENTE').length;
-    // "Turmas Sem Diário Criado" chegou a usar `!c.code` como sinal — mas
-    // `code` é só o codinome/sigla da turma (ex: "ENF-M1-MAT"), não tem
-    // nenhuma relação com o diário ter sido aberto ou não. Isso fazia o
-    // alerta contar turma com nome incompleto como se fosse turma sem
-    // diário, e vice-versa. O sistema não guarda "diário criado" em lugar
-    // nenhum do estado local hoje, então, como os outros contadores abaixo,
-    // fica em 0 (alerta escondido) até existir um dado real pra isso.
-    const classesWithoutJournal = 0;
-    // "Diários pendentes de fechamento" e "estágios vencendo em 30 dias"
-    // ficam em 0: o sistema não guarda data de vencimento do estágio nem um
-    // indicador confiável de diário pendente ainda, então mostrar um
-    // número aqui seria chute, não dado real.
-    const pendingJournalsCount = 0;
+
+    // "TURMAS SEM DIÁRIO CRIADO" — agora com dado real.
+    //
+    // Chegou a usar `!c.code` como sinal — mas `code` é só o codinome/sigla
+    // da turma (ex: "ENF-M1-MAT"), não tem nenhuma relação com o diário ter
+    // sido aberto ou não. `diariosDoSistema` (carregado direto da tabela
+    // `diarios`) é a fonte de verdade: uma turma "tem diário" se pelo menos
+    // uma disciplina dela já tiver uma linha ali. Só entram turmas ativas
+    // (não fechadas em definitivo) — turma de período já encerrado não
+    // precisa mais de diário novo.
+    const turmasComDiario = new Set(diariosDoSistema.map(d => d.classId));
+    const classesWithoutJournal = classes.filter(
+      c => !c.closedDefinitive && !turmasComDiario.has(c.id)
+    ).length;
+
+    // "DIÁRIOS PENDENTES DE FECHAMENTO" — agora com dado real.
+    //
+    // Definição: diário que JÁ EXISTE (turma+disciplina com linha em
+    // `diarios`), o prazo de fechamento do semestre dela já passou (usa a
+    // mesma data de fechamento configurada no calendário que tranca o
+    // lançamento de nota pro professor), e ainda tem aluno com nota
+    // "Pendente" nessa disciplina — ou seja, o professor não lançou tudo
+    // antes do prazo. Turma sem prazo de fechamento configurado no
+    // calendário não entra na conta (não tem como saber se está atrasado
+    // sem saber quando vencia).
+    const hoje = simulatedDate || new Date().toISOString().slice(0, 10);
+    const dataFechamentoS1 = calendarEvents.find(e => e.type === 'CLOSING_S1')?.date || '';
+    const dataFechamentoS2 = calendarEvents.find(e => e.type === 'CLOSING_S2')?.date || '';
+    const diariosComPendencia = new Set<string>();
+    for (const d of diariosDoSistema) {
+      const turma = classes.find(c => c.id === d.classId);
+      if (!turma) continue;
+      const prazoDoSemestre = turma.semester === 2 ? dataFechamentoS2 : dataFechamentoS1;
+      if (!prazoDoSemestre || hoje < prazoDoSemestre) continue; // prazo não configurado ou ainda não venceu
+      const temNotaPendente = grades.some(
+        g => g.classId === d.classId && g.subjectId === d.subjectId && g.result === 'Pendente'
+      );
+      if (temNotaPendente) diariosComPendencia.add(`${d.classId}_${d.subjectId}`);
+    }
+    const pendingJournalsCount = diariosComPendencia.size;
+
+    // "ESTÁGIOS VENCENDO EM 30 DIAS" continua em 0 — de propósito.
+    //
+    // O cadastro de estágio (`InternshipRecord`) não guarda nenhuma data de
+    // término. Não tem como calcular "vence em 30 dias" sem esse dado
+    // existir em algum lugar — mostrar um número aqui seria inventado, não
+    // um cálculo real. Precisaria adicionar um campo de data de término ao
+    // cadastro de estágio pra este alerta funcionar de verdade.
     const expiringInternships = 0;
 
     return [
@@ -516,7 +553,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         actionText: 'Expedir Diplomas'
       }
     ].filter(alert => alert.count > 0);
-  }, [financialMetrics, studentDocuments, classes, internships, dependencyCount, diplomasRequested]);
+  }, [financialMetrics, studentDocuments, classes, internships, dependencyCount, diplomasRequested, diariosDoSistema, grades, calendarEvents, simulatedDate]);
 
   // Today's Agenda / Events — eventos reais do calendário acadêmico do dia
   // de hoje. Se não houver nenhum evento cadastrado pra hoje, a lista fica

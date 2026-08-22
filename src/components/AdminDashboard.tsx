@@ -419,6 +419,8 @@ export const AdminDashboard: React.FC = () => {
 
   // User editing state
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserSalvando, setEditUserSalvando] = useState(false);
+  const [editUserErro, setEditUserErro] = useState<string | null>(null);
   const [editUserName, setEditUserName] = useState('');
   const [editUserUsername, setEditUserUsername] = useState('');
   const [editUserEmail, setEditUserEmail] = useState('');
@@ -2926,17 +2928,24 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
+                          {editUserErro && (
+                            <div className="p-2 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 rounded-lg text-[10px] font-bold">
+                              ⚠️ {editUserErro}
+                            </div>
+                          )}
+
                           <div className="flex justify-end gap-1.5 pt-1">
                             <button
                               type="button"
-                              onClick={() => setEditingUserId(null)}
+                              onClick={() => { setEditingUserId(null); setEditUserErro(null); }}
                               className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-[10px] font-bold rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer"
                             >
                               Cancelar
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
+                              disabled={editUserSalvando}
+                              onClick={async () => {
                                 const userUpdates: any = {
                                   name: editUserName,
                                   email: editUserEmail,
@@ -2948,12 +2957,27 @@ export const AdminDashboard: React.FC = () => {
                                 if (editUserPassword.trim()) {
                                   userUpdates.password = editUserPassword.trim();
                                 }
-                                updateUser(u.id, userUpdates);
-                                setEditingUserId(null);
+                                // ESPERA O BANCO CONFIRMAR ANTES DE FECHAR A TELA.
+                                //
+                                // Antes, clicar em Salvar fechava a tela na hora,
+                                // sem saber se a gravação realmente aconteceu —
+                                // `updateUser` só mexia no navegador. Agora ela
+                                // grava direto no banco primeiro; aqui só falta
+                                // esperar o resultado antes de fechar, e mostrar
+                                // o erro em vez de fingir que deu certo.
+                                setEditUserSalvando(true);
+                                setEditUserErro(null);
+                                const resultado = await updateUser(u.id, userUpdates);
+                                setEditUserSalvando(false);
+                                if (resultado.ok) {
+                                  setEditingUserId(null);
+                                } else {
+                                  setEditUserErro(resultado.erro || 'Não foi possível salvar. Nada foi alterado.');
+                                }
                               }}
-                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm cursor-pointer"
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm cursor-pointer disabled:opacity-50"
                             >
-                              Salvar
+                              {editUserSalvando ? 'Salvando...' : 'Salvar'}
                             </button>
                           </div>
                         </div>
@@ -3071,6 +3095,7 @@ export const AdminDashboard: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setEditingUserId(u.id);
+                              setEditUserErro(null);
                               setEditUserName(u.name);
                               setEditUserEmail(u.email);
                               setEditUserUsername(u.username);
