@@ -290,6 +290,9 @@ export const GradeJournal: React.FC = () => {
                 <th className="py-3 px-2 text-center w-[80px] bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 font-black">Final PF</th>
                 <th className="py-3 px-2 text-center w-[60px] font-bold">Conc</th>
                 <th className="py-3 px-3 text-right w-[100px] font-bold">Resultado</th>
+                {currentUser?.role === 'ADMIN' && (
+                  <th className="py-3 px-2 text-center w-[50px] font-bold" title="Aparece no Histórico e Boletim do aluno?">Visível</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
@@ -633,6 +636,36 @@ export const GradeJournal: React.FC = () => {
                         </span>
                       )}
                     </td>
+
+                    {/* Visível no Histórico/Boletim — controle da secretaria.
+                        Não apaga nada: só decide se ESTA disciplina aparece
+                        no documento oficial do aluno. Útil pra matrícula
+                        duplicada (ex: presencial e EAD ao mesmo tempo), onde
+                        uma das duas é sobra e não devia sair no boletim. */}
+                    {currentUser?.role === 'ADMIN' && (
+                      <td className="py-2.5 px-2 text-center">
+                        <button
+                          type="button"
+                          title={grade.hiddenFromHistory
+                            ? 'Oculta no Histórico e Boletim — clique para voltar a mostrar'
+                            : 'Aparece no Histórico e Boletim — clique para ocultar'}
+                          onClick={() => {
+                            updateGrade(grade.id, {
+                              hiddenFromHistory: !grade.hiddenFromHistory,
+                              studentId: stud.id, classId: targetClass.id, subjectId: targetSubject.id,
+                            });
+                            setSaveStatus('unsaved');
+                          }}
+                          className={`text-sm transition-all cursor-pointer ${
+                            grade.hiddenFromHistory
+                              ? 'opacity-40 hover:opacity-70 grayscale'
+                              : 'opacity-90 hover:opacity-100'
+                          }`}
+                        >
+                          {grade.hiddenFromHistory ? '🙈' : '👁️'}
+                        </button>
+                      </td>
+                    )}
                         </>
                       );
                     })()}

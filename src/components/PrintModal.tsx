@@ -1609,6 +1609,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           // no OUTRO — sem nenhum aviso. Sem essa nota do período certo,
                           // o correto é mostrar "Pendente", não adivinhar.
                           const score = grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true));
+                          // Marcada pra ocultar: a linha some — não vira
+                          // "Pendente" (que pareceria lançamento faltando).
+                          if (score?.hiddenFromHistory) return null;
                           const absences = getStudentAbsences(targetStudent.id, sub.id);
                           return (
                             <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
@@ -1636,7 +1639,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
                 {/* HISTÓRICO ACADÊMICO COMPLETO */}
                 {documentType === 'historico_completo' && targetStudent && (() => {
-                  const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
+                  const studentGradesTodas = grades.filter(g => g.studentId === targetStudent.id);
+                  // Só as VISÍVEIS decidem quais turmas aparecem no histórico —
+                  // uma turma com todas as disciplinas marcadas "ocultar" (ex:
+                  // matrícula duplicada, sobra de presencial/EAD) some do
+                  // histórico inteira, não fica um bloco vazio.
+                  const studentGrades = studentGradesTodas.filter(g => !g.hiddenFromHistory);
                   const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
                   // GARANTE QUE A MATRÍCULA ATUAL APAREÇA, MESMO SEM NENHUMA
                   // NOTA LANÇADA AINDA.
@@ -1662,7 +1670,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   return (
                     <div className="space-y-6">
                       {studentClasses.map(cls => {
-                        const classGrades = studentGrades.filter(g => g.classId === cls.id);
+                        const classGrades = studentGradesTodas.filter(g => g.classId === cls.id);
                         // SEM ISTO, UMA TURMA DE DEPENDÊNCIA MOSTRAVA TODAS AS
                         // DISCIPLINAS DO MÓDULO NO HISTÓRICO — não só a
                         // disciplina que o aluno realmente está cursando em
@@ -1719,6 +1727,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                               <tbody className="divide-y divide-black font-medium text-[8.5px]">
                                 {clsSubjects.map(sub => {
                                   const score = classGrades.find(g => g.subjectId === sub.id);
+                                  // Marcada pra ocultar: a linha simplesmente não
+                                  // aparece — não vira "Pendente" (que pareceria
+                                  // um lançamento faltando, e não é isso).
+                                  if (score?.hiddenFromHistory) return null;
                                   const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
                                   return (
                                     <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
