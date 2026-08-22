@@ -192,6 +192,12 @@ export interface GradeRecord {
   // do Histórico Escolar Completo e do Boletim — sem apagar o dado, só sem
   // mostrar no documento. Padrão (undefined/false) = aparece normalmente.
   hiddenFromHistory?: boolean;
+  // Controle fino, campo por campo (ex: só o AFC, só o S1) — diferente de
+  // `hiddenFromHistory` (que esconde a linha/disciplina inteira). Lista com
+  // os nomes dos campos que devem aparecer em branco no Histórico e
+  // Boletim, mesmo a nota tendo valor lançado. Valores possíveis: 's1',
+  // 's2', 'afc', 'extra', 'conselho', 'pf', 'concept'.
+  hiddenFields?: string[];
 }
 
 export interface AttendanceSession {
