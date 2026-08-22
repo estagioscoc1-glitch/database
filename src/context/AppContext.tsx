@@ -174,6 +174,7 @@ interface AppContextType {
     unified: { original: string; kept: string; keptId: string; deletedId: string }[];
   };
   updateGrade: (id: string, updates: Partial<GradeRecord>) => void;
+  ocultarTurmaNoHistorico: (classId: string, ocultar: boolean) => number;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
   // Attendance
@@ -4337,6 +4338,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // OCULTAR/MOSTRAR UMA TURMA INTEIRA NO HISTÓRICO E BOLETIM, DE UMA VEZ SÓ.
+  //
+  // O botão de olho por disciplina (dentro de `updateGrade`) já existia,
+  // mas exigia abrir cada disciplina da turma, achar cada aluno, um por um
+  // — impraticável pra esconder uma turma inteira que foi criada por
+  // engano (o caso real: matrícula duplicada presencial/EAD). Esta função
+  // faz de uma vez: TODOS os alunos, TODAS as disciplinas daquela turma.
+  //
+  // Não mexe em nota nem apaga nada — só liga/desliga a mesma marcação
+  // `hiddenFromHistory` que o botão de olho já usa, em massa. Reversível a
+  // qualquer momento com o mesmo botão.
+  const ocultarTurmaNoHistorico = (classId: string, ocultar: boolean): number => {
+    const quantos = grades.filter(g => g.classId === classId).length;
+    setGrades(prev => prev.map(g => g.classId === classId ? { ...g, hiddenFromHistory: ocultar } : g));
+    return quantos;
+  };
+
   const updateConceptRanges = (ranges: ConceptRange[]) => {
     setConceptRanges(ranges);
   };
@@ -6218,7 +6236,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       acessos, recarregarAcessos, diariosDoSistema,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
-      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
