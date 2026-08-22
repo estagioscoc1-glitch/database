@@ -188,6 +188,10 @@ export interface GradeRecord {
   concept: string; // A, B, C, D, etc.
   result: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' | 'DISPENSADO' | 'DESISTENTE';
   isHistoricalImport?: boolean;
+  // Controle da secretaria: quando true, esta disciplina/nota fica de fora
+  // do Histórico Escolar Completo e do Boletim — sem apagar o dado, só sem
+  // mostrar no documento. Padrão (undefined/false) = aparece normalmente.
+  hiddenFromHistory?: boolean;
 }
 
 export interface AttendanceSession {
