@@ -2624,6 +2624,77 @@ export async function carregarEstrutura(): Promise<{
  * a "lista bonita" pra mostrar na tela é que nunca foi lida de lá. Esta
  * função lê exatamente dessa fonte confiável.
  */
+/**
+ * Atualiza nome e/ou e-mail de um aluno ou professor — direto no banco, nas
+ * DUAS tabelas onde esse dado mora.
+ *
+ * POR QUE ISTO PRECISOU EXISTIR
+ *
+ * A tela de editar aluno/professor só atualizava o estado local do
+ * navegador (`setUsers`) — nunca escrevia no banco. Editar o nome ou
+ * corrigir um e-mail "funcionava" só na aparência: mudava na tela de quem
+ * editou, e sumia assim que a página fosse recarregada ou aberta em outro
+ * computador, porque nunca tinha sido salvo de verdade.
+ *
+ * Tem um detalhe a mais aqui que as outras correções não tinham: nome e
+ * e-mail existem em DUAS tabelas separadas — a ficha (`alunos`/
+ * `professores`, o que o boletim e o histórico usam) e a conta de login
+ * (`usuarios`, o que aparece pro próprio aluno/professor quando ele entra).
+ * As duas precisam ser atualizadas juntas, senão a ficha mostra um nome e a
+ * conta de login mostra outro.
+ */
+export async function atualizarDadosPessoa(params: {
+  id: string;
+  papel: 'ALUNO' | 'PROFESSOR';
+  contaId?: string;
+  nome?: string;
+  email?: string;
+}): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { id, papel, contaId, nome, email } = params;
+
+  const mudancasFicha: Record<string, string> = {};
+  if (nome !== undefined) mudancasFicha.nome = nome;
+  if (email !== undefined) mudancasFicha.email = email;
+
+  if (Object.keys(mudancasFicha).length > 0) {
+    const tabela = papel === 'ALUNO' ? 'alunos' : 'professores';
+    const { data, error } = await supabase.from(tabela).update(mudancasFicha).eq('id', id).select('id');
+    if (error) return falha(`atualizar dados do(a) ${papel === 'ALUNO' ? 'aluno' : 'professor'}`, error);
+    if (!data || data.length === 0) {
+      return { ok: false, erro: 'O banco não autorizou esta alteração — a ficha continua com o dado antigo.' };
+    }
+  }
+
+  // A conta de login (se existir) recebe a mesma mudança, pra não ficar
+  // com nome/e-mail diferente do que está na ficha.
+  if (contaId && Object.keys(mudancasFicha).length > 0) {
+    const { error: erroConta } = await supabase.from('usuarios').update(mudancasFicha).eq('id', contaId);
+    if (erroConta) {
+      return { ok: false, erro: `A ficha foi atualizada, mas a conta de login não: ${erroConta.message}` };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Carrega a lista de todos os diários existentes (turma + disciplina) —
+ * usado só pelo Dashboard, pra saber de verdade quais turmas ainda não
+ * têm nenhum diário criado, em vez de adivinhar por outro campo (foi
+ * assim que o alerta "Turmas Sem Diário Criado" nasceu errado da primeira
+ * vez: usava o codinome da turma como se fosse sinal de diário).
+ */
+export async function carregarTodosOsDiarios(): Promise<{ classId: string; subjectId: string }[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('diarios').select('turma_id, disciplina_id');
+  if (error) {
+    console.warn('[Banco] Falha ao carregar diários do sistema:', error.message);
+    return null;
+  }
+  return (data ?? []).map((d: any) => ({ classId: d.turma_id, subjectId: d.disciplina_id }));
+}
+
 export async function carregarDependencias(): Promise<DependencyEnrollment[] | null> {
   if (!supabaseConfigurado) return null;
 
