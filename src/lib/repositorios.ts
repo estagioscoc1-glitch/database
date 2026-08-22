@@ -1574,6 +1574,7 @@ export async function salvarNota(
       conceito: texto(nota.concept),
       resultado: paraResultadoBanco(nota.result),
       importado: !!nota.isHistoricalImport,
+      oculto_no_historico: !!nota.hiddenFromHistory,
     },
     { onConflict: 'diario_id,aluno_id' }   // <- a chave que garante 1 nota por aluno/diário
   );
@@ -2761,6 +2762,7 @@ export async function carregarNotas(): Promise<GradeRecord[] | null> {
     concept: n.conceito ?? '',
     result: paraResultadoApp(n.resultado),
     isHistoricalImport: n.importado ?? false,
+    hiddenFromHistory: n.oculto_no_historico ?? false,
   }));
 }
 
