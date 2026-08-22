@@ -11,7 +11,7 @@ import { motion } from 'motion/react';
 
 export const GradeJournal: React.FC = () => {
   const { 
-    grades, updateGrade, users, classes, subjects, 
+    grades, updateGrade, ocultarTurmaNoHistorico, mostrarAviso, users, classes, subjects, 
     activeClassId, activeSubjectId, currentUser, toggleJournalStatus,
     getStudentAbsences, isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
     autoLockEnabled, simulatedDate, calendarEvents
@@ -151,6 +151,42 @@ export const GradeJournal: React.FC = () => {
                 Geral {targetClass.closedDefinitive ? '🔒' : '🔓'}
               </button>
             </div>
+          )}
+
+          {/* OCULTAR/MOSTRAR A TURMA INTEIRA NO HISTÓRICO E BOLETIM — todos os
+              alunos, todas as disciplinas, de uma vez. Pra matrícula duplicada
+              (ex: presencial e EAD ao mesmo tempo), sem precisar abrir
+              disciplina por disciplina, aluno por aluno. */}
+          {currentUser?.role === 'ADMIN' && (
+            <button
+              type="button"
+              title="Oculta ou mostra TODOS os alunos, em TODAS as disciplinas desta turma, no Histórico e Boletim — de uma vez. Não apaga nenhuma nota."
+              onClick={() => {
+                const jaTemOculta = grades.some(g => g.classId === targetClass.id && g.hiddenFromHistory);
+                const acao = jaTemOculta ? 'mostrar de novo' : 'ocultar';
+                const confirmou = window.confirm(
+                  `Isto vai ${acao.toUpperCase()} TODOS os alunos, em TODAS as disciplinas da turma "${targetClass.name}", ` +
+                  `no Histórico Escolar e no Boletim.\n\n` +
+                  `Nenhuma nota é apagada — só decide se aparece ou não nos documentos.\n\n` +
+                  `Confirma?`
+                );
+                if (!confirmou) return;
+                const quantos = ocultarTurmaNoHistorico(targetClass.id, !jaTemOculta);
+                mostrarAviso(
+                  jaTemOculta ? 'Turma visível de novo' : 'Turma ocultada',
+                  `${quantos} lançamento(s) de nota da turma "${targetClass.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Boletim.`
+                );
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 font-bold rounded-xl text-xs transition-all border ${
+                grades.some(g => g.classId === targetClass.id && g.hiddenFromHistory)
+                  ? 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {grades.some(g => g.classId === targetClass.id && g.hiddenFromHistory)
+                ? '🙈 Turma Oculta — Clique p/ Mostrar'
+                : '👁️ Ocultar Turma Inteira'}
+            </button>
           )}
 
           {/* SAVE BUTTON */}
