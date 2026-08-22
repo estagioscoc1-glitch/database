@@ -38,7 +38,7 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -147,6 +147,7 @@ interface AppContextType {
   voltarParaAdmin: () => void;
   acessos: RegistroDeAcesso[];
   recarregarAcessos: () => Promise<void>;
+  diariosDoSistema: { classId: string; subjectId: string }[];
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -163,7 +164,7 @@ interface AppContextType {
   updateSubject: (id: string, updates: Partial<Subject>) => void;
   deleteSubject: (id: string) => void;
   addUser: (user: User) => void;
-  updateUser: (id: string, updates: Partial<User>) => void;
+  updateUser: (id: string, updates: Partial<User>) => Promise<{ ok: boolean; erro?: string }>;
   deleteUser: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   apagarPessoaPorCompleto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
@@ -691,6 +692,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // barra qualquer outro papel de ler, mas a tela também só existe pra
   // Admin/Secretaria).
   const [acessos, setAcessos] = useState<RegistroDeAcesso[]>([]);
+
+  // Lista real de diários existentes (turma+disciplina) — só pra saber, no
+  // Dashboard, quais turmas realmente não têm diário criado.
+  const [diariosDoSistema, setDiariosDoSistema] = useState<{ classId: string; subjectId: string }[]>([]);
   const acessoAtualIdRef = React.useRef<string | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
@@ -1214,6 +1219,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (acessosReais && !desmontado) setAcessos(acessosReais);
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar acessos:', err?.message || err);
+          }
+
+          try {
+            const diariosReais = await carregarTodosOsDiarios();
+            if (diariosReais && !desmontado) setDiariosDoSistema(diariosReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar diários do sistema:', err?.message || err);
           }
 
           try {
@@ -3583,21 +3595,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(prev => [...prev, uppercaseUser]);
   };
 
-  const updateUser = (id: string, updates: Partial<User>) => {
+  const updateUser = (id: string, updates: Partial<User>): Promise<{ ok: boolean; erro?: string }> => {
     const uppercaseUpdates = { ...updates };
     if (uppercaseUpdates.name) uppercaseUpdates.name = uppercaseUpdates.name.toUpperCase();
     if (uppercaseUpdates.email) uppercaseUpdates.email = uppercaseUpdates.email.toUpperCase();
     if (uppercaseUpdates.cpf) uppercaseUpdates.cpf = uppercaseUpdates.cpf.toUpperCase();
     if (uppercaseUpdates.enrollment) uppercaseUpdates.enrollment = uppercaseUpdates.enrollment.toUpperCase();
-    setUsers(prev => {
-      const updatedList = prev.map(u => u.id === id ? { ...u, ...uppercaseUpdates } : u);
-      if (currentUser && currentUser.id === id) {
-        const foundUser = updatedList.find(u => u.id === id);
-        if (foundUser) {
-          setCurrentUser(foundUser);
+
+    const pessoa = users.find(u => u.id === id);
+    const precisaGravarNoBanco =
+      pessoa && (pessoa.role === UserRole.STUDENT || pessoa.role === UserRole.TEACHER) &&
+      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined);
+
+    // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
+    //
+    // Esta função só mexia no estado local do navegador: editar nome ou
+    // e-mail de aluno/professor "funcionava" só na aparência, nunca
+    // chegava ao banco de verdade, e sumia ao recarregar a página — o
+    // mesmo problema já corrigido antes para dependência, transferência e
+    // cancelamento. Continua devolvendo uma Promise mesmo pra quem chama
+    // sem dar `await` (não quebra nada que já existia), mas quem quiser
+    // saber se realmente gravou agora pode conferir o resultado.
+    const gravacao: Promise<{ ok: boolean; erro?: string }> = precisaGravarNoBanco
+      ? atualizarDadosPessoa({
+          id,
+          papel: pessoa!.role === UserRole.STUDENT ? 'ALUNO' : 'PROFESSOR',
+          contaId: pessoa!.contaId,
+          nome: uppercaseUpdates.name,
+          email: uppercaseUpdates.email,
+        })
+      : Promise.resolve({ ok: true });
+
+    return gravacao.then(resultado => {
+      if (!resultado.ok) return resultado;
+
+      setUsers(prev => {
+        const updatedList = prev.map(u => u.id === id ? { ...u, ...uppercaseUpdates } : u);
+        if (currentUser && currentUser.id === id) {
+          const foundUser = updatedList.find(u => u.id === id);
+          if (foundUser) {
+            setCurrentUser(foundUser);
+          }
         }
-      }
-      return updatedList;
+        return updatedList;
+      });
+      return resultado;
     });
   };
 
@@ -6173,7 +6215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, wipeAllStudents, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
-      acessos, recarregarAcessos,
+      acessos, recarregarAcessos, diariosDoSistema,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
