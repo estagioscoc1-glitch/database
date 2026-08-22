@@ -175,6 +175,9 @@ interface AppContextType {
   };
   updateGrade: (id: string, updates: Partial<GradeRecord>) => void;
   ocultarTurmaNoHistorico: (classId: string, ocultar: boolean) => number;
+  ocultarDisciplinaNoHistorico: (classId: string, subjectId: string, ocultar: boolean) => number;
+  alternarCampoOculto: (gradeId: string, campo: string) => void;
+  ocultarCampoParaTodos: (classId: string, subjectId: string, campo: string, ocultar: boolean) => number;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
   // Attendance
@@ -4355,6 +4358,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return quantos;
   };
 
+  // OCULTAR/MOSTRAR UMA DISCIPLINA INTEIRA (todos os alunos da turma,
+  // só naquela matéria) — o meio-termo entre "1 nota" (o olho de cada
+  // linha) e "a turma inteira" (a função acima). Não mexe nas outras
+  // disciplinas da mesma turma.
+  const ocultarDisciplinaNoHistorico = (classId: string, subjectId: string, ocultar: boolean): number => {
+    const quantos = grades.filter(g => g.classId === classId && g.subjectId === subjectId).length;
+    setGrades(prev => prev.map(g =>
+      (g.classId === classId && g.subjectId === subjectId) ? { ...g, hiddenFromHistory: ocultar } : g
+    ));
+    return quantos;
+  };
+
+  // CONTROLE FINO: ESCONDER SÓ UM CAMPO (S1, S2, AFC...), NÃO A NOTA INTEIRA.
+  //
+  // `hiddenFromHistory` e `ocultarDisciplinaNoHistorico`/`ocultarTurmaNoHistorico`
+  // escondem a LINHA inteira. Isto aqui é mais fino: esconde só um campo
+  // específico (ex: só o AFC), deixando o resto da nota (S1, S2, PF,
+  // Resultado...) aparecendo normal. Cobre os três casos pedidos:
+  //   - 1 aluno: chama `alternarCampoOculto` só naquele registro.
+  //   - alguns alunos: chama a mesma função em cada um dos escolhidos.
+  //   - todos os alunos: usa `ocultarCampoParaTodos`.
+  const alternarCampoOculto = (gradeId: string, campo: string) => {
+    setGrades(prev => prev.map(g => {
+      if (g.id !== gradeId) return g;
+      const atuais = g.hiddenFields ?? [];
+      const jaEsconde = atuais.includes(campo);
+      return {
+        ...g,
+        hiddenFields: jaEsconde ? atuais.filter(c => c !== campo) : [...atuais, campo],
+      };
+    }));
+  };
+
+  const ocultarCampoParaTodos = (classId: string, subjectId: string, campo: string, ocultar: boolean): number => {
+    const alvo = grades.filter(g => g.classId === classId && g.subjectId === subjectId);
+    const quantos = alvo.length;
+    setGrades(prev => prev.map(g => {
+      if (g.classId !== classId || g.subjectId !== subjectId) return g;
+      const atuais = g.hiddenFields ?? [];
+      const semEsseCampo = atuais.filter(c => c !== campo);
+      return { ...g, hiddenFields: ocultar ? [...semEsseCampo, campo] : semEsseCampo };
+    }));
+    return quantos;
+  };
+
   const updateConceptRanges = (ranges: ConceptRange[]) => {
     setConceptRanges(ranges);
   };
@@ -6236,7 +6284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       acessos, recarregarAcessos, diariosDoSistema,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
-      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, updateConceptRanges,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
