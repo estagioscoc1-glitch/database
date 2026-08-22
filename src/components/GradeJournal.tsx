@@ -11,13 +11,16 @@ import { motion } from 'motion/react';
 
 export const GradeJournal: React.FC = () => {
   const { 
-    grades, updateGrade, ocultarTurmaNoHistorico, mostrarAviso, users, classes, subjects, 
+    grades, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, mostrarAviso, users, classes, subjects, 
     activeClassId, activeSubjectId, currentUser, toggleJournalStatus,
     getStudentAbsences, isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
     autoLockEnabled, simulatedDate, calendarEvents
   } = useApp();
 
   const [printDoc, setPrintDoc] = useState<any | null>(null);
+  const [painelCampoAberto, setPainelCampoAberto] = useState(false);
+  const [campoEscolhido, setCampoEscolhido] = useState('afc');
+  const [alunosEscolhidos, setAlunosEscolhidos] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ gradeId: string, field: string } | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved'>('idle');
@@ -153,6 +156,58 @@ export const GradeJournal: React.FC = () => {
             </div>
           )}
 
+          {/* OCULTAR/MOSTRAR SÓ ESTA DISCIPLINA (todos os alunos da turma,
+              só nesta matéria) — meio-termo entre o olho de cada linha (1
+              aluno, 1 nota) e "Ocultar Turma Inteira" (tudo). Não mexe nas
+              outras disciplinas desta mesma turma. */}
+          {currentUser?.role === 'ADMIN' && (
+            <button
+              type="button"
+              title={`Oculta ou mostra TODOS os alunos, só na disciplina "${targetSubject.name}", no Histórico e Boletim — sem mexer nas outras disciplinas desta turma.`}
+              onClick={() => {
+                const jaTemOculta = grades.some(g => g.classId === targetClass.id && g.subjectId === targetSubject.id && g.hiddenFromHistory);
+                const acao = jaTemOculta ? 'mostrar de novo' : 'ocultar';
+                const confirmou = window.confirm(
+                  `Isto vai ${acao.toUpperCase()} TODOS os alunos na disciplina "${targetSubject.name}" ` +
+                  `(só nesta disciplina, as outras da turma "${targetClass.name}" não mudam), ` +
+                  `no Histórico Escolar e no Boletim.\n\n` +
+                  `Nenhuma nota é apagada — só decide se aparece ou não nos documentos.\n\n` +
+                  `Confirma?`
+                );
+                if (!confirmou) return;
+                const quantos = ocultarDisciplinaNoHistorico(targetClass.id, targetSubject.id, !jaTemOculta);
+                mostrarAviso(
+                  jaTemOculta ? 'Disciplina visível de novo' : 'Disciplina ocultada',
+                  `${quantos} lançamento(s) de "${targetSubject.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Boletim.`
+                );
+              }}
+              className={`flex items-center gap-1.5 px-3 py-2 font-bold rounded-xl text-xs transition-all border ${
+                grades.some(g => g.classId === targetClass.id && g.subjectId === targetSubject.id && g.hiddenFromHistory)
+                  ? 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {grades.some(g => g.classId === targetClass.id && g.subjectId === targetSubject.id && g.hiddenFromHistory)
+                ? '🙈 Disciplina Oculta — Mostrar'
+                : '👁️ Ocultar Disciplina'}
+            </button>
+          )}
+
+          {/* OCULTAR SÓ UM CAMPO (S1, S2, AFC...) — pra 1 aluno, alguns, ou
+              todos. Abre um painel à parte porque não dá pra encaixar um
+              controle em cada casinha da tabela sem bagunçar o lançamento
+              de nota, que já é bem denso. */}
+          {currentUser?.role === 'ADMIN' && (
+            <button
+              type="button"
+              title="Esconder um campo específico da nota (ex: só o AFC) — pode ser de um aluno, de alguns, ou de todos."
+              onClick={() => setPainelCampoAberto(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 font-bold rounded-xl text-xs transition-all border bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50"
+            >
+              🎯 Ocultar Campo Específico
+            </button>
+          )}
+
           {/* OCULTAR/MOSTRAR A TURMA INTEIRA NO HISTÓRICO E BOLETIM — todos os
               alunos, todas as disciplinas, de uma vez. Pra matrícula duplicada
               (ex: presencial e EAD ao mesmo tempo), sem precisar abrir
@@ -244,6 +299,128 @@ export const GradeJournal: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* PAINEL: OCULTAR CAMPO ESPECÍFICO — abre/fecha com o botão 🎯 acima. */}
+      {painelCampoAberto && currentUser?.role === 'ADMIN' && (
+        <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-black text-indigo-800 dark:text-indigo-300">Ocultar um campo específico da nota</h4>
+            <button type="button" onClick={() => setPainelCampoAberto(false)} className="text-[10px] font-bold text-slate-500 hover:underline">Fechar</button>
+          </div>
+          <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+            Esconde só o campo escolhido no Histórico e Boletim (ex: só o AFC) — o resto da nota continua aparecendo normal. Não apaga nada.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Campo:</label>
+            <select
+              value={campoEscolhido}
+              onChange={(e) => setCampoEscolhido(e.target.value)}
+              className="px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold outline-none"
+            >
+              <option value="s1">S1</option>
+              <option value="s2">S2</option>
+              <option value="afc">AFC</option>
+              <option value="extra">EX</option>
+              <option value="conselho">CS</option>
+              <option value="pf">PF (Final)</option>
+              <option value="concept">Conceito</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                const confirmou = window.confirm(
+                  `Isto vai esconder o campo "${campoEscolhido.toUpperCase()}" de TODOS os alunos desta disciplina no Histórico e Boletim.\n\nConfirma?`
+                );
+                if (!confirmou) return;
+                const quantos = ocultarCampoParaTodos(targetClass.id, targetSubject.id, campoEscolhido, true);
+                mostrarAviso('Campo ocultado', `Campo "${campoEscolhido.toUpperCase()}" ocultado em ${quantos} aluno(s).`);
+              }}
+              className="ml-auto px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all"
+            >
+              Ocultar de TODOS os alunos
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const quantos = ocultarCampoParaTodos(targetClass.id, targetSubject.id, campoEscolhido, false);
+                mostrarAviso('Campo visível de novo', `Campo "${campoEscolhido.toUpperCase()}" voltou a aparecer em ${quantos} aluno(s).`);
+              }}
+              className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-bold transition-all"
+            >
+              Mostrar de TODOS
+            </button>
+          </div>
+
+          <div className="border-t border-indigo-200/60 dark:border-indigo-900/40 pt-3">
+            <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-2">
+              Ou escolha 1 aluno / alguns alunos específicos:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto mb-2">
+              {classStudents.map(stud => {
+                const marcado = alunosEscolhidos.has(stud.id);
+                return (
+                  <label key={stud.id} className="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() => {
+                        setAlunosEscolhidos(prev => {
+                          const novo = new Set(prev);
+                          if (novo.has(stud.id)) novo.delete(stud.id); else novo.add(stud.id);
+                          return novo;
+                        });
+                      }}
+                    />
+                    <span className="truncate">{stud.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={alunosEscolhidos.size === 0}
+                onClick={() => {
+                  let quantos = 0;
+                  alunosEscolhidos.forEach(studentId => {
+                    const g = journalGrades.find(gr => gr.studentId === studentId);
+                    if (g && !(g.hiddenFields ?? []).includes(campoEscolhido)) {
+                      alternarCampoOculto(g.id, campoEscolhido);
+                      quantos++;
+                    }
+                  });
+                  mostrarAviso('Campo ocultado', `Campo "${campoEscolhido.toUpperCase()}" ocultado em ${quantos} aluno(s) selecionado(s).`);
+                  setAlunosEscolhidos(new Set());
+                }}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-all disabled:opacity-40"
+              >
+                Ocultar dos Selecionados
+              </button>
+              <button
+                type="button"
+                disabled={alunosEscolhidos.size === 0}
+                onClick={() => {
+                  let quantos = 0;
+                  alunosEscolhidos.forEach(studentId => {
+                    const g = journalGrades.find(gr => gr.studentId === studentId);
+                    if (g && (g.hiddenFields ?? []).includes(campoEscolhido)) {
+                      alternarCampoOculto(g.id, campoEscolhido);
+                      quantos++;
+                    }
+                  });
+                  mostrarAviso('Campo visível de novo', `Campo "${campoEscolhido.toUpperCase()}" voltou a aparecer em ${quantos} aluno(s) selecionado(s).`);
+                  setAlunosEscolhidos(new Set());
+                }}
+                className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[11px] font-bold transition-all disabled:opacity-40"
+              >
+                Mostrar dos Selecionados
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save status alerts */}
       {saveStatus === 'unsaved' && (

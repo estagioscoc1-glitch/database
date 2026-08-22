@@ -1613,17 +1613,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           // "Pendente" (que pareceria lançamento faltando).
                           if (score?.hiddenFromHistory) return null;
                           const absences = getStudentAbsences(targetStudent.id, sub.id);
+                          // Campo escondido (ex: só o AFC) aparece em branco
+                          // ("-"), sem esconder o resto da linha.
+                          const oc = score?.hiddenFields ?? [];
                           return (
                             <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
                               <td className="py-1.5 px-2 border-r border-black font-bold">{sub.name}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score ? score.s1.toFixed(1) : '0.0'}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score ? score.s2.toFixed(1) : '0.0'}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.afc ? score.afc.toFixed(1) : '0.0'}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-black font-mono bg-gray-50">{score ? score.pf.toFixed(1) : '0.0'}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score && !oc.includes('s1') ? score.s1.toFixed(1) : (oc.includes('s1') ? '-' : '0.0')}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score && !oc.includes('s2') ? score.s2.toFixed(1) : (oc.includes('s2') ? '-' : '0.0')}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.afc && !oc.includes('afc') ? score.afc.toFixed(1) : (oc.includes('afc') ? '-' : '0.0')}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.extra !== null && score?.extra !== undefined && !oc.includes('extra') ? score.extra.toFixed(1) : '-'}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined && !oc.includes('conselho') ? score.conselho.toFixed(1) : '-'}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-black font-mono bg-gray-50">{score && !oc.includes('pf') ? score.pf.toFixed(1) : (oc.includes('pf') ? '-' : '0.0')}</td>
                               <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{absences.total}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score ? score.concept : 'D'}</td>
+                              <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>
                               <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${
                                 score?.result?.includes('APTO') ? 'text-emerald-700' : score?.result === 'DISPENSADO' ? 'text-purple-700' : score?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'
                               }`}>
@@ -1732,17 +1735,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                   // um lançamento faltando, e não é isso).
                                   if (score?.hiddenFromHistory) return null;
                                   const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
+                                  // Campo escondido (ex: só o AFC) aparece em
+                                  // branco ("-"), sem esconder o resto da linha.
+                                  const oc = score?.hiddenFields ?? [];
                                   return (
                                     <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
                                       <td className="py-1 px-1.5 border-r border-black font-bold leading-tight break-words" title={sub.name}>{sub.name}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s1.toFixed(1) : '0.0'}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s2.toFixed(1) : '0.0'}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.afc ? score.afc.toFixed(1) : '0.0'}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-black font-mono bg-gray-50">{score ? score.pf.toFixed(1) : '0.0'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score && !oc.includes('s1') ? score.s1.toFixed(1) : (oc.includes('s1') ? '-' : '0.0')}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score && !oc.includes('s2') ? score.s2.toFixed(1) : (oc.includes('s2') ? '-' : '0.0')}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.afc && !oc.includes('afc') ? score.afc.toFixed(1) : (oc.includes('afc') ? '-' : '0.0')}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.extra !== null && score?.extra !== undefined && !oc.includes('extra') ? score.extra.toFixed(1) : '-'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined && !oc.includes('conselho') ? score.conselho.toFixed(1) : '-'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-black font-mono bg-gray-50">{score && !oc.includes('pf') ? score.pf.toFixed(1) : (oc.includes('pf') ? '-' : '0.0')}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{absences.total}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-black">{score ? score.concept : 'D'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>
                                       <td className={`py-1 px-1.5 text-right border-r border-black font-black text-[8.5px] ${
                                         score?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                       }`}>
