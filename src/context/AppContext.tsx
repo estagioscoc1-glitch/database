@@ -9,7 +9,7 @@ import {
   AttendanceSession, ConceptRange, AcademicCalendarEvent, Message, 
   AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs,
   InternshipRecord, StaffMember, StaffPermissions, DependencyEnrollment,
-  CalendarEventType
+  CalendarEventType, Prova, QuestaoProva
 } from '../types';
 import { 
   initialCourses, initialConceptRanges, initialUsers, 
@@ -38,7 +38,7 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -148,6 +148,10 @@ interface AppContextType {
   acessos: RegistroDeAcesso[];
   recarregarAcessos: () => Promise<void>;
   diariosDoSistema: { classId: string; subjectId: string }[];
+  provas: Prova[];
+  criarProva: (professorId: string) => Prova;
+  salvarProvaContexto: (prova: Prova) => Promise<{ ok: boolean; erro?: string }>;
+  excluirProvaContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -700,6 +704,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Lista real de diários existentes (turma+disciplina) — só pra saber, no
   // Dashboard, quais turmas realmente não têm diário criado.
   const [diariosDoSistema, setDiariosDoSistema] = useState<{ classId: string; subjectId: string }[]>([]);
+
+  // Provas criadas pelos professores (o RLS já filtra: cada um só recebe
+  // as próprias, gestão recebe todas).
+  const [provas, setProvas] = useState<Prova[]>([]);
   const acessoAtualIdRef = React.useRef<string | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
@@ -1230,6 +1238,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (diariosReais && !desmontado) setDiariosDoSistema(diariosReais);
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar diários do sistema:', err?.message || err);
+          }
+
+          try {
+            const provasReais = await carregarProvas();
+            if (provasReais && !desmontado) setProvas(provasReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar provas:', err?.message || err);
           }
 
           try {
@@ -3028,6 +3043,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const recarregarAcessos = async (): Promise<void> => {
     const acessosReais = await carregarAcessos();
     if (acessosReais) setAcessos(acessosReais);
+  };
+
+  /* ------------------------------------------------------------ criador de provas */
+
+  const criarProva = (professorId: string): Prova => {
+    const agora = new Date().toISOString();
+    const nova: Prova = {
+      id: `prova_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      professorId,
+      titulo: 'Avaliação',
+      layout: 'normal',
+      questoes: [],
+      status: 'rascunho',
+      criadoEm: agora,
+      atualizadoEm: agora,
+    };
+    setProvas(prev => [nova, ...prev]);
+    return nova;
+  };
+
+  // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA. Mesmo
+  // padrão de sempre: se o professor fechar a aba um segundo depois de
+  // criar/editar a prova, ela já está salva de verdade, não só na tela dele.
+  const salvarProvaContexto = async (prova: Prova): Promise<{ ok: boolean; erro?: string }> => {
+    const atualizada = { ...prova, atualizadoEm: new Date().toISOString() };
+    const resultado = await salvarProva(atualizada);
+    if (!resultado.ok) return resultado;
+
+    setProvas(prev => {
+      const existe = prev.some(p => p.id === atualizada.id);
+      return existe ? prev.map(p => p.id === atualizada.id ? atualizada : p) : [atualizada, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const excluirProvaContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirProva(id);
+    if (!resultado.ok) return resultado;
+    setProvas(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
   };
 
   const updatePassword = async (userId: string, newPass: string) => {
@@ -6282,6 +6337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       login, logout, updatePassword, recoverPassword,
       usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
       acessos, recarregarAcessos, diariosDoSistema,
+      provas, criarProva, salvarProvaContexto, excluirProvaContexto,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, updateConceptRanges,
