@@ -273,6 +273,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Pending Documents states
   const [selectedDocStudentId, setSelectedDocStudentId] = useState<string | null>(null);
+  const [salvandoSexoDe, setSalvandoSexoDe] = useState<string | null>(null);
   const [docSearchQuery, setDocSearchQuery] = useState('');
 
   const findSimilarStudents = (studentId: string) => {
@@ -3944,7 +3945,7 @@ export const AdminDashboard: React.FC = () => {
                     .map(std => {
                       const cl = classes.find(c => c.id === std.classId);
                       const targetCourse = courses.find(co => co.id === cl?.courseId);
-                      const requiredDocs = getRequiredDocsForStudent(targetCourse?.name);
+                      const requiredDocs = getRequiredDocsForStudent(targetCourse?.name, std.sexo);
                       const docs = studentDocuments.filter(d => d.studentId === std.id);
                       const total = requiredDocs.length;
                       const delivered = docs.filter(d => d.status === 'ENTREGUE').length;
@@ -6544,7 +6545,7 @@ export const AdminDashboard: React.FC = () => {
         if (!student) return null;
         const cl = classes.find(c => c.id === student.classId);
         const course = courses.find(co => co.id === cl?.courseId);
-        const requiredDocs = getRequiredDocsForStudent(course?.name);
+        const requiredDocs = getRequiredDocsForStudent(course?.name, student.sexo);
         const docs = studentDocuments.filter(d => d.studentId === selectedDocStudentId);
 
         return (
@@ -6566,6 +6567,41 @@ export const AdminDashboard: React.FC = () => {
                 >
                   <X className="h-4 w-4" />
                 </button>
+              </div>
+
+              {/* SEXO DO ALUNO — decide se "Certificado de Reservista" entra
+                  na lista de documentos obrigatórios dele (só pra homem).
+                  Grava direto na ficha do aluno; a lista de documentos
+                  abaixo já reage na hora, sem precisar fechar e reabrir. */}
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-150 dark:border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Sexo do aluno:</span>
+                {([['M', 'Homem'], ['F', 'Mulher']] as const).map(([valor, rotulo]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    disabled={salvandoSexoDe === student.id}
+                    onClick={async () => {
+                      setSalvandoSexoDe(student.id);
+                      const resultado = await updateUser(student.id, { sexo: valor });
+                      setSalvandoSexoDe(null);
+                      if (!resultado.ok) {
+                        mostrarAviso('Não foi possível salvar', resultado.erro || 'O banco recusou a alteração.');
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-all disabled:opacity-50 ${
+                      (student.sexo || '').toUpperCase().startsWith(valor)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+                {!student.sexo && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold ml-1">
+                    ⚠️ não definido — Certificado de Reservista aparecendo por padrão
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
