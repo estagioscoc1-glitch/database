@@ -301,6 +301,8 @@ export function getRequiredDocsForStudent(courseName?: string, sexo?: string): s
     'Certidão de Nascimento, Casamento ou Averbação',
     'Diploma do Ensino Médio',
     'Histórico do Ensino Médio',
+    'Foto 3x4',
+    'Comprovante de Endereço',
   ];
 
   // Certificado de reservista: obrigatório para o sexo masculino.
@@ -3664,7 +3666,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pessoa = users.find(u => u.id === id);
     const precisaGravarNoBanco =
       pessoa && (pessoa.role === UserRole.STUDENT || pessoa.role === UserRole.TEACHER) &&
-      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined);
+      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined || uppercaseUpdates.sexo !== undefined);
 
     // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
     //
@@ -3682,6 +3684,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           contaId: pessoa!.contaId,
           nome: uppercaseUpdates.name,
           email: uppercaseUpdates.email,
+          sexo: uppercaseUpdates.sexo,
         })
       : Promise.resolve({ ok: true });
 
