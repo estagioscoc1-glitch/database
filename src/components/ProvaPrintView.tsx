@@ -174,6 +174,30 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
                       {q.pontuacao ? <span style={{ fontWeight: 400, fontStyle: 'italic' }}> ({q.pontuacao.toFixed(1)} pts)</span> : null}
                     </p>
 
+                    {q.imagem && (
+                      <img
+                        src={q.imagem.dataUrl} alt=""
+                        style={{ width: `${q.imagem.larguraPercentual}%`, maxWidth: '100%', display: 'block', margin: '4px 0 8px 14px' }}
+                      />
+                    )}
+
+                    {q.tabela && (
+                      <table style={{
+                        width: `${q.tabela.larguraPercentual}%`, maxWidth: '100%', borderCollapse: 'collapse',
+                        margin: '4px 0 8px 14px', fontSize: '10px',
+                      }}>
+                        <tbody>
+                          {q.tabela.linhas.map((linha, li) => (
+                            <tr key={li}>
+                              {linha.map((celula, ci) => (
+                                <td key={ci} style={{ border: '1px solid #666', padding: '3px 6px' }}>{celula}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
                     {q.tipo === 'multipla_escolha' ? (
                       <div style={{ paddingLeft: '14px' }}>
                         {(q.alternativas || []).map((alt, altIdx) => (
