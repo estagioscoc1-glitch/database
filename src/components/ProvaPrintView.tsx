@@ -94,18 +94,22 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
         {/* Área de pré-visualização / impressão */}
         <div className="print-preview-area-prova overflow-y-auto flex-1 bg-slate-200 dark:bg-slate-950 p-6">
           <div className="mx-auto bg-white shadow-lg" style={{ width: '21cm', minHeight: '29.7cm' }}>
-            <div className="prova-folha" style={{ padding: '1.1cm 1.3cm', fontFamily: "'Times New Roman', Times, serif", color: '#000' }}>
+            <div className="prova-folha" style={{
+              padding: '1.1cm 1.3cm', fontFamily: "'Times New Roman', Times, serif", color: '#000',
+              height: '29.7cm', boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
+            }}>
+              <div>
 
               {/* ===== CABEÇALHO OFICIAL ===== */}
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
                 <tbody>
                   <tr>
-                    <td style={{ border: 'none', width: '90px', verticalAlign: 'middle' }}>
-                      <img src={LOGO_COC_PRINCIPAL} alt="Colégio Oswaldo Cruz" style={{ width: '85px' }} />
+                    <td style={{ border: 'none', width: '115px', verticalAlign: 'middle' }}>
+                      <img src={LOGO_COC_PRINCIPAL} alt="Colégio Oswaldo Cruz" style={{ width: '110px' }} />
                     </td>
                     <td style={{ border: 'none', textAlign: 'center', verticalAlign: 'middle' }}>
                       <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '0.3px', margin: 0 }}>
-                        {prova.titulo.toUpperCase()}
+                        {prova.titulo}
                       </h1>
                     </td>
                     <td style={{ border: 'none', width: '70px', verticalAlign: 'middle', textAlign: 'right' }}>
@@ -133,13 +137,18 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
                     <td style={{ border: '1px solid black', padding: '4px 7px', fontWeight: 700, width: '14%' }}>
                       Turno: <span style={{ fontWeight: 400 }}>{prova.turno || ''}</span>
                     </td>
-                    <td rowSpan={2} style={{ border: '1px solid black', padding: '4px 7px', fontWeight: 700, width: '10%', textAlign: 'center', verticalAlign: 'middle' }}>
+                    {/* "Nota" fica no TOPO da caixinha (verticalAlign: top), não no
+                        meio — no meio não sobrava espaço nenhum pro professor
+                        escrever a nota embaixo da palavra. */}
+                    <td rowSpan={2} style={{ border: '1px solid black', padding: '4px 7px', fontWeight: 700, width: '10%', textAlign: 'center', verticalAlign: 'top' }}>
                       Nota
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} style={{ border: '1px solid black', padding: '4px 7px', fontWeight: 700 }}>
-                      Aluno (a): <span style={{ fontWeight: 400 }}>{'_'.repeat(70)}</span>
+                    {/* Sem linha de assinatura embaixo do nome — só a
+                        caixinha da própria tabela já delimita onde escrever. */}
+                    <td colSpan={5} style={{ border: '1px solid black', padding: '4px 7px', fontWeight: 700, height: '22px' }}>
+                      Aluno (a):
                     </td>
                   </tr>
                 </tbody>
@@ -183,15 +192,22 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
                 ))}
               </div>
 
+              </div>
+
+              {/* FRASE MOTIVACIONAL — sempre no rodapé da folha, "grudada" no
+                  fim da página graças ao marginTop: 'auto' dentro da coluna
+                  flex acima (a folha inteira tem altura fixa de uma página).
+                  Alinhamento escolhido pelo professor ao montar a prova. */}
               {prova.fraseMotivacional && (
                 <p style={{
-                  marginTop: '18px', fontSize: '10.5px', fontStyle: 'italic',
-                  textAlign: 'center', color: '#333',
+                  marginTop: 'auto', paddingTop: '18px', fontSize: '11pt', fontStyle: 'italic',
+                  textAlign: prova.fraseMotivacionalAlinhamento || 'center', color: '#333',
                 }}>
                   “{prova.fraseMotivacional}”
                 </p>
               )}
             </div>
+
 
             {/* ===== FOLHA DE GABARITO (opcional, só pro professor) ===== */}
             {incluirGabarito && (

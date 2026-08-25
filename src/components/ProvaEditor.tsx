@@ -376,6 +376,25 @@ const ProvaFormulario: React.FC<{
               placeholder='Ex: "O sucesso é a soma de pequenos esforços repetidos todos os dias."'
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
             />
+            {/* Alinhamento — só faz sentido escolher se tiver frase digitada.
+                Aparece sempre no rodapé da prova impressa, não mais junto das
+                questões. */}
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Alinhamento no rodapé:</span>
+              {(['left', 'center', 'right'] as const).map(opcao => (
+                <button
+                  key={opcao} type="button" disabled={bloqueada}
+                  onClick={() => atualizar('fraseMotivacionalAlinhamento', opcao)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all disabled:opacity-60 ${
+                    (rascunho.fraseMotivacionalAlinhamento || 'center') === opcao
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {opcao === 'left' ? 'Esquerda' : opcao === 'center' ? 'Centro' : 'Direita'}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
