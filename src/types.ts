@@ -322,6 +322,8 @@ export interface Prova {
   sala?: string;
   turno?: string;
   fraseMotivacional?: string;
+  /** Alinhamento da frase motivacional no rodapé da prova impressa. Padrão: 'center'. */
+  fraseMotivacionalAlinhamento?: 'left' | 'center' | 'right';
   observacoes?: string;
   layout: 'normal' | 'duas_colunas';
   questoes: QuestaoProva[];
