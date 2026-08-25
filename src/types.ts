@@ -302,17 +302,23 @@ export interface InternshipRecord {
 /** Uma questão dentro de uma prova — múltipla escolha ou objetiva (dissertativa/curta). */
 export interface QuestaoProva {
   id: string;
-  tipo: 'multipla_escolha' | 'objetiva';
+  tipo: 'multipla_escolha' | 'objetiva' | 'correlacao';
   enunciado: string;
   pontuacao?: number;
   /** Só pra múltipla escolha — quantas e qual o texto de cada alternativa. Tamanho livre (normalmente 3 a 6). */
   alternativas?: string[];
-  /** Opcional — o professor decide se quer configurar. Letra (A, B, C...) pra múltipla escolha, texto esperado pra objetiva. */
+  /** Opcional — o professor decide se quer configurar. Letra (A, B, C...) pra múltipla escolha, texto esperado pra objetiva, ou vazio pra correlação (usa gabaritoCorrelacao). */
   gabarito?: string;
   /** Imagem opcional dentro da questão (ex: gráfico, foto, diagrama). */
   imagem?: QuestaoImagem;
   /** Tabela opcional dentro da questão (ex: dados pra interpretar). */
   tabela?: QuestaoTabela;
+  /** Só pra correlação — coluna numerada (1, 2, 3...) à esquerda. */
+  colunaA?: string[];
+  /** Só pra correlação — coluna com letra (A, B, C...) à direita, que o aluno associa a cada item da coluna A. */
+  colunaB?: string[];
+  /** Opcional — gabaritoCorrelacao[i] é a letra certa pro item i da colunaA. */
+  gabaritoCorrelacao?: string[];
 }
 
 /** Imagem embutida numa questão — guardada em base64, direto no JSON da prova. */
