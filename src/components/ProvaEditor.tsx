@@ -410,7 +410,7 @@ const ProvaFormulario: React.FC<{
               type="text" disabled={bloqueada} value={rascunho.titulo}
               onChange={(e) => atualizar('titulo', e.target.value)}
               placeholder="Ex: 1ª Avaliação de Anatomia"
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
+              className="prova-texto-real w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
             />
           </div>
           <div>
@@ -444,7 +444,7 @@ const ProvaFormulario: React.FC<{
             <input
               type="text" disabled={bloqueada} value={rascunho.sala || ''}
               onChange={(e) => atualizar('sala', e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
+              className="prova-texto-real w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
             />
           </div>
           <div>
@@ -471,7 +471,7 @@ const ProvaFormulario: React.FC<{
               type="text" disabled={bloqueada} value={rascunho.fraseMotivacional || ''}
               onChange={(e) => atualizar('fraseMotivacional', e.target.value)}
               placeholder='Ex: "O sucesso é a soma de pequenos esforços repetidos todos os dias."'
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
+              className="prova-texto-real w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
             />
             {/* Alinhamento — só faz sentido escolher se tiver frase digitada.
                 Aparece sempre no rodapé da prova impressa, não mais junto das
@@ -501,7 +501,7 @@ const ProvaFormulario: React.FC<{
               type="text" disabled={bloqueada} value={rascunho.observacoes || ''}
               onChange={(e) => atualizar('observacoes', e.target.value)}
               placeholder="Ex: Uso de caneta azul ou preta. Não é permitido o uso de calculadora."
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
+              className="prova-texto-real w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none disabled:opacity-60"
             />
           </div>
         </div>
@@ -566,7 +566,7 @@ const ProvaFormulario: React.FC<{
                 onChange={(e) => atualizarQuestao(questao.id, { enunciado: e.target.value })}
                 placeholder="Digite o enunciado da questão..."
                 rows={2}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none resize-none disabled:opacity-60"
+                className="prova-texto-real w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none resize-none disabled:opacity-60"
               />
 
               {/* IMAGEM NA QUESTÃO — opcional. Fica gravada em base64 dentro
@@ -612,7 +612,7 @@ const ProvaFormulario: React.FC<{
                                 <input
                                   type="text" disabled={bloqueada} value={celula}
                                   onChange={(e) => atualizarCelulaTabela(questao.id, questao.tabela!, li, ci, e.target.value)}
-                                  className="w-full px-1.5 py-1 bg-white dark:bg-slate-900 text-xs outline-none disabled:opacity-60"
+                                  className="prova-texto-real w-full px-1.5 py-1 bg-white dark:bg-slate-900 text-xs outline-none disabled:opacity-60"
                                 />
                               </td>
                             ))}
@@ -692,7 +692,7 @@ const ProvaFormulario: React.FC<{
                           atualizarQuestao(questao.id, { alternativas: novas });
                         }}
                         placeholder={`Alternativa ${LETRAS[altIdx]}`}
-                        className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
+                        className="prova-texto-real flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
                       />
                       {!bloqueada && (questao.alternativas || []).length > 2 && (
                         <button
@@ -741,7 +741,7 @@ const ProvaFormulario: React.FC<{
                   <input
                     type="text" value={questao.gabarito || ''}
                     onChange={(e) => atualizarQuestao(questao.id, { gabarito: e.target.value || undefined })}
-                    className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none"
+                    className="prova-texto-real flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none"
                   />
                 </div>
               )}
@@ -761,7 +761,7 @@ const ProvaFormulario: React.FC<{
                             type="text" disabled={bloqueada} value={item}
                             onChange={(e) => atualizarItemColuna(questao, 'colunaA', i, e.target.value)}
                             placeholder={`Item ${i + 1}`}
-                            className="flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
+                            className="prova-texto-real flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
                           />
                           {!bloqueada && (questao.colunaA || []).length > 1 && (
                             <button type="button" onClick={() => removerItemColuna(questao, 'colunaA', i)} className="p-1 text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
@@ -787,7 +787,7 @@ const ProvaFormulario: React.FC<{
                             type="text" disabled={bloqueada} value={item}
                             onChange={(e) => atualizarItemColuna(questao, 'colunaB', i, e.target.value)}
                             placeholder={`Item ${LETRAS[i]}`}
-                            className="flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
+                            className="prova-texto-real flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
                           />
                           {!bloqueada && (questao.colunaB || []).length > 1 && (
                             <button type="button" onClick={() => removerItemColuna(questao, 'colunaB', i)} className="p-1 text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
