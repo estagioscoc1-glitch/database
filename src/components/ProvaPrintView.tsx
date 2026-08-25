@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, X, FileCheck2 } from 'lucide-react';
+import { Printer, X, FileCheck2, AlertTriangle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { Prova } from '../types';
 import { LOGO_COC_PRINCIPAL, LOGO_COC_SELO_30ANOS } from '../assets/logos';
@@ -23,7 +23,7 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
     ? new Date(prova.dataProva + 'T00:00:00').toLocaleDateString('pt-BR')
     : '';
 
-  const questoesComGabarito = prova.questoes.filter(q => q.gabarito);
+  const questoesComGabarito = prova.questoes.filter(q => q.gabarito || (q.gabaritoCorrelacao || []).some(Boolean));
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -89,6 +89,18 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
               <X className="h-4 w-4" />
             </button>
           </div>
+        </div>
+
+        {/* AVISO: cabeçalho/rodapé com data e endereço do site na hora de
+            imprimir NÃO vem desta tela — é uma opção do próprio navegador
+            (Chrome), fora do controle da página. Lembrete fixo aqui porque
+            é fácil esquecer de desmarcar toda vez. */}
+        <div className="no-print flex items-center gap-2 px-5 py-2 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-150 dark:border-amber-900/30">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-[10.5px] text-amber-700 dark:text-amber-400 font-medium">
+            Antes de salvar/imprimir: na tela do Chrome, clique em <strong>"Mais configurações"</strong> e desmarque
+            <strong> "Cabeçalhos e rodapés"</strong> — senão o Chrome adiciona data e endereço do site na página, sem ter nada a ver com a prova.
+          </p>
         </div>
 
         {/* Área de pré-visualização / impressão */}
@@ -206,6 +218,23 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
                           </p>
                         ))}
                       </div>
+                    ) : q.tipo === 'correlacao' ? (
+                      <div style={{ paddingLeft: '14px', display: 'flex', gap: '18px' }}>
+                        <div style={{ flex: 1 }}>
+                          {(q.colunaA || []).map((item, i) => (
+                            <p key={i} style={{ margin: '0 0 4px 0' }}>
+                              <strong>( &nbsp; ) {i + 1})</strong> {item}
+                            </p>
+                          ))}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          {(q.colunaB || []).map((item, i) => (
+                            <p key={i} style={{ margin: '0 0 4px 0' }}>
+                              <strong>{LETRAS[i]})</strong> {item}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
                     ) : (
                       <div style={{ paddingLeft: '14px' }}>
                         <div style={{ borderBottom: '1px solid #999', height: '15px', marginBottom: '10px' }} />
@@ -245,12 +274,29 @@ export const ProvaPrintView: React.FC<ProvaPrintViewProps> = ({ prova, onClose }
                 ) : (
                   <table style={{ borderCollapse: 'collapse', fontSize: '11px' }}>
                     <tbody>
-                      {prova.questoes.map((q, idx) => q.gabarito ? (
-                        <tr key={q.id}>
-                          <td style={{ border: '1px solid #ccc', padding: '4px 10px', fontWeight: 700 }}>Questão {idx + 1}</td>
-                          <td style={{ border: '1px solid #ccc', padding: '4px 10px' }}>{q.gabarito}</td>
-                        </tr>
-                      ) : null)}
+                      {prova.questoes.map((q, idx) => {
+                        if (q.gabarito) {
+                          return (
+                            <tr key={q.id}>
+                              <td style={{ border: '1px solid #ccc', padding: '4px 10px', fontWeight: 700 }}>Questão {idx + 1}</td>
+                              <td style={{ border: '1px solid #ccc', padding: '4px 10px' }}>{q.gabarito}</td>
+                            </tr>
+                          );
+                        }
+                        if ((q.gabaritoCorrelacao || []).some(Boolean)) {
+                          const pares = (q.gabaritoCorrelacao || [])
+                            .map((letra, i) => letra ? `${i + 1}=${letra}` : null)
+                            .filter(Boolean)
+                            .join('  ·  ');
+                          return (
+                            <tr key={q.id}>
+                              <td style={{ border: '1px solid #ccc', padding: '4px 10px', fontWeight: 700 }}>Questão {idx + 1}</td>
+                              <td style={{ border: '1px solid #ccc', padding: '4px 10px' }}>{pares}</td>
+                            </tr>
+                          );
+                        }
+                        return null;
+                      })}
                     </tbody>
                   </table>
                 )}

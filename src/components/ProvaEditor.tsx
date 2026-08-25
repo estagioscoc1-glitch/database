@@ -6,7 +6,7 @@ import { ProvaPrintView } from './ProvaPrintView';
 import {
   FileText, Plus, Trash2, Copy, Printer, Lock, Unlock, ChevronUp, ChevronDown,
   ListChecks, AlignLeft, ArrowLeft, AlertTriangle, CheckCircle2, ImagePlus, Table2,
-  Rows3, Columns3
+  Rows3, Columns3, ArrowLeftRight
 } from 'lucide-react';
 
 // Estimativa de quanto cada tipo de questão "pesa" numa página impressa —
@@ -21,6 +21,8 @@ const linhasEstimadasDaQuestao = (q: QuestaoProva): number => {
   let total = linhasEnunciado;
   if (q.tipo === 'multipla_escolha') {
     total += (q.alternativas?.length || 0) + 1;
+  } else if (q.tipo === 'correlacao') {
+    total += Math.max(q.colunaA?.length || 0, q.colunaB?.length || 0) + 1;
   } else {
     total += 3; // objetiva: espaço pra resposta
   }
@@ -246,6 +248,8 @@ const ProvaFormulario: React.FC<{
       tipo,
       enunciado: '',
       alternativas: tipo === 'multipla_escolha' ? ['', '', '', ''] : undefined,
+      colunaA: tipo === 'correlacao' ? ['', '', ''] : undefined,
+      colunaB: tipo === 'correlacao' ? ['', '', ''] : undefined,
     };
     setRascunho(prev => ({ ...prev, questoes: [...prev.questoes, nova] }));
   };
@@ -325,6 +329,24 @@ const ProvaFormulario: React.FC<{
       li === linhaIdx ? linha.map((c, ci) => (ci === colIdx ? valor : c)) : linha
     );
     atualizarQuestao(questaoId, { tabela: { ...tabela, linhas: novasLinhas } });
+  };
+
+  /* ------------------------------------------------------------ correlacionar colunas */
+
+  const atualizarItemColuna = (questao: QuestaoProva, coluna: 'colunaA' | 'colunaB', idx: number, valor: string) => {
+    const nova = [...(questao[coluna] || [])];
+    nova[idx] = valor;
+    atualizarQuestao(questao.id, { [coluna]: nova } as Partial<QuestaoProva>);
+  };
+
+  const adicionarItemColuna = (questao: QuestaoProva, coluna: 'colunaA' | 'colunaB') => {
+    atualizarQuestao(questao.id, { [coluna]: [...(questao[coluna] || []), ''] } as Partial<QuestaoProva>);
+  };
+
+  const removerItemColuna = (questao: QuestaoProva, coluna: 'colunaA' | 'colunaB', idx: number) => {
+    const atual = questao[coluna] || [];
+    if (atual.length <= 1) return; // sempre sobra pelo menos 1 item
+    atualizarQuestao(questao.id, { [coluna]: atual.filter((_, i) => i !== idx) } as Partial<QuestaoProva>);
   };
 
   const moverQuestao = (id: string, direcao: -1 | 1) => {
@@ -527,8 +549,8 @@ const ProvaFormulario: React.FC<{
             <div key={questao.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 bg-slate-50/40 dark:bg-slate-800/20">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-xs font-black text-slate-500">
-                  {questao.tipo === 'multipla_escolha' ? <ListChecks className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
-                  Questão {idx + 1} — {questao.tipo === 'multipla_escolha' ? 'Múltipla Escolha' : 'Objetiva'}
+                  {questao.tipo === 'multipla_escolha' ? <ListChecks className="h-3.5 w-3.5" /> : questao.tipo === 'correlacao' ? <ArrowLeftRight className="h-3.5 w-3.5" /> : <AlignLeft className="h-3.5 w-3.5" />}
+                  Questão {idx + 1} — {questao.tipo === 'multipla_escolha' ? 'Múltipla Escolha' : questao.tipo === 'correlacao' ? 'Correlacionar Colunas' : 'Objetiva'}
                 </span>
                 {!bloqueada && (
                   <div className="flex items-center gap-1">
@@ -723,6 +745,89 @@ const ProvaFormulario: React.FC<{
                   />
                 </div>
               )}
+
+              {questao.tipo === 'correlacao' && (
+                <div className="pl-2 space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Coluna A — numerada (1, 2, 3...) */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Coluna 1 (numerada)</span>
+                      {(questao.colunaA || []).map((item, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 text-[10px] font-bold text-slate-500 shrink-0">
+                            {i + 1}
+                          </span>
+                          <input
+                            type="text" disabled={bloqueada} value={item}
+                            onChange={(e) => atualizarItemColuna(questao, 'colunaA', i, e.target.value)}
+                            placeholder={`Item ${i + 1}`}
+                            className="flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
+                          />
+                          {!bloqueada && (questao.colunaA || []).length > 1 && (
+                            <button type="button" onClick={() => removerItemColuna(questao, 'colunaA', i)} className="p-1 text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
+                          )}
+                        </div>
+                      ))}
+                      {!bloqueada && (
+                        <button type="button" onClick={() => adicionarItemColuna(questao, 'colunaA')} className="text-[11px] font-bold text-blue-600 hover:underline">
+                          + Adicionar item
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Coluna B — com letra (A, B, C...) */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Coluna 2 (com letra)</span>
+                      {(questao.colunaB || []).map((item, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 flex items-center justify-center rounded-full border border-slate-300 dark:border-slate-600 text-[10px] font-bold text-slate-500 shrink-0">
+                            {LETRAS[i]}
+                          </span>
+                          <input
+                            type="text" disabled={bloqueada} value={item}
+                            onChange={(e) => atualizarItemColuna(questao, 'colunaB', i, e.target.value)}
+                            placeholder={`Item ${LETRAS[i]}`}
+                            className="flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none disabled:opacity-60"
+                          />
+                          {!bloqueada && (questao.colunaB || []).length > 1 && (
+                            <button type="button" onClick={() => removerItemColuna(questao, 'colunaB', i)} className="p-1 text-red-400 hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
+                          )}
+                        </div>
+                      ))}
+                      {!bloqueada && (
+                        <button type="button" onClick={() => adicionarItemColuna(questao, 'colunaB')} className="text-[11px] font-bold text-blue-600 hover:underline">
+                          + Adicionar item
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {!bloqueada && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Gabarito (opcional):</label>
+                      {(questao.colunaA || []).map((_, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="text-[10px] font-bold text-slate-400">{i + 1} =</span>
+                          <select
+                            value={questao.gabaritoCorrelacao?.[i] || ''}
+                            onChange={(e) => {
+                              const novo = [...(questao.gabaritoCorrelacao || [])];
+                              novo[i] = e.target.value;
+                              atualizarQuestao(questao.id, { gabaritoCorrelacao: novo });
+                            }}
+                            className="px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-[10px] outline-none"
+                          >
+                            <option value="">-</option>
+                            {(questao.colunaB || []).map((_, bi) => (
+                              <option key={bi} value={LETRAS[bi]}>{LETRAS[bi]}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -740,6 +845,12 @@ const ProvaFormulario: React.FC<{
               className="flex items-center gap-1.5 px-3 py-2 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 text-teal-700 dark:text-teal-400 rounded-xl text-xs font-bold transition-all"
             >
               <AlignLeft className="h-3.5 w-3.5" /> + Objetiva
+            </button>
+            <button
+              type="button" onClick={() => adicionarQuestao('correlacao')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 text-purple-700 dark:text-purple-400 rounded-xl text-xs font-bold transition-all"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" /> + Correlacionar Colunas
             </button>
           </div>
         )}
