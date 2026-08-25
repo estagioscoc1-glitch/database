@@ -16,7 +16,7 @@
  */
 
 import { supabase, supabaseConfigurado, chamarBancoDireto } from './supabase';
-import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment } from '../types';
+import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment, Prova, QuestaoProva } from '../types';
 import { UserRole } from '../types';
 
 /* ==========================================================================
@@ -2695,6 +2695,87 @@ export async function carregarTodosOsDiarios(): Promise<{ classId: string; subje
     return null;
   }
   return (data ?? []).map((d: any) => ({ classId: d.turma_id, subjectId: d.disciplina_id }));
+}
+
+/* ------------------------------------------------------------ criador de provas */
+
+function paraProvaApp(p: any): Prova {
+  return {
+    id: p.id,
+    professorId: p.professor_id,
+    turmaId: p.turma_id ?? undefined,
+    disciplinaId: p.disciplina_id ?? undefined,
+    titulo: p.titulo,
+    dataProva: p.data_prova ?? undefined,
+    sala: p.sala ?? undefined,
+    turno: p.turno ?? undefined,
+    fraseMotivacional: p.frase_motivacional ?? undefined,
+    observacoes: p.observacoes ?? undefined,
+    layout: p.layout === 'duas_colunas' ? 'duas_colunas' : 'normal',
+    questoes: Array.isArray(p.questoes) ? p.questoes : [],
+    status: p.status === 'finalizada' ? 'finalizada' : 'rascunho',
+    criadoEm: p.criado_em,
+    atualizadoEm: p.atualizado_em,
+  };
+}
+
+/**
+ * Salva (cria ou atualiza) uma prova direto no banco. Sempre grava a lista
+ * de questões inteira — é mais simples e seguro que tentar atualizar
+ * questão por questão, e o volume de dado é pequeno (algumas dezenas de KB
+ * no máximo por prova).
+ */
+export async function salvarProva(prova: Prova): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { data, error } = await supabase.from('provas').upsert({
+    id: prova.id,
+    professor_id: prova.professorId,
+    turma_id: prova.turmaId || null,
+    disciplina_id: prova.disciplinaId || null,
+    titulo: prova.titulo,
+    data_prova: prova.dataProva || null,
+    sala: prova.sala || null,
+    turno: prova.turno || null,
+    frase_motivacional: prova.fraseMotivacional || null,
+    observacoes: prova.observacoes || null,
+    layout: prova.layout,
+    questoes: prova.questoes,
+    status: prova.status,
+    atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'id' }).select('id');
+
+  if (error) return falha('salvar prova', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou salvar esta prova.' };
+  }
+  return { ok: true };
+}
+
+/** Carrega as provas do professor logado (RLS decide o que ele pode ver). */
+export async function carregarProvas(): Promise<Prova[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase
+    .from('provas')
+    .select('*')
+    .order('atualizado_em', { ascending: false });
+
+  if (error) {
+    console.warn('[Banco] Falha ao carregar provas:', error.message);
+    return null;
+  }
+  return (data ?? []).map(paraProvaApp);
+}
+
+/** Exclui uma prova (só o próprio professor ou gestão, o RLS garante isso). */
+export async function excluirProva(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('provas').delete().eq('id', id).select('id');
+  if (error) return falha('excluir prova', error);
+  if (!data || data.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou apagar esta prova — ela continua lá.' };
+  }
+  return { ok: true };
 }
 
 export async function carregarDependencias(): Promise<DependencyEnrollment[] | null> {
