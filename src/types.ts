@@ -309,6 +309,24 @@ export interface QuestaoProva {
   alternativas?: string[];
   /** Opcional — o professor decide se quer configurar. Letra (A, B, C...) pra múltipla escolha, texto esperado pra objetiva. */
   gabarito?: string;
+  /** Imagem opcional dentro da questão (ex: gráfico, foto, diagrama). */
+  imagem?: QuestaoImagem;
+  /** Tabela opcional dentro da questão (ex: dados pra interpretar). */
+  tabela?: QuestaoTabela;
+}
+
+/** Imagem embutida numa questão — guardada em base64, direto no JSON da prova. */
+export interface QuestaoImagem {
+  dataUrl: string;
+  /** Largura de exibição, em % da coluna onde a questão está (10 a 100). Altura acompanha proporcionalmente. */
+  larguraPercentual: number;
+}
+
+/** Tabela embutida numa questão — uma matriz simples de texto, célula por célula. */
+export interface QuestaoTabela {
+  linhas: string[][];
+  /** Largura de exibição, em % da coluna onde a questão está (30 a 100). */
+  larguraPercentual: number;
 }
 
 /** Uma prova criada por um professor — cabeçalho + questões + status. */
