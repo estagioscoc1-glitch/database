@@ -2651,13 +2651,18 @@ export async function atualizarDadosPessoa(params: {
   contaId?: string;
   nome?: string;
   email?: string;
+  /** Só existe na ficha do ALUNO — decide se "Certificado de Reservista"
+   *  entra na lista de documentos obrigatórios dele. Nunca vai pra
+   *  professor nem pra conta de login (não existe essa coluna lá). */
+  sexo?: string;
 }): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { id, papel, contaId, nome, email } = params;
+  const { id, papel, contaId, nome, email, sexo } = params;
 
   const mudancasFicha: Record<string, string> = {};
   if (nome !== undefined) mudancasFicha.nome = nome;
   if (email !== undefined) mudancasFicha.email = email;
+  if (sexo !== undefined && papel === 'ALUNO') mudancasFicha.sexo = sexo;
 
   if (Object.keys(mudancasFicha).length > 0) {
     const tabela = papel === 'ALUNO' ? 'alunos' : 'professores';
@@ -2668,10 +2673,13 @@ export async function atualizarDadosPessoa(params: {
     }
   }
 
-  // A conta de login (se existir) recebe a mesma mudança, pra não ficar
-  // com nome/e-mail diferente do que está na ficha.
-  if (contaId && Object.keys(mudancasFicha).length > 0) {
-    const { error: erroConta } = await supabase.from('usuarios').update(mudancasFicha).eq('id', contaId);
+  // A conta de login (se existir) recebe nome/e-mail — nunca sexo, essa
+  // coluna não existe na tabela de login.
+  const mudancasConta: Record<string, string> = {};
+  if (nome !== undefined) mudancasConta.nome = nome;
+  if (email !== undefined) mudancasConta.email = email;
+  if (contaId && Object.keys(mudancasConta).length > 0) {
+    const { error: erroConta } = await supabase.from('usuarios').update(mudancasConta).eq('id', contaId);
     if (erroConta) {
       return { ok: false, erro: `A ficha foi atualizada, mas a conta de login não: ${erroConta.message}` };
     }
