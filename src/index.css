@@ -30,6 +30,17 @@ input:not([type="password"]):not([type="number"]):not([type="checkbox"]):not([ty
   text-transform: uppercase;
 }
 
+/* EXCEÇÃO — Criador de Provas: o texto da prova precisa ficar exatamente
+   como o professor digitou (maiúscula/minúscula igual foi teclado), sem a
+   "caixa alta visual" do resto do sistema. O valor gravado já era sempre o
+   digitado de verdade — só a aparência ENQUANTO DIGITAVA enganava, fazendo
+   parecer que ia sair tudo maiúsculo quando na verdade não ia. O !important
+   é necessário aqui porque a regra acima usa seletor de atributo
+   (input[type="text"]), que tem mais peso que uma classe sozinha. */
+.prova-texto-real {
+  text-transform: none !important;
+}
+
 /* Global Dark Mode Input Contrast & Legibility Fixes */
 html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
 html.dark textarea,
