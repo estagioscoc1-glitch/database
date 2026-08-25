@@ -299,6 +299,37 @@ export interface InternshipRecord {
   updatedAt?: string;
 }
 
+/** Uma questão dentro de uma prova — múltipla escolha ou objetiva (dissertativa/curta). */
+export interface QuestaoProva {
+  id: string;
+  tipo: 'multipla_escolha' | 'objetiva';
+  enunciado: string;
+  pontuacao?: number;
+  /** Só pra múltipla escolha — quantas e qual o texto de cada alternativa. Tamanho livre (normalmente 3 a 6). */
+  alternativas?: string[];
+  /** Opcional — o professor decide se quer configurar. Letra (A, B, C...) pra múltipla escolha, texto esperado pra objetiva. */
+  gabarito?: string;
+}
+
+/** Uma prova criada por um professor — cabeçalho + questões + status. */
+export interface Prova {
+  id: string;
+  professorId: string;
+  turmaId?: string;
+  disciplinaId?: string;
+  titulo: string;
+  dataProva?: string;
+  sala?: string;
+  turno?: string;
+  fraseMotivacional?: string;
+  observacoes?: string;
+  layout: 'normal' | 'duas_colunas';
+  questoes: QuestaoProva[];
+  status: 'rascunho' | 'finalizada';
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
 export interface CustomDashboardWidget {
   id: string;
   name: string;
