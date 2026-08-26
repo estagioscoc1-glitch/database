@@ -1461,8 +1461,30 @@ export async function matricularEmDependencia(params: {
 
   const { alunoId, cursoId, disciplinaId, ano, semestre, modulo, horario } = params;
 
+  // Deriva o turno de verdade a partir do texto escolhido pela secretaria
+  // (ex: "Noturno (19:00 - 20:30)" → NOTURNO). Usado tanto pra decidir se
+  // reaproveita uma turma existente quanto pro campo `turno` ao criar uma
+  // nova — antes ficava sempre travado em "SABADO", não importa o que a
+  // secretaria tivesse escolhido.
+  const turnoDoHorario = (h: string): string => {
+    const u = (h || '').toUpperCase();
+    if (u.includes('NOTURNO') || u.includes('NOITE')) return 'NOTURNO';
+    if (u.includes('MATUTINO') || u.includes('MANH')) return 'MATUTINO';
+    if (u.includes('VESPERTINO') || u.includes('TARDE')) return 'VESPERTINO';
+    if (u.includes('SÁBADO') || u.includes('SABADO')) return 'SÁBADO';
+    return 'MATUTINO'; // "Contra-Turno Flexível" / "Outro": turno-padrão razoável
+  };
+  const turno = turnoDoHorario(horario);
+
   // 1. Já existe uma turma de dependência pra essa disciplina, neste
-  // curso e período? Reaproveita; senão, cria uma nova.
+  // curso, período E HORÁRIO? Reaproveita; senão, cria uma nova.
+  //
+  // ANTES, o horário não entrava nesta busca — só curso + disciplina +
+  // ano + semestre. Resultado: um aluno matriculado no sábado e outro
+  // matriculado à noite, na MESMA disciplina, caíam na MESMA turma/diário,
+  // mesmo a secretaria tendo escolhido horários diferentes pra cada um —
+  // porque a primeira turma criada "vencia" e todo mundo depois entrava
+  // nela, não importa o horário escolhido depois.
   const { data: turmaExistente, error: erroBusca } = await supabase
     .from('turmas')
     .select('id, nome')
@@ -1471,6 +1493,7 @@ export async function matricularEmDependencia(params: {
     .eq('eh_dependencia', true)
     .eq('ano', ano)
     .eq('semestre', semestre)
+    .eq('horario', horario)
     .limit(1)
     .maybeSingle();
   if (erroBusca) return falha('procurar turma de dependência existente', erroBusca);
@@ -1486,9 +1509,9 @@ export async function matricularEmDependencia(params: {
     const { error: erroCriarTurma } = await supabase.from('turmas').insert({
       id: turmaId,
       curso_id: cursoId,
-      nome: `DEP - ${disciplina?.nome || 'Dependência'}`,
-      codigo: `DEP-${disciplinaId}`,
-      turno: 'SABADO',
+      nome: `DEP - ${disciplina?.nome || 'Dependência'} (${horario})`,
+      codigo: `DEP-${disciplinaId}-${turno}`,
+      turno,
       modulo,
       ano,
       semestre,
