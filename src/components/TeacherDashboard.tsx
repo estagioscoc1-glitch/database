@@ -14,6 +14,8 @@ import {
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
 import { ProvaEditor } from './ProvaEditor';
+import { HistoricoCompletoModule } from './HistoricoCompletoModule';
+import { AcessosPresencaModule } from './AcessosPresencaModule';
 import { ContentRegistry } from './ContentRegistry';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
@@ -36,6 +38,10 @@ export const TeacherDashboard: React.FC = () => {
   const [contentWindowOpen, setContentWindowOpen] = useState<boolean>(false);
   const [provasWindowOpen, setProvasWindowOpen] = useState<boolean>(false);
   const [isProvasWindowMaximized, setIsProvasWindowMaximized] = useState<boolean>(false);
+  const [historicoWindowOpen, setHistoricoWindowOpen] = useState<boolean>(false);
+  const [isHistoricoWindowMaximized, setIsHistoricoWindowMaximized] = useState<boolean>(false);
+  const [acessosWindowOpen, setAcessosWindowOpen] = useState<boolean>(false);
+  const [isAcessosWindowMaximized, setIsAcessosWindowMaximized] = useState<boolean>(false);
   const [isContentWindowMaximized, setIsContentWindowMaximized] = useState<boolean>(false);
   const [isAttendanceWindowMaximized, setIsAttendanceWindowMaximized] = useState<boolean>(false);
   // Guarda a assinatura do aviso de prazo que o professor já dispensou nesta sessão.
@@ -309,6 +315,28 @@ export const TeacherDashboard: React.FC = () => {
             <FileText className="h-4 w-4" />
             <span>Criar Provas</span>
           </button>
+          {/* PERMISSÕES EXTRAS — só aparecem pra quem o admin concedeu
+              especificamente (ex: um coordenador). */}
+          {currentUser?.podeVerHistoricoCompleto && (
+            <button
+              type="button"
+              onClick={() => setHistoricoWindowOpen(true)}
+              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Histórico do Aluno</span>
+            </button>
+          )}
+          {currentUser?.podeVerAcessosEPresenca && (
+            <button
+              type="button"
+              onClick={() => setAcessosWindowOpen(true)}
+              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Acessos e Presença</span>
+            </button>
+          )}
           <a
             href="https://col-gio-oswaldo-cruz-carreira-ia-199284089949.us-east1.run.app"
             target="_blank"
@@ -1014,6 +1042,97 @@ export const TeacherDashboard: React.FC = () => {
             </div>
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-950/40">
               <ProvaEditor />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Janela de Histórico Completo — só existe pra quem tem a permissão
+          extra concedida pelo admin (ex: um coordenador). Mesmo padrão de
+          janela usado acima pro Criador de Provas. */}
+      {historicoWindowOpen && currentUser?.podeVerHistoricoCompleto && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 no-print" onClick={() => setHistoricoWindowOpen(false)} />
+          <div
+            className={`fixed z-50 bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col no-print ${
+              isHistoricoWindowMaximized
+                ? 'inset-0 rounded-none'
+                : 'inset-4 sm:inset-8 lg:inset-x-16 lg:inset-y-8 rounded-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate">
+                  Histórico Completo do Aluno
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoricoWindowMaximized(!isHistoricoWindowMaximized)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  title={isHistoricoWindowMaximized ? 'Restaurar Tamanho' : 'Maximizar (Tela Cheia)'}
+                >
+                  {isHistoricoWindowMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{isHistoricoWindowMaximized ? 'Restaurar' : 'Maximizar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoricoWindowOpen(false)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-900"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-950/40">
+              <HistoricoCompletoModule />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Janela de Acessos e Presença — mesma regra: só existe pra quem tem
+          a permissão extra concedida. */}
+      {acessosWindowOpen && currentUser?.podeVerAcessosEPresenca && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 no-print" onClick={() => setAcessosWindowOpen(false)} />
+          <div
+            className={`fixed z-50 bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col no-print ${
+              isAcessosWindowMaximized
+                ? 'inset-0 rounded-none'
+                : 'inset-4 sm:inset-8 lg:inset-x-16 lg:inset-y-8 rounded-2xl'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate">
+                  Acessos e Presença
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsAcessosWindowMaximized(!isAcessosWindowMaximized)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  title={isAcessosWindowMaximized ? 'Restaurar Tamanho' : 'Maximizar (Tela Cheia)'}
+                >
+                  {isAcessosWindowMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{isAcessosWindowMaximized ? 'Restaurar' : 'Maximizar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcessosWindowOpen(false)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold rounded-lg bg-slate-800 dark:bg-slate-700 text-white hover:bg-slate-900"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50 dark:bg-slate-950/40">
+              <AcessosPresencaModule />
             </div>
           </div>
         </>

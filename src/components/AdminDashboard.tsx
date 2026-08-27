@@ -55,6 +55,8 @@ import {
 import { SpreadsheetImporter } from './SpreadsheetImporter';
 import { HistoricalDataImporter } from './HistoricalDataImporter';
 import { PrintModal } from './PrintModal';
+import { AcessosPresencaModule } from './AcessosPresencaModule';
+import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
 import { AdminInternships } from './AdminInternships';
@@ -611,6 +613,7 @@ export const AdminDashboard: React.FC = () => {
   const [confirmandoExclusaoDe, setConfirmandoExclusaoDe] = useState<string | null>(null);
   const [confirmApagarCompletoId, setConfirmApagarCompletoId] = useState<string | null>(null);
   const [apagandoCompletoDe, setApagandoCompletoDe] = useState<string | null>(null);
+  const [salvandoPermissaoDe, setSalvandoPermissaoDe] = useState<string | null>(null);
 
   // Cadastro de novo administrador.
   const [novoAdminNome, setNovoAdminNome] = useState('');
@@ -1439,127 +1442,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Tab: Acessos e Presença */}
       {activeTab === 'acessos' && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-
-          {/* Online agora */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <h3 className="text-base font-black text-slate-800 dark:text-white">
-                  Online agora ({onlineAgora.length})
-                </h3>
-              </div>
-              <button
-                type="button"
-                disabled={acessosAtualizando}
-                onClick={async () => {
-                  setAcessosAtualizando(true);
-                  await recarregarAcessos();
-                  setAcessosAtualizando(false);
-                }}
-                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-              >
-                {acessosAtualizando ? 'Atualizando...' : '↻ Atualizar'}
-              </button>
-            </div>
-
-            {onlineAgora.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-6">Ninguém online agora.</p>
-            ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {onlineAgora.map(a => (
-                  <div key={a.usuarioId} className="flex items-center gap-3 p-3 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-150 dark:border-emerald-900/30 rounded-xl">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{a.nome}</p>
-                      <p className="text-[10px] text-slate-500">
-                        {a.papel === 'PROFESSOR' ? 'Professor' : 'Aluno'} · desde {formatarDataHora(a.entrouEm).hora}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Histórico por pessoa */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-            <h3 className="text-base font-black text-slate-800 dark:text-white mb-1">Histórico de Acessos</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Busque um professor ou aluno pra ver todos os dias e horários em que ele acessou o sistema.
-            </p>
-
-            <div className="relative mb-4">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Nome do professor ou aluno..."
-                value={acessosSearch}
-                onChange={(e) => setAcessosSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              />
-            </div>
-
-            {acessosSearch.trim().length >= 2 && historicoPorPessoa.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">Nenhum acesso encontrado com esse nome.</p>
-            )}
-
-            <div className="space-y-5">
-              {historicoPorPessoa.map(pessoa => (
-                <div key={pessoa.nome + pessoa.papel} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/40">
-                    <div>
-                      <p className="text-sm font-black text-slate-800 dark:text-white">{pessoa.nome}</p>
-                      <p className="text-[11px] text-slate-500">{pessoa.papel === 'PROFESSOR' ? 'Professor' : 'Aluno'}</p>
-                    </div>
-                    <span className="text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-3 py-1 rounded-full">
-                      {pessoa.totalDias} {pessoa.totalDias === 1 ? 'dia acessado' : 'dias acessados'}
-                    </span>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="sticky top-0 bg-white dark:bg-slate-900">
-                        <tr className="text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-100 dark:border-slate-800">
-                          <th className="text-left font-bold py-2 px-4">Data</th>
-                          <th className="text-left font-bold py-2 px-4">Entrou</th>
-                          <th className="text-left font-bold py-2 px-4">Saiu</th>
-                          <th className="text-left font-bold py-2 px-4">Duração</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pessoa.sessoes.map(s => {
-                          const entrada = formatarDataHora(s.entrouEm);
-                          const saida = s.saiuEm ? formatarDataHora(s.saiuEm) : null;
-                          const aindaOnline = !s.saiuEm && (Date.now() - new Date(s.ultimaAtividade).getTime()) < 3 * 60 * 1000;
-                          return (
-                            <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
-                              <td className="py-2 px-4 font-mono text-slate-600 dark:text-slate-300">{entrada.data}</td>
-                              <td className="py-2 px-4 font-mono text-slate-600 dark:text-slate-300">{entrada.hora}</td>
-                              <td className="py-2 px-4 font-mono text-slate-600 dark:text-slate-300">
-                                {aindaOnline ? (
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">online agora</span>
-                                ) : saida ? saida.hora : (
-                                  <span className="text-slate-400">— (não registrada)</span>
-                                )}
-                              </td>
-                              <td className="py-2 px-4 font-mono text-slate-500">
-                                {formatarDuracao(s.entrouEm, s.saiuEm)}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
+        <AcessosPresencaModule />
       )}
 
       {/* Tab: Pesquisa */}
@@ -3244,6 +3127,50 @@ export const AdminDashboard: React.FC = () => {
                           >
                             {apagandoCompletoDe === u.id ? 'Conferindo...' : confirmApagarCompletoId === u.id ? 'Apagar de vez?' : 'Apagar Tudo'}
                           </button>
+                          )}
+                          {/* PERMISSÕES EXTRAS — só pra professor (ex: um
+                              coordenador). Cada uma libera SÓ aquela tela
+                              específica, dentro do próprio painel do
+                              professor — nunca vira acesso de admin. */}
+                          {currentUser?.role === UserRole.ADMIN && u.role === UserRole.TEACHER && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={salvandoPermissaoDe === u.id}
+                                onClick={async () => {
+                                  setSalvandoPermissaoDe(u.id);
+                                  const resultado = await updateUser(u.id, { podeVerHistoricoCompleto: !u.podeVerHistoricoCompleto });
+                                  setSalvandoPermissaoDe(null);
+                                  if (!resultado.ok) mostrarAviso('Não foi possível salvar', resultado.erro || 'O banco recusou a alteração.');
+                                }}
+                                title="Libera esse professor ver o Histórico Completo de qualquer aluno, dentro do próprio painel dele."
+                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all disabled:opacity-40 ${
+                                  u.podeVerHistoricoCompleto
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                              >
+                                {u.podeVerHistoricoCompleto ? '✓ Vê Histórico' : 'Ver Histórico'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={salvandoPermissaoDe === u.id}
+                                onClick={async () => {
+                                  setSalvandoPermissaoDe(u.id);
+                                  const resultado = await updateUser(u.id, { podeVerAcessosEPresenca: !u.podeVerAcessosEPresenca });
+                                  setSalvandoPermissaoDe(null);
+                                  if (!resultado.ok) mostrarAviso('Não foi possível salvar', resultado.erro || 'O banco recusou a alteração.');
+                                }}
+                                title="Libera esse professor ver Acessos e Presença (quem acessou, quando), dentro do próprio painel dele."
+                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all disabled:opacity-40 ${
+                                  u.podeVerAcessosEPresenca
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                              >
+                                {u.podeVerAcessosEPresenca ? '✓ Vê Acessos' : 'Ver Acessos'}
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -5211,353 +5138,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Tab: HISTÓRICO COMPLETO DO ALUNO */}
       {activeTab === 'historico_completo' && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-6"
-        >
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-sm">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                <History className="h-6 w-6" />
-                <h3 className="font-extrabold text-lg">Histórico Completo do Aluno</h3>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Visualize e emita o histórico escolar completo do aluno, contemplando todos os módulos e períodos cursados.
-              </p>
-            </div>
-            {/* Print Action Button */}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedHistoricoStudentId) {
-                    const stdGrades = grades.filter(g => g.studentId === selectedHistoricoStudentId);
-                    const stdClassId = stdGrades[0]?.classId || users.find(u => u.id === selectedHistoricoStudentId)?.classId || classes[0]?.id || '';
-                    setPrintDoc({ type: 'historico_completo', studentId: selectedHistoricoStudentId, classId: stdClassId });
-                  } else {
-                    alert('Por favor, selecione um aluno.');
-                  }
-                }}
-                disabled={!selectedHistoricoStudentId}
-                className="flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-45 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/10 transition-all cursor-pointer"
-              >
-                <Printer className="h-4 w-4" /> Imprimir Histórico Completo
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Column: Student Search & Selection */}
-            <div className="lg:col-span-4 space-y-4">
-              
-              {/* Search Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Localizar Aluno (Nome ou Matrícula)</p>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Pesquisar por Nome ou Matrícula..."
-                    value={historicoSearch}
-                    onChange={(e) => setHistoricoSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white placeholder-slate-400"
-                  />
-                </div>
-
-                {/* Instant search results list */}
-                {historicoSearch.trim() !== '' && (
-                  <div className="border border-slate-150 dark:border-slate-800 rounded-xl max-h-[250px] overflow-y-auto bg-slate-50 dark:bg-slate-950 divide-y divide-slate-150 dark:divide-slate-850">
-                    {(() => {
-                      const matches = users.filter(u => u.role === UserRole.STUDENT && (
-                        (u.name ?? '').toLowerCase().includes(historicoSearch.toLowerCase()) || 
-                        (u.enrollment && u.enrollment.toLowerCase().includes(historicoSearch.toLowerCase()))
-                      ));
-                      if (matches.length === 0) {
-                        return <p className="p-3 text-[11px] text-slate-400 italic text-center">Nenhum aluno encontrado</p>;
-                      }
-                      return matches.map(std => {
-                        const stdGrade = grades.find(g => g.studentId === std.id);
-                        const stdClass = stdGrade ? classes.find(c => c.id === stdGrade.classId) : null;
-                        return (
-                          <button
-                            key={std.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedHistoricoStudentId(std.id);
-                              setHistoricoSearch(''); // clear search input
-                            }}
-                            className="w-full text-left p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs transition-all flex flex-col gap-0.5"
-                          >
-                            <span className="font-bold text-slate-800 dark:text-slate-200">{std.name}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              Matrícula: {std.enrollment || 'N/A'} {stdClass ? `• Turma: ${stdClass.name}` : ''}
-                            </span>
-                          </button>
-                        );
-                      });
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              {/* Student Quick List Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Diretório de Alunos</p>
-                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
-                  {users
-                    .filter(u => u.role === UserRole.STUDENT)
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(std => {
-                      const isSelected = selectedHistoricoStudentId === std.id;
-                      const stdGrade = grades.find(g => g.studentId === std.id);
-                      const stdClass = stdGrade ? classes.find(c => c.id === stdGrade.classId) : null;
-                      return (
-                        <button
-                          key={std.id}
-                          type="button"
-                          onClick={() => setSelectedHistoricoStudentId(std.id)}
-                          className={`w-full text-left p-2.5 rounded-xl text-xs transition-all flex flex-col gap-0.5 border ${
-                            isSelected 
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-500/20' 
-                              : 'bg-slate-50 dark:bg-slate-850 border-slate-150 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <span className="font-extrabold truncate">{std.name}</span>
-                          <span className={`text-[9px] font-mono ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                            Matrícula: {std.enrollment || 'Sem matrícula'} {stdClass ? `• ${stdClass.name}` : ''}
-                          </span>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Complete academic records grouped by modules */}
-            <div className="lg:col-span-8">
-              {(() => {
-                const targetStudent = users.find(u => u.id === selectedHistoricoStudentId);
-                if (!targetStudent) {
-                  return (
-                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
-                      <History className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-4 animate-pulse" />
-                      <h4 className="text-sm font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Aluno Selecionado</h4>
-                      <p className="text-xs text-slate-400 max-w-sm">
-                        Utilize a busca ou o diretório ao lado para selecionar o aluno e visualizar o Histórico Completo de Aproveitamento.
-                      </p>
-                    </div>
-                  );
-                }
-
-                const similarStudents = findSimilarStudents(targetStudent.id);
-                const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
-                const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
-                // MESMA CORREÇÃO JÁ FEITA NA TELA DE IMPRESSÃO (PrintModal.tsx):
-                // sem isto, um aluno recém-matriculado (sem nenhuma nota lançada
-                // ainda) não aparecia aqui — a tela ficava praticamente vazia
-                // depois de selecioná-lo, parecendo que o clique não tinha feito
-                // nada. Isso afeta direto os 202 alunos importados hoje em
-                // 2026/2, que ainda não têm nota nenhuma lançada.
-                if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
-                  uniqueClassIds.push(targetStudent.classId);
-                }
-                const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
-
-                studentClasses.sort((a, b) => {
-                  if (a.year !== b.year) return a.year - b.year;
-                  if (a.semester !== b.semester) return a.semester - b.semester;
-                  return a.module - b.module;
-                });
-
-                const similarBanner = similarStudents.length > 0 && (
-                  <div className="space-y-3 mb-4">
-                    {similarStudents.map(simStudent => {
-                      const simClass = simStudent.classId ? classes.find(c => c.id === simStudent.classId)?.name : '';
-                      const simGradesCount = grades.filter(g => g.studentId === simStudent.id).length;
-                      return (
-                        <div key={simStudent.id} className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs animate-fade-in">
-                          <div className="flex gap-2.5 items-start">
-                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
-                            <div className="space-y-1">
-                              <p className="font-extrabold text-amber-800 dark:text-amber-400">
-                                Cadastro Duplicado Identificado!
-                              </p>
-                              <p className="text-slate-600 dark:text-slate-300">
-                                Existe outro cadastro com nome correspondente: <strong>{simStudent.name}</strong> 
-                                {simClass ? ` (Turma: ${simClass})` : ''} 
-                                {simStudent.enrollment ? ` • Matrícula: ${simStudent.enrollment}` : ' • Sem matrícula'} 
-                                {` • Registros de notas: ${simGradesCount}`}.
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const hasEnrollmentTarget = !!targetStudent.enrollment;
-                              const hasEnrollmentSim = !!simStudent.enrollment;
-                              
-                              let principalId = targetStudent.id;
-                              let duplicateId = simStudent.id;
-                              
-                              if (!hasEnrollmentTarget && hasEnrollmentSim) {
-                                principalId = simStudent.id;
-                                duplicateId = targetStudent.id;
-                              }
-                              
-                              if (confirm(`Confirmar unificação? Todos os boletins, notas, diários, presenças e documentos de "${simStudent.name}" serão migrados para "${targetStudent.name}". O cadastro duplicado será deletado permanentemente.`)) {
-                                unifyDuplicateStudents(principalId, [duplicateId]);
-                                setSelectedHistoricoStudentId(principalId);
-                                alert('Registros de alunos unificados com sucesso!');
-                              }
-                            }}
-                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-[11px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap self-start sm:self-center"
-                          >
-                            Unificar Cadastros
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-
-                if (studentClasses.length === 0) {
-                  return (
-                    <div className="space-y-4">
-                      {similarBanner}
-                      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
-                        <FileText className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-4" />
-                        <h4 className="text-sm font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Registro de Notas</h4>
-                        <p className="text-xs text-slate-400 max-w-sm">
-                          O aluno <strong>{targetStudent.name}</strong> não possui registros de notas cadastrados no sistema.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-6">
-                    {similarBanner}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
-                      <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-5">
-                        <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl">
-                          <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-extrabold text-slate-800 dark:text-white">{targetStudent.name}</h4>
-                          <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">
-                            Matrícula: {targetStudent.enrollment || 'N/A'} • Status: Ativo
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-6">
-                        {studentClasses.map(cls => {
-                          const classGrades = studentGrades.filter(g => g.classId === cls.id);
-                          const clsSubjects = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
-
-                          return (
-                            <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-                              {/* Group Header */}
-                              <div className="bg-slate-50 dark:bg-slate-850 p-4 border-b border-slate-150 dark:border-slate-850 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <span className="text-xs font-extrabold text-slate-800 dark:text-white">
-                                  Turma: {cls.name} ({cls.code || 'N/A'})
-                                </span>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider">
-                                  <span>Ano: {cls.year}</span>
-                                  <span>Semestre: {cls.semester}º</span>
-                                  <span>Módulo: {cls.module}º</span>
-                                </div>
-                              </div>
-
-                              {/* Table */}
-                              <div className="overflow-x-auto">
-                                <table className="w-full min-w-[700px] text-left border-collapse text-xs">
-                                  <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-850/50 border-b border-slate-150 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                      <th className="py-3 px-4">Disciplina</th>
-                                      <th className="py-3 px-2 text-center w-12">S1</th>
-                                      <th className="py-3 px-2 text-center w-12">S2</th>
-                                      <th className="py-3 px-2 text-center w-12">AFC</th>
-                                      <th className="py-3 px-2 text-center w-12">EX</th>
-                                      <th className="py-3 px-2 text-center w-12">CS</th>
-                                      <th className="py-3 px-2 text-center w-14 font-black">PF</th>
-                                      <th className="py-3 px-3 text-center w-16">Faltas</th>
-                                      <th className="py-3 px-3 text-center w-20">Conceito</th>
-                                      <th className="py-3 px-4 text-right w-24">Resultado</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                                    {clsSubjects.map(sub => {
-                                      const score = classGrades.find(g => g.subjectId === sub.id);
-                                      const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
-                                      return (
-                                        <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20">
-                                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">
-                                            {sub.name}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-mono">
-                                            {score ? score.s1.toFixed(1) : '0.0'}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-mono">
-                                            {score ? score.s2.toFixed(1) : '0.0'}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-mono">
-                                            {score?.afc ? score.afc.toFixed(1) : '0.0'}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-mono">
-                                            {score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-mono">
-                                            {score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}
-                                          </td>
-                                          <td className="py-3 px-2 text-center font-black font-mono bg-blue-50/20 text-blue-700 dark:text-blue-400">
-                                            {score ? score.pf.toFixed(1) : '0.0'}
-                                          </td>
-                                          <td className="py-3 px-3 text-center font-mono font-bold text-red-600">
-                                            {absences.total}
-                                          </td>
-                                          <td className="py-3 px-3 text-center">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                              score?.concept === 'A' 
-                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                                                : score?.concept === 'B' 
-                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
-                                                : score?.concept === 'C' 
-                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
-                                                : 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-                                            }`}>
-                                              {score ? score.concept : 'D'}
-                                            </span>
-                                          </td>
-                                          <td className="py-3 px-4 text-right">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                              score?.result === 'APTO' 
-                                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
-                                                : 'bg-red-500/10 text-red-600 dark:text-red-400'
-                                            }`}>
-                                              {score ? score.result : 'Pendente'}
-                                            </span>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        </motion.div>
+        <HistoricoCompletoModule />
       )}
 
       {/* Tab: DETECTAR E UNIFICAR ALUNOS DUPLICADOS */}
