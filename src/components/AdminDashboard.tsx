@@ -144,7 +144,7 @@ export const AdminDashboard: React.FC = () => {
     storageBackups, isLoadingStorageBackups, fetchStorageBackups,
     triggerStorageBackup, deleteStorageBackup,
     declarationConfigs, studentDocuments,
-    updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
+    updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, removerAlunoDaTurmaContexto,
     unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum,
     currentUser, verComoUsuario, acessos, recarregarAcessos, apagarPessoaPorCompleto
   } = useApp();
@@ -259,6 +259,8 @@ export const AdminDashboard: React.FC = () => {
 
   // Transfer Student states
   const [transferStudentId, setTransferStudentId] = useState('');
+  const [confirmarRemocaoTurma, setConfirmarRemocaoTurma] = useState(false);
+  const [removendoDaTurma, setRemovendoDaTurma] = useState(false);
   const [transferClassId, setTransferClassId] = useState('');
   const [transferSearch, setTransferSearch] = useState('');
   const [transferSuccess, setTransferSuccess] = useState(false);
@@ -3677,6 +3679,7 @@ export const AdminDashboard: React.FC = () => {
                           onClick={() => {
                             setTransferStudentId(std.id);
                             setTransferSearch(std.name);
+                            setConfirmarRemocaoTurma(false);
                           }}
                           className={`w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex justify-between items-center ${
                             transferStudentId === std.id ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'
@@ -3752,6 +3755,54 @@ export const AdminDashboard: React.FC = () => {
               >
                 {transferLoading ? 'Gravando no banco...' : 'Confirmar Transferência'}
               </button>
+
+              {/* REMOVER DA TURMA — pra quando a matrícula foi feita na
+                  turma errada e ainda não se sabe (ou não importa agora)
+                  qual é a turma certa. Usa o MESMO aluno selecionado acima,
+                  mas dispensa a turma de destino — opera na turma ATUAL do
+                  aluno (o campo "turma" da própria ficha dele). */}
+              {transferStudentId && (() => {
+                const alunoSelecionado = users.find(u => u.id === transferStudentId);
+                const turmaAtual = classes.find(c => c.id === alunoSelecionado?.classId);
+                if (!alunoSelecionado?.classId || !turmaAtual) return null;
+                return (
+                  <button
+                    type="button"
+                    disabled={removendoDaTurma}
+                    onClick={async () => {
+                      if (!confirmarRemocaoTurma) {
+                        setConfirmarRemocaoTurma(true);
+                        return;
+                      }
+                      setTransferErrorMsg(null);
+                      setRemovendoDaTurma(true);
+                      const resultado = await removerAlunoDaTurmaContexto(transferStudentId, turmaAtual.id);
+                      setRemovendoDaTurma(false);
+                      setConfirmarRemocaoTurma(false);
+                      if (resultado.ok) {
+                        setTransferSuccess(true);
+                        setTransferStudentId('');
+                        setTransferClassId('');
+                        setTransferSearch('');
+                      } else {
+                        setTransferErrorMsg(resultado.erro || 'Erro desconhecido.');
+                      }
+                    }}
+                    title={`Remove ${alunoSelecionado.name} da turma "${turmaAtual.name}" — sem apontar outra turma. Não apaga nota real já lançada.`}
+                    className={`w-full py-2 text-xs font-bold rounded-xl transition-all uppercase tracking-wider disabled:opacity-50 ${
+                      confirmarRemocaoTurma
+                        ? 'bg-red-700 text-white animate-pulse'
+                        : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50'
+                    }`}
+                  >
+                    {removendoDaTurma
+                      ? 'Removendo...'
+                      : confirmarRemocaoTurma
+                      ? `Confirma remover de "${turmaAtual.name}"?`
+                      : `Remover da Turma "${turmaAtual.name}" (sem indicar outra)`}
+                  </button>
+                );
+              })()}
             </div>
           </div>
 
