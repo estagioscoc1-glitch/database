@@ -2900,3 +2900,281 @@ export async function carregarFaltas(): Promise<Record<string, number> | null> {
   }
   return mapa;
 }
+
+/* ============================================================================
+ * CRM — leads, tarefas, eventos, funcionários e linha do tempo.
+ *
+ * O módulo de CRM já existia pronto (Dashboard, Kanban, Tarefas, Agenda,
+ * Funcionários, Atendimento) mas gravava tudo só no navegador (localStorage)
+ * — nunca chegava a existir de verdade no banco. As funções abaixo seguem o
+ * mesmo padrão do resto do sistema: gravam direto, conferem se o banco
+ * realmente aceitou, e avisam com um erro real se não aceitar.
+ * ========================================================================== */
+
+// ---------------------------------------------------------------- leads
+
+function paraLeadApp(l: any): any {
+  return {
+    id: l.id,
+    name: l.nome,
+    phone: l.telefone ?? '',
+    whatsapp: l.whatsapp ?? '',
+    email: l.email ?? '',
+    interestCourse: l.curso_interesse ?? '',
+    origin: l.origem ?? 'Outros',
+    createdAt: l.criado_em,
+    responsibleId: l.responsavel_id ?? '',
+    responsibleName: l.responsavel_nome ?? '',
+    status: l.status,
+    notes: l.observacoes ?? '',
+    tags: l.tags ?? [],
+    priority: l.prioridade,
+    city: l.cidade ?? undefined,
+    value: l.valor ?? undefined,
+    lastContactDate: l.ultimo_contato_em ?? undefined,
+    nextFollowUpDate: l.proximo_followup_em ?? undefined,
+  };
+}
+
+export async function carregarLeadsCRM(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('crm_leads').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar leads do CRM:', error.message); return null; }
+  return (data ?? []).map(paraLeadApp);
+}
+
+export async function salvarLeadCRM(lead: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_leads').upsert({
+    id: lead.id,
+    nome: lead.name,
+    telefone: lead.phone || null,
+    whatsapp: lead.whatsapp || null,
+    email: lead.email || null,
+    curso_interesse: lead.interestCourse || null,
+    origem: lead.origin || null,
+    responsavel_id: lead.responsibleId || null,
+    responsavel_nome: lead.responsibleName || null,
+    status: lead.status,
+    observacoes: lead.notes || null,
+    tags: lead.tags || [],
+    prioridade: lead.priority,
+    cidade: lead.city || null,
+    valor: lead.value ?? null,
+    ultimo_contato_em: lead.lastContactDate || null,
+    proximo_followup_em: lead.nextFollowUpDate || null,
+    atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar lead do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este lead.' };
+  return { ok: true };
+}
+
+export async function excluirLeadCRM(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_leads').delete().eq('id', id).select('id');
+  if (error) return falha('excluir lead do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar este lead — ele continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- tarefas
+
+function paraTarefaApp(t: any): any {
+  return {
+    id: t.id,
+    title: t.titulo,
+    description: t.descricao ?? '',
+    responsibleId: t.responsavel_id ?? '',
+    responsibleName: t.responsavel_nome ?? '',
+    createdAt: t.criado_em,
+    dueDate: t.prazo ?? '',
+    dueTime: t.prazo_hora ?? undefined,
+    priority: t.prioridade,
+    status: t.status,
+    category: t.categoria ?? '',
+    leadId: t.lead_id ?? undefined,
+    leadName: t.lead_nome ?? undefined,
+    comments: t.comentarios ?? [],
+    attachments: t.anexos ?? [],
+  };
+}
+
+export async function carregarTarefasCRM(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('crm_tarefas').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar tarefas do CRM:', error.message); return null; }
+  return (data ?? []).map(paraTarefaApp);
+}
+
+export async function salvarTarefaCRM(tarefa: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_tarefas').upsert({
+    id: tarefa.id,
+    titulo: tarefa.title,
+    descricao: tarefa.description || null,
+    responsavel_id: tarefa.responsibleId || null,
+    responsavel_nome: tarefa.responsibleName || null,
+    prazo: tarefa.dueDate || null,
+    prazo_hora: tarefa.dueTime || null,
+    prioridade: tarefa.priority,
+    status: tarefa.status,
+    categoria: tarefa.category || null,
+    lead_id: tarefa.leadId || null,
+    lead_nome: tarefa.leadName || null,
+    comentarios: tarefa.comments || [],
+    anexos: tarefa.attachments || [],
+    atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar tarefa do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta tarefa.' };
+  return { ok: true };
+}
+
+export async function excluirTarefaCRM(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_tarefas').delete().eq('id', id).select('id');
+  if (error) return falha('excluir tarefa do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar esta tarefa — ela continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- eventos de agenda
+
+function paraEventoApp(e: any): any {
+  return {
+    id: e.id,
+    title: e.titulo,
+    type: e.tipo,
+    date: e.data_evento,
+    time: e.hora ?? '',
+    leadId: e.lead_id ?? undefined,
+    leadName: e.lead_nome ?? undefined,
+    responsibleId: e.responsavel_id ?? undefined,
+    responsibleName: e.responsavel_nome ?? '',
+    notes: e.observacoes ?? undefined,
+  };
+}
+
+export async function carregarEventosCRM(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('crm_eventos').select('*').order('data_evento', { ascending: true });
+  if (error) { console.warn('[Banco] Falha ao carregar eventos do CRM:', error.message); return null; }
+  return (data ?? []).map(paraEventoApp);
+}
+
+export async function salvarEventoCRM(evento: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_eventos').upsert({
+    id: evento.id,
+    titulo: evento.title,
+    tipo: evento.type,
+    data_evento: evento.date,
+    hora: evento.time || null,
+    lead_id: evento.leadId || null,
+    lead_nome: evento.leadName || null,
+    responsavel_id: evento.responsibleId || null,
+    responsavel_nome: evento.responsibleName || null,
+    observacoes: evento.notes || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar evento do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este evento.' };
+  return { ok: true };
+}
+
+export async function excluirEventoCRM(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_eventos').delete().eq('id', id).select('id');
+  if (error) return falha('excluir evento do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar este evento — ele continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- funcionários do CRM
+
+function paraFuncionarioCRMApp(f: any): any {
+  return {
+    id: f.id,
+    name: f.nome,
+    role: f.cargo ?? '',
+    phone: f.telefone ?? '',
+    email: f.email ?? '',
+    username: f.usuario ?? '',
+    status: f.status,
+    isOnline: false,
+    avatarUrl: f.avatar_url ?? undefined,
+  };
+}
+
+export async function carregarFuncionariosCRM(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('crm_funcionarios').select('*').order('nome', { ascending: true });
+  if (error) { console.warn('[Banco] Falha ao carregar funcionários do CRM:', error.message); return null; }
+  return (data ?? []).map(paraFuncionarioCRMApp);
+}
+
+export async function salvarFuncionarioCRM(func: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_funcionarios').upsert({
+    id: func.id,
+    nome: func.name,
+    cargo: func.role || null,
+    telefone: func.phone || null,
+    email: func.email || null,
+    usuario: func.username || null,
+    status: func.status,
+    avatar_url: func.avatarUrl || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar funcionário do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este funcionário.' };
+  return { ok: true };
+}
+
+export async function excluirFuncionarioCRM(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_funcionarios').delete().eq('id', id).select('id');
+  if (error) return falha('excluir funcionário do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar este funcionário — ele continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- linha do tempo de atendimento
+
+function paraTimelineApp(t: any): any {
+  return {
+    id: t.id,
+    leadId: t.lead_id,
+    type: t.tipo,
+    title: t.titulo,
+    description: t.descricao ?? '',
+    authorName: t.autor_nome ?? '',
+    createdAt: t.criado_em,
+    attachments: t.anexos ?? [],
+    audioDuration: t.duracao_audio ?? undefined,
+  };
+}
+
+export async function carregarTimelineCRM(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('crm_timeline').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar linha do tempo do CRM:', error.message); return null; }
+  return (data ?? []).map(paraTimelineApp);
+}
+
+export async function salvarTimelineCRM(item: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('crm_timeline').upsert({
+    id: item.id,
+    lead_id: item.leadId,
+    tipo: item.type,
+    titulo: item.title,
+    descricao: item.description || null,
+    autor_nome: item.authorName || null,
+    anexos: item.attachments || [],
+    duracao_audio: item.audioDuration || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar item da linha do tempo do CRM', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este registro de atendimento.' };
+  return { ok: true };
+}
+
