@@ -120,6 +120,12 @@ export interface User {
    * não aparecia. Nenhum erro na tela.
    */
   contaId?: string;
+  // Permissões extras concedidas a um professor específico (ex: um
+  // coordenador), além do que todo professor já vê normalmente. Nunca dão
+  // acesso de admin — só essas duas telas específicas, dentro do próprio
+  // painel do professor.
+  podeVerHistoricoCompleto?: boolean;
+  podeVerAcessosEPresenca?: boolean;
 
   assignedJournals?: { classId: string, subjectId: string }[];
   staffPermissions?: StaffPermissions;
