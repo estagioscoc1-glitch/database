@@ -2598,6 +2598,8 @@ export async function carregarEstrutura(): Promise<{
     // Usuários Cadastrados" exatamente como antes, mesmo sem acesso
     // nenhum — parecia que a exclusão não tinha feito nada.
     contaId: p.usuario_id ?? undefined,
+    podeVerHistoricoCompleto: p.pode_ver_historico_completo ?? false,
+    podeVerAcessosEPresenca: p.pode_ver_acessos_e_presenca ?? false,
   })) as User[];
 
   const alunos: User[] = (rAlunos.data ?? []).map((a: any) => ({
@@ -2678,14 +2680,21 @@ export async function atualizarDadosPessoa(params: {
    *  entra na lista de documentos obrigatórios dele. Nunca vai pra
    *  professor nem pra conta de login (não existe essa coluna lá). */
   sexo?: string;
+  /** Só existem na ficha do PROFESSOR — permissões extras concedidas
+   *  professor por professor (ex: um coordenador ver Histórico Completo
+   *  e/ou Acessos e Presença, sem virar admin). */
+  podeVerHistoricoCompleto?: boolean;
+  podeVerAcessosEPresenca?: boolean;
 }): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { id, papel, contaId, nome, email, sexo } = params;
+  const { id, papel, contaId, nome, email, sexo, podeVerHistoricoCompleto, podeVerAcessosEPresenca } = params;
 
-  const mudancasFicha: Record<string, string> = {};
+  const mudancasFicha: Record<string, string | boolean> = {};
   if (nome !== undefined) mudancasFicha.nome = nome;
   if (email !== undefined) mudancasFicha.email = email;
   if (sexo !== undefined && papel === 'ALUNO') mudancasFicha.sexo = sexo;
+  if (podeVerHistoricoCompleto !== undefined && papel === 'PROFESSOR') mudancasFicha.pode_ver_historico_completo = podeVerHistoricoCompleto;
+  if (podeVerAcessosEPresenca !== undefined && papel === 'PROFESSOR') mudancasFicha.pode_ver_acessos_e_presenca = podeVerAcessosEPresenca;
 
   if (Object.keys(mudancasFicha).length > 0) {
     const tabela = papel === 'ALUNO' ? 'alunos' : 'professores';
@@ -2696,8 +2705,8 @@ export async function atualizarDadosPessoa(params: {
     }
   }
 
-  // A conta de login (se existir) recebe nome/e-mail — nunca sexo, essa
-  // coluna não existe na tabela de login.
+  // A conta de login (se existir) recebe nome/e-mail — nunca sexo nem as
+  // permissões extras, essas colunas não existem na tabela de login.
   const mudancasConta: Record<string, string> = {};
   if (nome !== undefined) mudancasConta.nome = nome;
   if (email !== undefined) mudancasConta.email = email;
