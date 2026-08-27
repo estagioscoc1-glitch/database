@@ -3666,7 +3666,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pessoa = users.find(u => u.id === id);
     const precisaGravarNoBanco =
       pessoa && (pessoa.role === UserRole.STUDENT || pessoa.role === UserRole.TEACHER) &&
-      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined || uppercaseUpdates.sexo !== undefined);
+      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined || uppercaseUpdates.sexo !== undefined ||
+       uppercaseUpdates.podeVerHistoricoCompleto !== undefined || uppercaseUpdates.podeVerAcessosEPresenca !== undefined);
 
     // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
     //
@@ -3685,6 +3686,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           nome: uppercaseUpdates.name,
           email: uppercaseUpdates.email,
           sexo: uppercaseUpdates.sexo,
+          podeVerHistoricoCompleto: uppercaseUpdates.podeVerHistoricoCompleto,
+          podeVerAcessosEPresenca: uppercaseUpdates.podeVerAcessosEPresenca,
         })
       : Promise.resolve({ ok: true });
 
