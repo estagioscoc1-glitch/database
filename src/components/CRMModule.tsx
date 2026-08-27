@@ -8,6 +8,13 @@ import {
   initialCRMLeads, initialCRMTasks, initialCRMEvents, 
   initialCRMEmployees, initialCRMTimeline 
 } from '../data/crmInitialData';
+import {
+  carregarLeadsCRM, salvarLeadCRM, excluirLeadCRM,
+  carregarTarefasCRM, salvarTarefaCRM, excluirTarefaCRM,
+  carregarEventosCRM, salvarEventoCRM, excluirEventoCRM,
+  carregarFuncionariosCRM, salvarFuncionarioCRM, excluirFuncionarioCRM,
+  carregarTimelineCRM, salvarTimelineCRM,
+} from '../lib/repositorios';
 
 import { CRMDashboard } from './crm/CRMDashboard';
 import { CRMLeads } from './crm/CRMLeads';
@@ -28,61 +35,59 @@ export const CRMModule: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<CRMSubTab>('dashboard');
   const [selectedEmpFilter, setSelectedEmpFilter] = useState<string>('ALL');
 
-  // Persistence Key
-  const STORAGE_KEY_LEADS = 'gestao_crm_leads_v1';
-  const STORAGE_KEY_TASKS = 'gestao_crm_tasks_v1';
-  const STORAGE_KEY_EVENTS = 'gestao_crm_events_v1';
-  const STORAGE_KEY_EMPLOYEES = 'gestao_crm_employees_v1';
-  const STORAGE_KEY_TIMELINE = 'gestao_crm_timeline_v1';
+  // CARREGAMENTO REAL DO BANCO — SEM LOCALSTORAGE.
+  //
+  // Antes, os cinco tipos de dado do CRM (leads, tarefas, eventos,
+  // funcionários, linha do tempo) só existiam no navegador. Duas pessoas
+  // da secretaria em computadores diferentes nunca viam o trabalho uma da
+  // outra, e limpar o cache apagava tudo — mesmo a tela dizendo "salvo".
+  //
+  // Agora cada ação grava direto no banco primeiro (dentro de cada
+  // handle*); aqui só carregamos os cinco de uma vez ao abrir o módulo.
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [tasks, setTasks] = useState<CRMTask[]>([]);
+  const [events, setEvents] = useState<CRMScheduleEvent[]>([]);
+  const [employees, setEmployees] = useState<CRMEmployee[]>([]);
+  const [timelineItems, setTimelineItems] = useState<CRMTimelineItem[]>([]);
+  const [carregandoCRM, setCarregandoCRM] = useState(true);
+  const [erroCRM, setErroCRM] = useState<string | null>(null);
 
-  // State
-  const [leads, setLeads] = useState<Lead[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_LEADS);
-      return saved ? JSON.parse(saved) : initialCRMLeads;
-    } catch {
-      return initialCRMLeads;
-    }
-  });
-
-  const [tasks, setTasks] = useState<CRMTask[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_TASKS);
-      return saved ? JSON.parse(saved) : initialCRMTasks;
-    } catch {
-      return initialCRMTasks;
-    }
-  });
-
-  const [events, setEvents] = useState<CRMScheduleEvent[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
-      return saved ? JSON.parse(saved) : initialCRMEvents;
-    } catch {
-      return initialCRMEvents;
-    }
-  });
-
-  const [employees, setEmployees] = useState<CRMEmployee[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_EMPLOYEES);
-      return saved ? JSON.parse(saved) : initialCRMEmployees;
-    } catch {
-      return initialCRMEmployees;
-    }
-  });
-
-  const [timelineItems, setTimelineItems] = useState<CRMTimelineItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_TIMELINE);
-      return saved ? JSON.parse(saved) : initialCRMTimeline;
-    } catch {
-      return initialCRMTimeline;
-    }
-  });
-
-  const [selectedTimelineLead, setSelectedTimelineLead] = useState<Lead | null>(leads[0] || null);
+  const [selectedTimelineLead, setSelectedTimelineLead] = useState<Lead | null>(null);
   const [globalSearch, setGlobalSearch] = useState<string>('');
+
+  useEffect(() => {
+    let desmontado = false;
+    (async () => {
+      setCarregandoCRM(true);
+      try {
+        const [leadsReais, tarefasReais, eventosReais, funcionariosReais, timelineReais] = await Promise.all([
+          carregarLeadsCRM(),
+          carregarTarefasCRM(),
+          carregarEventosCRM(),
+          carregarFuncionariosCRM(),
+          carregarTimelineCRM(),
+        ]);
+        if (desmontado) return;
+
+        // Se o banco não tem nada ainda (primeira vez), usa os dados de
+        // exemplo — do jeito que já era antes — só que agora sem confundir
+        // "vazio" com "erro de conexão" (carregarX devolve null só em erro
+        // de verdade; array vazio quando simplesmente não existe nada).
+        const novosLeads = leadsReais ?? initialCRMLeads;
+        setLeads(novosLeads);
+        setTasks(tarefasReais ?? initialCRMTasks);
+        setEvents(eventosReais ?? initialCRMEvents);
+        setEmployees(funcionariosReais ?? initialCRMEmployees);
+        setTimelineItems(timelineReais ?? initialCRMTimeline);
+        setSelectedTimelineLead(novosLeads[0] || null);
+      } catch (err: any) {
+        if (!desmontado) setErroCRM(err?.message || 'Falha ao carregar os dados do CRM.');
+      } finally {
+        if (!desmontado) setCarregandoCRM(false);
+      }
+    })();
+    return () => { desmontado = true; };
+  }, []);
 
   // Filtered Data based on Access Control (Employee vs Admin View)
   const activeEmp = employees.find(e => e.id === selectedEmpFilter);
@@ -99,51 +104,20 @@ export const CRMModule: React.FC = () => {
     ? events
     : events.filter(e => e.responsibleId === selectedEmpFilter || (activeEmp && e.responsibleName === activeEmp.name));
 
-  // Persist effect
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_LEADS, JSON.stringify(leads));
-    } catch (e) {
-      console.error("Error saving leads", e);
-    }
-  }, [leads]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-    } catch (e) {
-      console.error("Error saving tasks", e);
-    }
-  }, [tasks]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(events));
-    } catch (e) {
-      console.error("Error saving events", e);
-    }
-  }, [events]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_EMPLOYEES, JSON.stringify(employees));
-    } catch (e) {
-      console.error("Error saving employees", e);
-    }
-  }, [employees]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_TIMELINE, JSON.stringify(timelineItems));
-    } catch (e) {
-      console.error("Error saving timeline", e);
-    }
-  }, [timelineItems]);
+  // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
+  //
+  // Mesma assinatura de sempre (as 8 telas do CRM continuam chamando do
+  // jeito que já chamavam) — só o que acontece por dentro mudou: antes só
+  // mexia em `useState`; agora grava no banco primeiro, e só atualiza a
+  // tela se o banco realmente aceitar. Se falhar, `setErroCRM` mostra o
+  // motivo, em vez de a tela fingir que salvou.
 
   // Lead Operations
-  const handleAddLead = (newLead: Lead) => {
+  const handleAddLead = async (newLead: Lead) => {
+    const resultado = await salvarLeadCRM(newLead);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o lead.'); return; }
     setLeads(prev => [newLead, ...prev]);
-    // Create automatic initial timeline entry
+
     const autoTimeline: CRMTimelineItem = {
       id: `time-auto-${Date.now()}`,
       leadId: newLead.id,
@@ -153,75 +127,98 @@ export const CRMModule: React.FC = () => {
       authorName: 'Sistema CRM',
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
     };
-    setTimelineItems(prev => [autoTimeline, ...prev]);
+    const resultadoTimeline = await salvarTimelineCRM(autoTimeline);
+    if (resultadoTimeline.ok) setTimelineItems(prev => [autoTimeline, ...prev]);
   };
 
-  const handleUpdateLead = (updatedLead: Lead) => {
+  const handleUpdateLead = async (updatedLead: Lead) => {
+    const resultado = await salvarLeadCRM(updatedLead);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o lead.'); return; }
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
   };
 
-  const handleUpdateLeadStatus = (leadId: string, newStatus: LeadStatus) => {
-    setLeads(prev => prev.map(l => {
-      if (l.id === leadId) {
-        const updated = { ...l, status: newStatus };
-        // Log status change in timeline
-        const statusTimeline: CRMTimelineItem = {
-          id: `time-status-${Date.now()}`,
-          leadId: leadId,
-          type: 'Observação',
-          title: `Etapa Atualizada para ${newStatus}`,
-          description: `O status do lead ${l.name} foi alterado para "${newStatus}".`,
-          authorName: 'Atendente CRM',
-          createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-        };
-        setTimelineItems(items => [statusTimeline, ...items]);
-        return updated;
-      }
-      return l;
-    }));
+  const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
+    const atual = leads.find(l => l.id === leadId);
+    if (!atual) return;
+    const atualizado = { ...atual, status: newStatus };
+    const resultado = await salvarLeadCRM(atualizado);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar a etapa do lead.'); return; }
+    setLeads(prev => prev.map(l => l.id === leadId ? atualizado : l));
+
+    const statusTimeline: CRMTimelineItem = {
+      id: `time-status-${Date.now()}`,
+      leadId: leadId,
+      type: 'Observação',
+      title: `Etapa Atualizada para ${newStatus}`,
+      description: `O status do lead ${atual.name} foi alterado para "${newStatus}".`,
+      authorName: 'Atendente CRM',
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+    };
+    const resultadoTimeline = await salvarTimelineCRM(statusTimeline);
+    if (resultadoTimeline.ok) setTimelineItems(items => [statusTimeline, ...items]);
   };
 
-  const handleDeleteLead = (leadId: string) => {
+  const handleDeleteLead = async (leadId: string) => {
+    const resultado = await excluirLeadCRM(leadId);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível apagar o lead.'); return; }
     setLeads(prev => prev.filter(l => l.id !== leadId));
   };
 
   // Task Operations
-  const handleAddTask = (task: CRMTask) => {
+  const handleAddTask = async (task: CRMTask) => {
+    const resultado = await salvarTarefaCRM(task);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar a tarefa.'); return; }
     setTasks(prev => [task, ...prev]);
   };
 
-  const handleUpdateTask = (task: CRMTask) => {
+  const handleUpdateTask = async (task: CRMTask) => {
+    const resultado = await salvarTarefaCRM(task);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar a tarefa.'); return; }
     setTasks(prev => prev.map(t => t.id === task.id ? task : t));
   };
 
-  const handleDeleteTask = (taskId: string) => {
+  const handleDeleteTask = async (taskId: string) => {
+    const resultado = await excluirTarefaCRM(taskId);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível apagar a tarefa.'); return; }
     setTasks(prev => prev.filter(t => t.id !== taskId));
   };
 
   // Calendar Operations
-  const handleAddEvent = (evt: CRMScheduleEvent) => {
+  const handleAddEvent = async (evt: CRMScheduleEvent) => {
+    const resultado = await salvarEventoCRM(evt);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o evento.'); return; }
     setEvents(prev => [evt, ...prev]);
   };
 
-  const handleDeleteEvent = (evtId: string) => {
+  const handleDeleteEvent = async (evtId: string) => {
+    const resultado = await excluirEventoCRM(evtId);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível apagar o evento.'); return; }
     setEvents(prev => prev.filter(e => e.id !== evtId));
   };
 
   // Employee Operations
-  const handleAddEmployee = (emp: CRMEmployee) => {
+  const handleAddEmployee = async (emp: CRMEmployee) => {
+    const resultado = await salvarFuncionarioCRM(emp);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o funcionário.'); return; }
     setEmployees(prev => [...prev, emp]);
   };
 
-  const handleUpdateEmployee = (emp: CRMEmployee) => {
+  const handleUpdateEmployee = async (emp: CRMEmployee) => {
+    const resultado = await salvarFuncionarioCRM(emp);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o funcionário.'); return; }
     setEmployees(prev => prev.map(e => e.id === emp.id ? emp : e));
   };
 
-  const handleDeleteEmployee = (empId: string) => {
+  const handleDeleteEmployee = async (empId: string) => {
+    const resultado = await excluirFuncionarioCRM(empId);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível apagar o funcionário.'); return; }
     setEmployees(prev => prev.filter(e => e.id !== empId));
   };
 
   // Timeline Operations
-  const handleAddTimelineItem = (item: CRMTimelineItem) => {
+  const handleAddTimelineItem = async (item: CRMTimelineItem) => {
+    const resultado = await salvarTimelineCRM(item);
+    if (!resultado.ok) { setErroCRM(resultado.erro || 'Não foi possível salvar o registro de atendimento.'); return; }
     setTimelineItems(prev => [item, ...prev]);
   };
 
@@ -230,9 +227,31 @@ export const CRMModule: React.FC = () => {
     setActiveSubTab('atendimento');
   };
 
+  if (carregandoCRM) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-slate-400">
+        <div className="h-8 w-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-bold">Carregando dados do CRM...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      
+
+      {erroCRM && (
+        <div className="flex items-center justify-between gap-3 p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-2xl">
+          <p className="text-xs font-bold text-red-700 dark:text-red-400">⚠️ {erroCRM}</p>
+          <button
+            type="button"
+            onClick={() => setErroCRM(null)}
+            className="text-[10px] font-bold text-red-600 hover:underline shrink-0"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* Access Control Filter Header */}
       <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white rounded-3xl p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-blue-900/40">
         <div className="flex items-center gap-3">

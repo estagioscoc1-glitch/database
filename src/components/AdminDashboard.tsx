@@ -26,7 +26,7 @@ import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuir
  * A tela volta exatamente como estava, com todos os dados.
  * ========================================================================== */
 const ABAS_VISIVEIS = {
-  crm: false,                 // CRM
+  crm: true,                  // CRM
   cadastros: false,           // Cadastros
   financeiro: false,          // Financeiro
   orientacao: false,          // Movimentação
