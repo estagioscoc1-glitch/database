@@ -1669,6 +1669,57 @@ export async function excluirVinculoTurmaSeVazio(alunoId: string, turmaId: strin
 }
 
 /**
+ * Remove um aluno de uma turma SEM precisar apontar turma de destino — pra
+ * quando a matrícula foi feita na turma errada e só precisa desfazer.
+ *
+ * Diferente de `excluirVinculoTurmaSeVazio` (que é chamada só de dentro da
+ * Transferência, e propositalmente fica CALADA — devolve sucesso sem
+ * apagar nada — quando já existe nota real lançada, pra não estragar uma
+ * transferência legítima): aqui a intenção da secretaria é "remover", então
+ * se já tem nota de verdade lançada, precisa AVISAR isso claramente em vez
+ * de fingir que removeu.
+ */
+export async function removerAlunoDaTurma(alunoId: string, turmaId: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  const { data: diarios, error: erroDiarios } = await supabase
+    .from('diarios').select('id').eq('turma_id', turmaId);
+  if (erroDiarios) return falha('localizar diários da turma', erroDiarios);
+
+  const diarioIds = (diarios ?? []).map((d: any) => d.id);
+  if (diarioIds.length > 0) {
+    const { data: notasReais, error: erroNotas } = await supabase
+      .from('notas')
+      .select('id')
+      .eq('aluno_id', alunoId)
+      .in('diario_id', diarioIds)
+      .or('s1.gt.0,s2.gt.0,pf.gt.0,afc.gt.0');
+    if (erroNotas) return falha('conferir notas lançadas nesta turma', erroNotas);
+    if (notasReais && notasReais.length > 0) {
+      return {
+        ok: false,
+        erro: 'Este aluno já tem nota de verdade lançada nesta turma — remover apagaria histórico real, ' +
+              'então não fiz isso automaticamente. Se realmente quiser descartar tudo, use "Apagar Tudo" ' +
+              '(apaga a ficha inteira do aluno, não só esta turma) ou peça ajuda pra decidir o melhor caminho.',
+      };
+    }
+
+    const { error: erroDelNotas } = await supabase
+      .from('notas').delete().eq('aluno_id', alunoId).in('diario_id', diarioIds);
+    if (erroDelNotas) return falha('excluir notas (sem valor real) desta turma', erroDelNotas);
+  }
+
+  const { data: matriculaApagadaNova, error: erroDelMatriculaNova } = await supabase
+    .from('matriculas').delete().eq('aluno_id', alunoId).eq('turma_id', turmaId).select('aluno_id');
+  if (erroDelMatriculaNova) return falha('remover matrícula desta turma', erroDelMatriculaNova);
+  if (!matriculaApagadaNova || matriculaApagadaNova.length === 0) {
+    return { ok: false, erro: 'O banco não autorizou remover esta matrícula — ela continua lá.' };
+  }
+
+  return { ok: true };
+}
+
+/**
  * Cancela a matrícula de dependência de UM aluno em UMA disciplina.
  *
  * Diferente de `excluirVinculoTurmaSeVazio` (usada na transferência de
