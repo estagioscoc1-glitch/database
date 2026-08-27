@@ -11,7 +11,7 @@ import { motion } from 'motion/react';
 
 export const GradeJournal: React.FC = () => {
   const { 
-    grades, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, mostrarAviso, users, classes, subjects, 
+    grades, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, mostrarAviso, users, classes, subjects, 
     activeClassId, activeSubjectId, currentUser, toggleJournalStatus,
     getStudentAbsences, isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
     autoLockEnabled, simulatedDate, calendarEvents
@@ -852,6 +852,37 @@ export const GradeJournal: React.FC = () => {
                         }`}>
                           {grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result}
                         </span>
+                      )}
+
+                      {/* DESISTENTE EM TODAS AS DISCIPLINAS — evita ter que
+                          repetir aluno por aluno, disciplina por disciplina.
+                          Mesmo escopo do "Ocultar Turma Inteira": todas as
+                          disciplinas DESTA turma, não o histórico do aluno
+                          em anos anteriores. Mesma permissão do menu acima
+                          (Admin ou a conta do Yan). */}
+                      {(currentUser?.role === 'ADMIN' || (currentUser?.role === 'STAFF' && currentUser?.username?.toLowerCase() === 'admin_yan.neres')) && !isLocked && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const jaDesistente = grade.result === 'DESISTENTE';
+                            const acao = jaDesistente ? 'reverter (recalcular normal)' : 'marcar como DESISTENTE';
+                            const confirmou = window.confirm(
+                              `Isto vai ${acao.toUpperCase()} em TODAS as disciplinas de ${stud.name} nesta turma ("${targetClass.name}").\n\n` +
+                              `Não afeta anos ou semestres anteriores, só esta turma.\n\nConfirma?`
+                            );
+                            if (!confirmou) return;
+                            const quantos = marcarDesistenteNaTurma(stud.id, targetClass.id, !jaDesistente);
+                            mostrarAviso(
+                              jaDesistente ? 'Desistência revertida' : 'Marcado como desistente',
+                              `${quantos} disciplina(s) de ${stud.name} ${jaDesistente ? 'voltaram a calcular normal' : 'foram marcadas como DESISTENTE'}.`
+                            );
+                            setSaveStatus('unsaved');
+                          }}
+                          title="Aplica (ou reverte) DESISTENTE em todas as disciplinas desta turma de uma vez, sem precisar repetir disciplina por disciplina."
+                          className="block mt-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:underline"
+                        >
+                          {grade.result === 'DESISTENTE' ? '↺ reverter em todas' : 'aplicar em todas'}
+                        </button>
                       )}
                     </td>
 
