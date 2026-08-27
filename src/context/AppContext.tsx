@@ -38,7 +38,7 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva, removerAlunoDaTurma } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -256,6 +256,7 @@ interface AppContextType {
   updateDeclarationConfig: (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => void;
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
   transferStudent: (studentId: string, targetClassId: string) => Promise<{ ok: boolean; erro?: string }>;
+  removerAlunoDaTurmaContexto: (studentId: string, classId: string) => Promise<{ ok: boolean; erro?: string }>;
   updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null, teacherName?: string) => void;
   /** Ids de avisos já dispensados ou abertos por esta pessoa. */
   avisosVistos: string[];
@@ -5807,6 +5808,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  // REMOVE UM ALUNO DE UMA TURMA SEM PRECISAR APONTAR TURMA DE DESTINO —
+  // pra quando a matrícula foi feita na turma errada e só precisa desfazer.
+  const removerAlunoDaTurmaContexto = async (studentId: string, classId: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await removerAlunoDaTurma(studentId, classId);
+    if (!resultado.ok) return resultado;
+
+    // Limpa da tela: notas dessa turma e, se essa era a turma "atual" do
+    // aluno, tira também — ele fica sem turma até ser matriculado em outra.
+    setGrades(prev => prev.filter(g => !(g.studentId === studentId && g.classId === classId)));
+    setUsers(prev => prev.map(u =>
+      (u.id === studentId && u.classId === classId) ? { ...u, classId: undefined } : u
+    ));
+
+    return { ok: true };
+  };
+
   // Security Audit Logging
   const addSecurityLog = (eventType: string, details: string, severity: 'low' | 'medium' | 'high' = 'low') => {
     const newLog = {
@@ -6362,7 +6379,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storageBackups, isLoadingStorageBackups, fetchStorageBackups,
       triggerStorageBackup, deleteStorageBackup,
       declarationConfigs, studentDocuments, internships,
-      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, updateInternshipRecord,
+      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, removerAlunoDaTurmaContexto, updateInternshipRecord,
       adminPasswordResetDone, resetAdminPassword, unlockAdminReset,
       precisaTrocarSenha, concluirTrocaDeSenha: () => setPrecisaTrocarSenha(false),
       gerarAcessosDosAlunos, contarAlunosSemAcesso,
