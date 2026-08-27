@@ -182,6 +182,7 @@ interface AppContextType {
   ocultarDisciplinaNoHistorico: (classId: string, subjectId: string, ocultar: boolean) => number;
   alternarCampoOculto: (gradeId: string, campo: string) => void;
   ocultarCampoParaTodos: (classId: string, subjectId: string, campo: string, ocultar: boolean) => number;
+  marcarDesistenteNaTurma: (studentId: string, classId: string, desistente: boolean) => number;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
   // Attendance
@@ -4465,6 +4466,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return quantos;
   };
 
+  // MARCAR/DESMARCAR DESISTENTE EM TODAS AS DISCIPLINAS DE UMA TURMA, DE
+  // UMA VEZ SÓ.
+  //
+  // Marcar "Desistente" hoje só mudava UMA disciplina — a que estava aberta
+  // na tela. Um aluno que desiste desiste do curso inteiro, não só de uma
+  // matéria; precisava repetir disciplina por disciplina. Mesmo escopo já
+  // usado em "Ocultar Turma Inteira" (todas as disciplinas DAQUELA turma,
+  // não o histórico inteiro do aluno em anos anteriores).
+  const marcarDesistenteNaTurma = (studentId: string, classId: string, desistente: boolean): number => {
+    const alvo = grades.filter(g => g.studentId === studentId && g.classId === classId);
+    const quantos = alvo.length;
+    setGrades(prev => prev.map(g => {
+      if (g.studentId !== studentId || g.classId !== classId) return g;
+      if (desistente) {
+        const merged = { ...g, result: 'DESISTENTE' as const, concept: (g.concept === 'E' || !g.concept ? 'DES' : g.concept) };
+        return computeCalculatedGrade(merged, true);
+      }
+      // Desmarcar: tira o "congelamento" e deixa a nota recalcular sozinha
+      // pelo que já está lançado (nota + frequência), do jeito normal —
+      // `computeCalculatedGrade` só preserva DISPENSADO/DESISTENTE; qualquer
+      // outro valor de partida é recalculado do zero.
+      const merged = { ...g, result: 'Pendente' as GradeRecord['result'] };
+      return computeCalculatedGrade(merged, true);
+    }));
+    return quantos;
+  };
+
   const updateConceptRanges = (ranges: ConceptRange[]) => {
     setConceptRanges(ranges);
   };
@@ -6363,7 +6391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       provas, criarProva, salvarProvaContexto, excluirProvaContexto,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
-      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, updateConceptRanges,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
