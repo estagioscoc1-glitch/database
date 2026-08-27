@@ -795,7 +795,12 @@ export const GradeJournal: React.FC = () => {
 
                     {/* Result */}
                     <td className="py-2.5 px-3 text-right">
-                      {currentUser?.role === 'ADMIN' && !isLocked ? (
+                      {/* Pedido específico: além do Admin, a conta de
+                          Secretaria do Yan também marca DISPENSADO/DESISTENTE
+                          — mesmo padrão já usado em App.tsx (identificado
+                          pelo login exato 'admin_yan.neres'). Nenhuma outra
+                          conta de Secretaria tem isso por padrão. */}
+                      {(currentUser?.role === 'ADMIN' || (currentUser?.role === 'STAFF' && currentUser?.username?.toLowerCase() === 'admin_yan.neres')) && !isLocked ? (
                         <select
                           value={grade.result === 'DISPENSADO' ? 'DISPENSADO' : grade.result === 'DESISTENTE' ? 'DESISTENTE' : 'AUTO'}
                           onChange={(e) => {
