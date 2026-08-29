@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { FormularioDocente, DadosNovoDocente } from './cadastros/FormularioDocente';
-import { FormularioCadastroCompleto, DadosCadastroCompleto } from './cadastros/FormularioCadastroCompleto';
+import { FormularioCadastroCompleto, DadosCadastroCompleto } from './FormularioCadastroCompleto';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
