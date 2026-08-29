@@ -131,6 +131,43 @@ export interface User {
   staffPermissions?: StaffPermissions;
   /** 'M' ou 'F'. Define se o Certificado de Reservista é exigido. */
   sexo?: string;
+
+  // ==========================================================================
+  // DADOS COMPLETOS — campos novos, adicionados de propósito sem tocar em
+  // nenhum campo acima. Cobrem o que faltava na ficha de aluno e professor
+  // (filiação, documentos, endereço completo). Todos opcionais: quem já
+  // está cadastrado com só nome+matrícula continua funcionando exatamente
+  // igual, essa gente só fica com esses campos vazios até alguém preencher.
+  // ==========================================================================
+  motherName?: string;
+  fatherName?: string;
+  maritalStatus?: string;
+  nationality?: string;
+  birthDate?: string;
+  birthCity?: string;
+  birthState?: string;
+  rg?: string;
+  rgIssuer?: string;
+  rgUf?: string;
+  whatsapp?: string;
+  profession?: string;
+  observations?: string;
+  // Endereço
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  // Só professor — conselho de classe e titulação.
+  professionalCouncil?: string;
+  councilNumber?: string;
+  councilUf?: string;
+  councilValidity?: string;
+  academicTitle?: string;
+  specialty?: string;
 }
 
 export interface Course {
