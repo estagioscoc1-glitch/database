@@ -2721,31 +2721,92 @@ export async function carregarEstrutura(): Promise<{
  * As duas precisam ser atualizadas juntas, senão a ficha mostra um nome e a
  * conta de login mostra outro.
  */
+// Campos que existem em ALUNO e PROFESSOR igualzinho — filiação, documento,
+// endereço. Chave = nome do campo no tipo `User` (front-end), valor = nome
+// da coluna no banco (em português, igual ao resto do schema).
+const MAPA_CAMPOS_COMUNS: Record<string, string> = {
+  name: 'nome',
+  email: 'email',
+  cpf: 'cpf',
+  phone: 'telefone',
+  whatsapp: 'whatsapp',
+  motherName: 'nome_mae',
+  fatherName: 'nome_pai',
+  maritalStatus: 'estado_civil',
+  nationality: 'nacionalidade',
+  birthDate: 'data_nascimento',
+  birthCity: 'cidade_nascimento',
+  birthState: 'uf_nascimento',
+  rg: 'rg',
+  rgIssuer: 'rg_orgao',
+  rgUf: 'rg_uf',
+  observations: 'observacoes',
+  zipCode: 'cep',
+  address: 'logradouro',
+  addressNumber: 'numero',
+  complement: 'complemento',
+  neighborhood: 'bairro',
+  city: 'cidade',
+  state: 'uf',
+  country: 'pais',
+};
+
+// Só existem na ficha do ALUNO.
+const MAPA_CAMPOS_SO_ALUNO: Record<string, string> = {
+  enrollment: 'matricula',
+  dossierNumber: 'dossie',
+  profession: 'profissao',
+  sexo: 'sexo',
+};
+
+// Só existem na ficha do PROFESSOR.
+const MAPA_CAMPOS_SO_PROFESSOR: Record<string, string> = {
+  enrollment: 'matricula',
+  sexo: 'sexo',
+  professionalCouncil: 'conselho',
+  councilNumber: 'conselho_numero',
+  councilUf: 'conselho_uf',
+  councilValidity: 'conselho_validade',
+  academicTitle: 'titulacao',
+  specialty: 'especialidade',
+  podeVerHistoricoCompleto: 'pode_ver_historico_completo',
+  podeVerAcessosEPresenca: 'pode_ver_acessos_e_presenca',
+};
+
+/**
+ * Atualiza dados de aluno ou professor — direto no banco, na ficha e (nome/
+ * e-mail) na conta de login também.
+ *
+ * FICHA COMPLETA: recebe qualquer combinação dos campos comuns (filiação,
+ * documento, endereço) mais os exclusivos de cada papel — todo o resto do
+ * sistema continua funcionando de quem só tem nome+matrícula, porque cada
+ * campo aqui é opcional e só é gravado se vier preenchido.
+ *
+ * CPF e MATRÍCULA já apareciam no formulário de editar usuário, mas nunca
+ * chegavam a esta função — editar esses dois campos "funcionava" só na
+ * aparência, nunca era salvo de verdade. Corrigido aqui junto.
+ */
 export async function atualizarDadosPessoa(params: {
   id: string;
   papel: 'ALUNO' | 'PROFESSOR';
   contaId?: string;
-  nome?: string;
-  email?: string;
-  /** Só existe na ficha do ALUNO — decide se "Certificado de Reservista"
-   *  entra na lista de documentos obrigatórios dele. Nunca vai pra
-   *  professor nem pra conta de login (não existe essa coluna lá). */
-  sexo?: string;
-  /** Só existem na ficha do PROFESSOR — permissões extras concedidas
-   *  professor por professor (ex: um coordenador ver Histórico Completo
-   *  e/ou Acessos e Presença, sem virar admin). */
-  podeVerHistoricoCompleto?: boolean;
-  podeVerAcessosEPresenca?: boolean;
+  [campo: string]: any;
 }): Promise<ResultadoGravacao> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
-  const { id, papel, contaId, nome, email, sexo, podeVerHistoricoCompleto, podeVerAcessosEPresenca } = params;
+  const { id, papel, contaId, ...resto } = params;
 
-  const mudancasFicha: Record<string, string | boolean> = {};
-  if (nome !== undefined) mudancasFicha.nome = nome;
-  if (email !== undefined) mudancasFicha.email = email;
-  if (sexo !== undefined && papel === 'ALUNO') mudancasFicha.sexo = sexo;
-  if (podeVerHistoricoCompleto !== undefined && papel === 'PROFESSOR') mudancasFicha.pode_ver_historico_completo = podeVerHistoricoCompleto;
-  if (podeVerAcessosEPresenca !== undefined && papel === 'PROFESSOR') mudancasFicha.pode_ver_acessos_e_presenca = podeVerAcessosEPresenca;
+  const mapaEspecifico = papel === 'ALUNO' ? MAPA_CAMPOS_SO_ALUNO : MAPA_CAMPOS_SO_PROFESSOR;
+  const mudancasFicha: Record<string, any> = {};
+
+  for (const [campoApp, valor] of Object.entries(resto)) {
+    if (valor === undefined) continue;
+    const colunaComum = MAPA_CAMPOS_COMUNS[campoApp];
+    const colunaEspecifica = mapaEspecifico[campoApp];
+    if (colunaComum) mudancasFicha[colunaComum] = valor;
+    else if (colunaEspecifica) mudancasFicha[colunaEspecifica] = valor;
+    // Campo desconhecido pra este papel (ex: dossiê pedido pra professor):
+    // ignorado silenciosamente, não quebra a gravação do resto.
+  }
 
   if (Object.keys(mudancasFicha).length > 0) {
     const tabela = papel === 'ALUNO' ? 'alunos' : 'professores';
@@ -2756,11 +2817,11 @@ export async function atualizarDadosPessoa(params: {
     }
   }
 
-  // A conta de login (se existir) recebe nome/e-mail — nunca sexo nem as
-  // permissões extras, essas colunas não existem na tabela de login.
+  // A conta de login (se existir) recebe nome/e-mail — nunca os campos
+  // extras, essas colunas não existem na tabela de login.
   const mudancasConta: Record<string, string> = {};
-  if (nome !== undefined) mudancasConta.nome = nome;
-  if (email !== undefined) mudancasConta.email = email;
+  if (resto.name !== undefined) mudancasConta.nome = resto.name;
+  if (resto.email !== undefined) mudancasConta.email = resto.email;
   if (contaId && Object.keys(mudancasConta).length > 0) {
     const { error: erroConta } = await supabase.from('usuarios').update(mudancasConta).eq('id', contaId);
     if (erroConta) {
