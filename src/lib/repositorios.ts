@@ -16,7 +16,7 @@
  */
 
 import { supabase, supabaseConfigurado, chamarBancoDireto } from './supabase';
-import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment, Prova, QuestaoProva } from '../types';
+import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment, Prova, QuestaoProva, Resolution } from '../types';
 import { UserRole } from '../types';
 
 /* ==========================================================================
@@ -645,6 +645,8 @@ export async function publicarEstrutura(dados: {
         // O banco espera SABADO sem acento; `paraTurnoBanco` faz essa conversão.
         turnos: Array.from(new Set((c.shifts ?? []).map(s => paraTurnoBanco(s as string)))),
         ativo: c.active !== false && c.status !== 'INATIVO',
+        coordenador_id: c.coordinatorId || null,
+        resolucao_id: c.resolutionId || null,
       })), 'id', 'gravar cursos');
     if (!r.ok) return r;   // sem curso, nada mais entra (chave estrangeira)
   }
@@ -659,6 +661,8 @@ export async function publicarEstrutura(dados: {
         nome: s.name,
         modulo: s.module ?? 1,
         carga_horaria: s.workload ?? 0,
+        codigo: s.code || null,
+        ementa: s.syllabus || null,
       })), 'id', 'gravar disciplinas');
     if (!r.ok) erros.push(r.erro || 'disciplinas');
   }
@@ -2594,6 +2598,8 @@ export async function carregarEstrutura(): Promise<{
       : undefined,
     status: c.ativo ? 'ATIVO' : 'INATIVO',
     active: !!c.ativo,
+    coordinatorId: c.coordenador_id ?? undefined,
+    resolutionId: c.resolucao_id ?? undefined,
   }));
 
   const subjects: Subject[] = (rDisc.data ?? []).map((s: any) => ({
@@ -2602,6 +2608,8 @@ export async function carregarEstrutura(): Promise<{
     name: s.nome,
     module: s.modulo ?? 1,
     workload: s.carga_horaria ?? 0,
+    code: s.codigo ?? undefined,
+    syllabus: s.ementa ?? undefined,
   })) as Subject[];
 
   const classes: ClassSection[] = (rTurmas.data ?? []).map((t: any) => ({
@@ -3020,6 +3028,94 @@ export async function carregarFaltas(): Promise<Record<string, number> | null> {
     mapa[chave] = f.quantidade ?? 0;
   }
   return mapa;
+}
+
+/* ============================================================================
+ * RESOLUÇÕES — o ato legal (MEC/CEE) que autoriza um curso a funcionar.
+ * Cadastro próprio, cresce quando a secretaria precisar, sem precisar de
+ * SQL novo — é só usar a tela.
+ * ========================================================================== */
+
+function paraResolucaoApp(r: any): Resolution {
+  return {
+    id: r.id,
+    number: r.numero,
+    issuingBody: r.orgao_emissor ?? undefined,
+    publicationDate: r.data_publicacao ?? undefined,
+    description: r.descricao ?? undefined,
+    notes: r.observacoes ?? undefined,
+  };
+}
+
+export async function carregarResolucoes(): Promise<Resolution[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('resolucoes').select('*').order('data_publicacao', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar resoluções:', error.message); return null; }
+  return (data ?? []).map(paraResolucaoApp);
+}
+
+export async function salvarResolucao(resolution: Resolution): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('resolucoes').upsert({
+    id: resolution.id,
+    numero: resolution.number,
+    orgao_emissor: resolution.issuingBody || null,
+    data_publicacao: resolution.publicationDate || null,
+    descricao: resolution.description || null,
+    observacoes: resolution.notes || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar resolução', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta resolução.' };
+  return { ok: true };
+}
+
+export async function excluirResolucao(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('resolucoes').delete().eq('id', id).select('id');
+  if (error) return falha('excluir resolução', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar esta resolução — ela continua lá.' };
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------ curso: coordenador + resolução (gravação direta) */
+
+/**
+ * Grava coordenador e/ou resolução do curso DIRETO no banco — sem esperar o
+ * ciclo de sincronização periódica (o mesmo cuidado já tomado em todo o
+ * resto do sistema: uma ação explícita da secretaria precisa confirmar na
+ * hora se gravou, não "confiar" numa sincronização que roda em segundo plano).
+ */
+export async function atualizarCursoExtra(cursoId: string, params: {
+  coordinatorId?: string | null;
+  resolutionId?: string | null;
+}): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const mudancas: Record<string, string | null> = {};
+  if (params.coordinatorId !== undefined) mudancas.coordenador_id = params.coordinatorId;
+  if (params.resolutionId !== undefined) mudancas.resolucao_id = params.resolutionId;
+  if (Object.keys(mudancas).length === 0) return { ok: true };
+
+  const { data, error } = await supabase.from('cursos').update(mudancas).eq('id', cursoId).select('id');
+  if (error) return falha('atualizar coordenador/resolução do curso', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração no curso.' };
+  return { ok: true };
+}
+
+/** Mesma lógica, pra código e ementa da disciplina. */
+export async function atualizarDisciplinaExtra(disciplinaId: string, params: {
+  code?: string;
+  syllabus?: string;
+}): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const mudancas: Record<string, string | null> = {};
+  if (params.code !== undefined) mudancas.codigo = params.code || null;
+  if (params.syllabus !== undefined) mudancas.ementa = params.syllabus || null;
+  if (Object.keys(mudancas).length === 0) return { ok: true };
+
+  const { data, error } = await supabase.from('disciplinas').update(mudancas).eq('id', disciplinaId).select('id');
+  if (error) return falha('atualizar código/ementa da disciplina', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração na disciplina.' };
+  return { ok: true };
 }
 
 /* ============================================================================
