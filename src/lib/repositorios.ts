@@ -2052,7 +2052,7 @@ async function vincularContaExistente(
  * Agora esperamos o registro de verdade — conferindo a cada segundo, por até
  * 20 segundos — em vez de contar o tempo e torcer.
  */
-async function esperarFichaNoBanco(
+export async function esperarFichaNoBanco(
   tabela: 'alunos' | 'professores',
   coluna: 'matricula' | 'id',
   valor: string,
