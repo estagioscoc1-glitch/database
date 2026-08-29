@@ -5,11 +5,12 @@
 
 import React, { useState } from 'react';
 import { FormularioDocente, DadosNovoDocente } from './cadastros/FormularioDocente';
+import { FormularioCadastroCompleto, DadosCadastroCompleto } from './cadastros/FormularioCadastroCompleto';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
 import { criarAcesso, redefinirSenhaDeUsuario, conferirSenhaAtual } from '../lib/supabase';
-import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuirProfessorAoDiario } from '../lib/repositorios';
+import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuirProfessorAoDiario, esperarFichaNoBanco } from '../lib/repositorios';
 
 /* ==========================================================================
  * QUAIS ABAS APARECEM NO PAINEL
@@ -772,6 +773,140 @@ export const AdminDashboard: React.FC = () => {
       senhaGerada || undefined
     );
   }, [activeTeachers.length, addUser, criarAcesso, mostrarAviso]);
+
+  // Matrícula sugerida = a maior já usada + 1 — mesmo raciocínio já usado
+  // pra professor em `handleCreateUser` (linha acima), agora calculado pra
+  // aluno também e reaproveitado nos dois no formulário de Cadastro
+  // Completo. É só uma SUGESTÃO — o campo continua editável na tela.
+  const matriculaSugeridaAluno = React.useMemo(() => {
+    const maior = users
+      .filter(u => u.role === UserRole.STUDENT)
+      .reduce((maior, u) => {
+        const n = Number(u.enrollment);
+        return Number.isFinite(n) && n > maior ? n : maior;
+      }, 20000000);
+    return String(maior + 1);
+  }, [users]);
+
+  const matriculaSugeridaProfessor = React.useMemo(() => {
+    const maior = activeTeachers.reduce((maior, t) => {
+      const n = Number(t.enrollment);
+      return Number.isFinite(n) && n > maior ? n : maior;
+    }, 1000);
+    return String(maior + 1);
+  }, [activeTeachers]);
+
+  const turmasParaCadastroCompleto = React.useMemo(
+    () => activePeriodClasses.map(cl => ({
+      id: cl.id,
+      label: `${cl.year}/${cl.semester} | ${cl.code ? `[${cl.code}] ` : ''}${cl.name}`,
+    })),
+    [activePeriodClasses]
+  );
+
+  // CADASTRO COMPLETO — aluno ou professor, com todos os dados de uma vez.
+  //
+  // Não inventa nenhum caminho de gravação novo: reaproveita exatamente as
+  // mesmas duas peças já usadas e testadas em produção — `importStudents` +
+  // `criarAcessoDeUmAluno` (aluno) e `addUser` + `criarAcessoDeUmDocente`
+  // (professor). A única coisa nova é chamar `updateUser` no final, com os
+  // campos extras da ficha completa (endereço, filiação, documentos) — a
+  // mesma função já usada pela "Ficha Completa" que já validamos funcionando.
+  const handleCadastroCompleto = React.useCallback(async (dados: DadosCadastroCompleto) => {
+    const nomeMaiusculo = dados.nome.trim().toUpperCase();
+    const matricula = dados.matricula.trim();
+    if (!nomeMaiusculo || !matricula) {
+      mostrarAviso('Faltam dados', 'Preencha ao menos o nome e a matrícula.');
+      return;
+    }
+
+    // Só os campos da "ficha completa" — sem os que já foram usados na
+    // criação (nome, matrícula, e-mail, senha, turma), pra não reescrever
+    // por cima deles à toa.
+    const { papel: _p, matricula: _m, nome: _n, email: _e, senha: _s, turmaId: _t, ...camposCompletos } = dados;
+
+    if (dados.papel === UserRole.STUDENT) {
+      if (!dados.turmaId) {
+        mostrarAviso('Falta a turma', 'Escolha em qual turma o aluno vai entrar.');
+        return;
+      }
+      const turmaDestino = classes.find(c => c.id === dados.turmaId);
+      const email = dados.email.trim() || `${matricula}@aluno.oc.com`;
+
+      importStudents([{ name: nomeMaiusculo, enrollment: matricula, email }], dados.turmaId);
+
+      setCriandoAcesso(true);
+      try {
+        const resAcesso = await criarAcessoDeUmAluno(criarAcesso, matricula, nomeMaiusculo);
+
+        // Espera a ficha existir de verdade no banco antes de tentar
+        // completá-la — sem isso, `updateUser` não encontraria ninguém com
+        // esse id ainda (a gravação da ficha básica é assíncrona).
+        const alunoId = await esperarFichaNoBanco('alunos', 'matricula', matricula);
+        if (alunoId && Object.values(camposCompletos).some(v => v !== '' && v !== undefined)) {
+          await updateUser(alunoId, camposCompletos as any);
+        }
+
+        mostrarAviso(
+          'Aluno cadastrado',
+          resAcesso.ok
+            ? `${nomeMaiusculo}\nMatrícula: ${matricula}\nTurma: ${turmaDestino?.name || ''}\n\nAcesso criado — usuário: ${matricula}. Senha do primeiro acesso: a própria matrícula.`
+            : `A ficha foi salva, mas o acesso NÃO foi criado.\nMotivo: ${resAcesso.erro}`
+        );
+      } finally {
+        setCriandoAcesso(false);
+      }
+      return;
+    }
+
+    // Professor — mesmo padrão de geração de usuário já usado em
+    // `handleCreateUser`, só que aqui a matrícula vem do formulário (o
+    // admin pode aceitar a sugestão ou trocar), não recalculada aqui.
+    const semAcento = (s: string) =>
+      s.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    const partes = nomeMaiusculo.trim().split(/\s+/).filter(Boolean);
+    const primeiro = semAcento(partes[0] || 'usuario');
+    const ultimo = partes.length > 1 ? semAcento(partes[partes.length - 1]) : '';
+    const login = `prof_${ultimo ? `${primeiro}.${ultimo}` : primeiro}`;
+    const uniqueId = `prof_${Date.now()}`;
+
+    addUser({
+      id: uniqueId,
+      name: nomeMaiusculo,
+      username: login,
+      email: dados.email.trim(),
+      role: UserRole.TEACHER,
+      enrollment: matricula,
+      active: true,
+    });
+
+    setCriandoAcesso(true);
+    try {
+      const res = await criarAcessoDeUmDocente(criarAcesso, {
+        fichaId: uniqueId,
+        nome: nomeMaiusculo,
+        login,
+        email: dados.email.trim(),
+        papel: 'PROFESSOR',
+        senha: dados.senha.trim() || undefined,
+      });
+
+      const profId = await esperarFichaNoBanco('professores', 'matricula', matricula);
+      if (profId && Object.values(camposCompletos).some(v => v !== '' && v !== undefined)) {
+        await updateUser(profId, camposCompletos as any);
+      }
+
+      mostrarAviso(
+        'Professor cadastrado',
+        res.ok
+          ? `Usuário de acesso: ${res.loginUsado || login}\nMatrícula: ${matricula}\nA pessoa deverá trocar a senha no primeiro acesso.`
+          : `A ficha foi salva, mas o acesso NÃO foi criado.\nMotivo: ${res.erro}`,
+        res.senhaInicial || undefined
+      );
+    } finally {
+      setCriandoAcesso(false);
+    }
+  }, [classes, criarAcesso, importStudents, addUser, updateUser, mostrarAviso]);
 
   const handleEnrollSingleStudent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2161,6 +2296,29 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <FormularioDocente aoCadastrar={handleCreateUser} />
+          </div>
+
+          {/* CADASTRO COMPLETO — aluno ou professor, com todos os dados de
+              uma vez (endereço, filiação, documentos) e matrícula sugerida
+              automaticamente. Card NOVO, separado do que já existia acima —
+              quem preferir o cadastro rápido de sempre continua usando os
+              cards de cima, sem nenhuma mudança neles. */}
+          <div className="md:col-span-12 bg-white dark:bg-slate-900 border border-indigo-150 dark:border-indigo-900/40 p-6 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+              <IdCard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              <h4 className="font-bold">Cadastro Completo (Aluno ou Professor)</h4>
+              <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full ml-1">novo</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mb-4">
+              Cadastra já com filiação, documentos e endereço — matrícula sugerida automaticamente (pode editar).
+              Pra cadastro rápido (só nome e matrícula), use os cards acima.
+            </p>
+            <FormularioCadastroCompleto
+              matriculaSugeridaAluno={matriculaSugeridaAluno}
+              matriculaSugeridaProfessor={matriculaSugeridaProfessor}
+              turmas={turmasParaCadastroCompleto}
+              aoCadastrar={handleCadastroCompleto}
+            />
           </div>
 
           {/* Form para Matricular Aluno Individual */}
