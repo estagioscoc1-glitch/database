@@ -9,7 +9,7 @@ import {
   AttendanceSession, ConceptRange, AcademicCalendarEvent, Message, 
   AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs,
   InternshipRecord, StaffMember, StaffPermissions, DependencyEnrollment,
-  CalendarEventType, Prova, QuestaoProva
+  CalendarEventType, Prova, QuestaoProva, Resolution
 } from '../types';
 import { 
   initialCourses, initialConceptRanges, initialUsers, 
@@ -38,7 +38,7 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva, removerAlunoDaTurma } from '../lib/repositorios';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva, removerAlunoDaTurma, carregarResolucoes, salvarResolucao, excluirResolucao, atualizarCursoExtra, atualizarDisciplinaExtra } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -152,6 +152,11 @@ interface AppContextType {
   criarProva: (professorId: string) => Prova;
   salvarProvaContexto: (prova: Prova) => Promise<{ ok: boolean; erro?: string }>;
   excluirProvaContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  resolutions: Resolution[];
+  salvarResolucaoContexto: (resolution: Resolution) => Promise<{ ok: boolean; erro?: string }>;
+  excluirResolucaoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  atualizarCoordenadorEResolucao: (cursoId: string, params: { coordinatorId?: string | null; resolutionId?: string | null }) => Promise<{ ok: boolean; erro?: string }>;
+  atualizarCodigoEEmenta: (disciplinaId: string, params: { code?: string; syllabus?: string }) => Promise<{ ok: boolean; erro?: string }>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -712,6 +717,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Provas criadas pelos professores (o RLS já filtra: cada um só recebe
   // as próprias, gestão recebe todas).
   const [provas, setProvas] = useState<Prova[]>([]);
+
+  // Resoluções (ato legal que autoriza um curso) — qualquer pessoa logada
+  // lê (o próprio banco já filtra), só gestão cadastra/edita.
+  const [resolutions, setResolutions] = useState<Resolution[]>([]);
   const acessoAtualIdRef = React.useRef<string | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
@@ -1249,6 +1258,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (provasReais && !desmontado) setProvas(provasReais);
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar provas:', err?.message || err);
+          }
+
+          try {
+            const resolucoesReais = await carregarResolucoes();
+            if (resolucoesReais && !desmontado) setResolutions(resolucoesReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar resoluções:', err?.message || err);
           }
 
           try {
@@ -3086,6 +3102,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resultado = await excluirProva(id);
     if (!resultado.ok) return resultado;
     setProvas(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
+  };
+
+  /* ------------------------------------------------------------ resoluções */
+
+  const salvarResolucaoContexto = async (resolution: Resolution): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarResolucao(resolution);
+    if (!resultado.ok) return resultado;
+    setResolutions(prev => {
+      const existe = prev.some(r => r.id === resolution.id);
+      return existe ? prev.map(r => r.id === resolution.id ? resolution : r) : [resolution, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const excluirResolucaoContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirResolucao(id);
+    if (!resultado.ok) return resultado;
+    setResolutions(prev => prev.filter(r => r.id !== id));
+    return { ok: true };
+  };
+
+  // Coordenador e Resolução do curso — grava direto no banco antes de
+  // refletir na tela, mesmo padrão de sempre.
+  const atualizarCoordenadorEResolucao = async (
+    cursoId: string,
+    params: { coordinatorId?: string | null; resolutionId?: string | null }
+  ): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await atualizarCursoExtra(cursoId, params);
+    if (!resultado.ok) return resultado;
+    setCourses(prev => prev.map(c => c.id === cursoId ? {
+      ...c,
+      coordinatorId: params.coordinatorId !== undefined ? (params.coordinatorId ?? undefined) : c.coordinatorId,
+      resolutionId: params.resolutionId !== undefined ? (params.resolutionId ?? undefined) : c.resolutionId,
+    } : c));
+    return { ok: true };
+  };
+
+  // Código e Ementa da disciplina — mesmo padrão.
+  const atualizarCodigoEEmenta = async (
+    disciplinaId: string,
+    params: { code?: string; syllabus?: string }
+  ): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await atualizarDisciplinaExtra(disciplinaId, params);
+    if (!resultado.ok) return resultado;
+    setSubjects(prev => prev.map(s => s.id === disciplinaId ? { ...s, ...params } : s));
     return { ok: true };
   };
 
@@ -6409,6 +6471,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       usuarioAdminOriginal, verComoUsuario, voltarParaAdmin,
       acessos, recarregarAcessos, diariosDoSistema,
       provas, criarProva, salvarProvaContexto, excluirProvaContexto,
+      resolutions, salvarResolucaoContexto, excluirResolucaoContexto, atualizarCoordenadorEResolucao, atualizarCodigoEEmenta,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
