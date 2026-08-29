@@ -3658,6 +3658,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUsers(prev => [...prev, uppercaseUser]);
   };
 
+  // Todo campo aqui listado é gravado direto no banco quando presente no
+  // `updates` — ver o mapeamento certo (pra coluna em português) dentro de
+  // `atualizarDadosPessoa`, em repositorios.ts. Adicionar um campo novo na
+  // ficha completa de aluno/professor: só precisa aparecer nos dois lugares
+  // (aqui e no mapa de lá), nada mais muda.
+  const CAMPOS_DA_FICHA_COMPLETA: string[] = [
+    'name', 'email', 'cpf', 'phone', 'whatsapp', 'sexo',
+    'motherName', 'fatherName', 'maritalStatus', 'nationality',
+    'birthDate', 'birthCity', 'birthState', 'rg', 'rgIssuer', 'rgUf',
+    'observations', 'zipCode', 'address', 'addressNumber', 'complement',
+    'neighborhood', 'city', 'state', 'country',
+    'enrollment', 'dossierNumber', 'profession',
+    'professionalCouncil', 'councilNumber', 'councilUf', 'councilValidity',
+    'academicTitle', 'specialty',
+    'podeVerHistoricoCompleto', 'podeVerAcessosEPresenca',
+  ];
+
   const updateUser = (id: string, updates: Partial<User>): Promise<{ ok: boolean; erro?: string }> => {
     const uppercaseUpdates = { ...updates };
     if (uppercaseUpdates.name) uppercaseUpdates.name = uppercaseUpdates.name.toUpperCase();
@@ -3668,8 +3685,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pessoa = users.find(u => u.id === id);
     const precisaGravarNoBanco =
       pessoa && (pessoa.role === UserRole.STUDENT || pessoa.role === UserRole.TEACHER) &&
-      (uppercaseUpdates.name !== undefined || uppercaseUpdates.email !== undefined || uppercaseUpdates.sexo !== undefined ||
-       uppercaseUpdates.podeVerHistoricoCompleto !== undefined || uppercaseUpdates.podeVerAcessosEPresenca !== undefined);
+      CAMPOS_DA_FICHA_COMPLETA.some(campo => (uppercaseUpdates as any)[campo] !== undefined);
 
     // GRAVA DIRETO NO BANCO PRIMEIRO — SÓ DEPOIS REFLETE NA TELA.
     //
@@ -3677,20 +3693,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // e-mail de aluno/professor "funcionava" só na aparência, nunca
     // chegava ao banco de verdade, e sumia ao recarregar a página — o
     // mesmo problema já corrigido antes para dependência, transferência e
-    // cancelamento. Continua devolvendo uma Promise mesmo pra quem chama
-    // sem dar `await` (não quebra nada que já existia), mas quem quiser
-    // saber se realmente gravou agora pode conferir o resultado.
+    // cancelamento. CPF e matrícula tinham exatamente esse mesmo problema,
+    // escondido: apareciam no formulário de editar, mas nunca eram
+    // repassados pra gravação — corrigido agora junto com os campos novos.
+    // Continua devolvendo uma Promise mesmo pra quem chama sem dar `await`
+    // (não quebra nada que já existia), mas quem quiser saber se realmente
+    // gravou agora pode conferir o resultado.
+    const dadosParaGravar: Record<string, any> = {
+      id,
+      papel: pessoa?.role === UserRole.STUDENT ? 'ALUNO' : 'PROFESSOR',
+      contaId: pessoa?.contaId,
+    };
+    for (const campo of CAMPOS_DA_FICHA_COMPLETA) {
+      const valor = (uppercaseUpdates as any)[campo];
+      if (valor !== undefined) dadosParaGravar[campo] = valor;
+    }
+
     const gravacao: Promise<{ ok: boolean; erro?: string }> = precisaGravarNoBanco
-      ? atualizarDadosPessoa({
-          id,
-          papel: pessoa!.role === UserRole.STUDENT ? 'ALUNO' : 'PROFESSOR',
-          contaId: pessoa!.contaId,
-          nome: uppercaseUpdates.name,
-          email: uppercaseUpdates.email,
-          sexo: uppercaseUpdates.sexo,
-          podeVerHistoricoCompleto: uppercaseUpdates.podeVerHistoricoCompleto,
-          podeVerAcessosEPresenca: uppercaseUpdates.podeVerAcessosEPresenca,
-        })
+      ? atualizarDadosPessoa(dadosParaGravar as any)
       : Promise.resolve({ ok: true });
 
     return gravacao.then(resultado => {
