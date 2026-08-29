@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Course, Shift } from '../types';
-import { BookOpen, Plus, Search, CheckCircle2, XCircle, Clock, Calendar, Edit3, Trash2, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { Course, Shift, UserRole } from '../types';
+import { BookOpen, Plus, Search, CheckCircle2, XCircle, Clock, Calendar, Edit3, Trash2, Check, Sparkles, AlertCircle, Award, FileCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ResolucaoModal } from './ResolucaoModal';
 
 export const CourseManager: React.FC = () => {
-  const { courses, addCourse, updateCourse, deleteCourse } = useApp();
+  const { courses, addCourse, updateCourse, deleteCourse, users, resolutions, atualizarCoordenadorEResolucao, mostrarAviso } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [showResolucaoModal, setShowResolucaoModal] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
@@ -17,6 +19,9 @@ export const CourseManager: React.FC = () => {
   const [totalWorkload, setTotalWorkload] = useState<number>(1200);
   const [selectedShifts, setSelectedShifts] = useState<Shift[]>([Shift.MATUTINO, Shift.VESPERTINO, Shift.NOTURNO]);
   const [status, setStatus] = useState<'ATIVO' | 'INATIVO'>('ATIVO');
+  // Opcionais — ficam vazios até alguém escolher, quando precisar.
+  const [coordinatorId, setCoordinatorId] = useState<string>('');
+  const [resolutionId, setResolutionId] = useState<string>('');
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleOpenAdd = () => {
@@ -27,6 +32,8 @@ export const CourseManager: React.FC = () => {
     setTotalWorkload(1200);
     setSelectedShifts([Shift.MATUTINO, Shift.VESPERTINO, Shift.NOTURNO]);
     setStatus('ATIVO');
+    setCoordinatorId('');
+    setResolutionId('');
     setShowAddModal(true);
   };
 
@@ -38,6 +45,8 @@ export const CourseManager: React.FC = () => {
     setTotalWorkload(course.totalWorkload || 1200);
     setSelectedShifts(course.shifts || [Shift.MATUTINO, Shift.VESPERTINO, Shift.NOTURNO]);
     setStatus(course.status || (course.active === false ? 'INATIVO' : 'ATIVO'));
+    setCoordinatorId(course.coordinatorId || '');
+    setResolutionId(course.resolutionId || '');
     setShowAddModal(true);
   };
 
@@ -51,7 +60,7 @@ export const CourseManager: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedbackMsg(null);
 
@@ -87,8 +96,23 @@ export const CourseManager: React.FC = () => {
         totalWorkload: Number(totalWorkload),
         shifts: selectedShifts,
         status,
-        active: status === 'ATIVO'
+        active: status === 'ATIVO',
+        coordinatorId: coordinatorId || undefined,
+        resolutionId: resolutionId || undefined,
       });
+
+      // Coordenador e Resolução gravam DIRETO no banco aqui (não esperam o
+      // ciclo de sincronização periódica) — a ficha do curso já existe de
+      // verdade no banco, então dá pra confirmar na hora.
+      const resultadoExtra = await atualizarCoordenadorEResolucao(editingCourse.id, {
+        coordinatorId: coordinatorId || null,
+        resolutionId: resolutionId || null,
+      });
+      if (!resultadoExtra.ok) {
+        setFeedbackMsg({ type: 'error', text: `O curso foi atualizado, mas coordenador/resolução não: ${resultadoExtra.erro}` });
+        return;
+      }
+
       setFeedbackMsg({ type: 'success', text: `Curso "${name}" atualizado com sucesso!` });
     } else {
       const created = addCourse({
@@ -98,11 +122,16 @@ export const CourseManager: React.FC = () => {
         totalWorkload: Number(totalWorkload),
         shifts: selectedShifts,
         status,
-        active: status === 'ATIVO'
+        active: status === 'ATIVO',
+        coordinatorId: coordinatorId || undefined,
+        resolutionId: resolutionId || undefined,
       });
       // A mensagem não promete mais gravação no banco: ela aparece ANTES de
       // qualquer ida ao servidor. A publicação acontece no tique seguinte, e
       // pode falhar — quando falha, o aviso laranja do topo é que denuncia.
+      // Coordenador/resolução, nesse caso, viajam junto nesse mesmo envio —
+      // ainda não dá pra confirmar na hora porque a ficha do curso em si
+      // ainda não existe no banco.
       setFeedbackMsg({ type: 'success', text: `Curso "${created.name}" criado. Ele está sendo enviado ao servidor — se o aviso laranja do topo aparecer, o envio falhou.` });
     }
 
@@ -396,6 +425,51 @@ export const CourseManager: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Coordenador e Resolução — opcionais, ficam vazios até
+                    alguém escolher, quando precisar. */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      <Award className="h-3.5 w-3.5 text-indigo-500" /> Coordenador <span className="normal-case font-normal text-slate-400">(opcional)</span>
+                    </label>
+                    <select
+                      value={coordinatorId}
+                      onChange={(e) => setCoordinatorId(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                    >
+                      <option value="">Não definido</option>
+                      {users.filter(u => u.role === UserRole.TEACHER).sort((a, b) => a.name.localeCompare(b.name)).map(prof => (
+                        <option key={prof.id} value={prof.id}>{prof.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                      <FileCheck className="h-3.5 w-3.5 text-indigo-500" /> Resolução <span className="normal-case font-normal text-slate-400">(opcional)</span>
+                    </label>
+                    <div className="flex gap-1.5">
+                      <select
+                        value={resolutionId}
+                        onChange={(e) => setResolutionId(e.target.value)}
+                        className="flex-1 px-3 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white min-w-0"
+                      >
+                        <option value="">Não definida</option>
+                        {resolutions.map(r => (
+                          <option key={r.id} value={r.id}>{r.number}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowResolucaoModal(true)}
+                        title="Cadastrar nova resolução"
+                        className="shrink-0 px-2.5 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-400 rounded-xl text-xs font-bold transition-all"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                     Descrição Detalhada / Resumo
@@ -434,6 +508,15 @@ export const CourseManager: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Nova Resolução — abre por cima do formulário de curso. Ao salvar,
+          já seleciona ela sozinha no campo de Resolução acima. */}
+      {showResolucaoModal && (
+        <ResolucaoModal
+          onClose={() => setShowResolucaoModal(false)}
+          onCriada={(novaId) => setResolutionId(novaId)}
+        />
+      )}
     </div>
   );
 };

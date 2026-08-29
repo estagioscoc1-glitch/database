@@ -373,6 +373,8 @@ export const AdminDashboard: React.FC = () => {
   const [subCourse, setSubCourse] = useState(courses[0]?.id || '');
   const [subModule, setSubModule] = useState(1);
   const [subWorkload, setSubWorkload] = useState(40);
+  const [subCode, setSubCode] = useState('');
+  const [subSyllabus, setSubSyllabus] = useState('');
 
   // New user state (Professor or Administrador/Administração)
   // Os campos do cadastro de docente moram agora em <FormularioDocente>.
@@ -601,10 +603,14 @@ export const AdminDashboard: React.FC = () => {
       name: subName.toUpperCase(),
       courseId: subCourse,
       module: subModule,
-      workload: subWorkload
+      workload: subWorkload,
+      code: subCode.trim() || undefined,
+      syllabus: subSyllabus.trim() || undefined,
     });
 
     setSubName('');
+    setSubCode('');
+    setSubSyllabus('');
     alert('Nova Disciplina acadêmica criada e incorporada aos diários das turmas.');
   };
 
@@ -2276,6 +2282,35 @@ export const AdminDashboard: React.FC = () => {
                     <option value={160}>160 Horas</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Código e Ementa — opcionais, o código já existia no banco
+                  desde sempre, só nunca tinha aparecido em nenhuma tela. */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Código <span className="normal-case font-normal text-slate-400">(opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: ENF-M1-ANAT"
+                    value={subCode}
+                    onChange={(e) => setSubCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Ementa <span className="normal-case font-normal text-slate-400">(opcional — resumo oficial pra documento)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Resumo oficial da matéria, diferente do Conteúdo Programático preenchido pelo professor aula a aula..."
+                  value={subSyllabus}
+                  onChange={(e) => setSubSyllabus(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                />
               </div>
 
               <button
