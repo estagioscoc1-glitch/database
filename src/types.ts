@@ -178,6 +178,20 @@ export interface Course {
   shifts?: Shift[];
   status?: 'ATIVO' | 'INATIVO';
   active?: boolean;
+  /** Professor responsável pelo curso. Opcional — fica vazio até alguém escolher, quando precisar. */
+  coordinatorId?: string;
+  /** Ato legal (MEC/CEE) que autoriza o curso a funcionar. Opcional. */
+  resolutionId?: string;
+}
+
+/** O ato legal (resolução do MEC/CEE) que autoriza um curso a funcionar. */
+export interface Resolution {
+  id: string;
+  number: string;
+  issuingBody?: string;
+  publicationDate?: string;
+  description?: string;
+  notes?: string;
 }
 
 export interface ClassSection {
@@ -204,6 +218,10 @@ export interface Subject {
   courseId: string;
   module: number;
   workload: number; // Carga Horária in hours
+  /** Já existia no banco desde sempre — só nunca tinha aparecido em nenhuma tela. */
+  code?: string;
+  /** Resumo oficial da matéria, pra documento (histórico, diploma). Diferente do Conteúdo Programático (que o professor preenche aula a aula). */
+  syllabus?: string;
 }
 
 export interface GradeRecord {
