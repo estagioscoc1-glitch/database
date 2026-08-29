@@ -49,13 +49,14 @@ import {
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
   Search, Printer, AlertTriangle, ChevronRight, HelpCircle,
   Database, Shield, ShieldCheck, UploadCloud, Lock, Unlock, Server, RefreshCw, Download, Upload, Key,
-  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles,
+  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles, IdCard,
   Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
 } from 'lucide-react';
 import { SpreadsheetImporter } from './SpreadsheetImporter';
 import { HistoricalDataImporter } from './HistoricalDataImporter';
 import { PrintModal } from './PrintModal';
 import { AcessosPresencaModule } from './AcessosPresencaModule';
+import { FichaCompletaModal } from './FichaCompletaModal';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -616,6 +617,7 @@ export const AdminDashboard: React.FC = () => {
   const [confirmApagarCompletoId, setConfirmApagarCompletoId] = useState<string | null>(null);
   const [apagandoCompletoDe, setApagandoCompletoDe] = useState<string | null>(null);
   const [salvandoPermissaoDe, setSalvandoPermissaoDe] = useState<string | null>(null);
+  const [fichaCompletaDe, setFichaCompletaDe] = useState<User | null>(null);
 
   // Cadastro de novo administrador.
   const [novoAdminNome, setNovoAdminNome] = useState('');
@@ -2995,6 +2997,21 @@ export const AdminDashboard: React.FC = () => {
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
+                          {/* FICHA COMPLETA — separado do formulário rápido de
+                              cima de propósito: endereço, filiação, documentos
+                              e (professor) conselho de classe. Só pra
+                              aluno/professor — Admin/Secretaria não têm ficha
+                              acadêmica desse tipo. */}
+                          {(u.role === UserRole.STUDENT || u.role === UserRole.TEACHER) && (
+                            <button
+                              type="button"
+                              onClick={() => setFichaCompletaDe(u)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-150/50 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Ficha Completa (endereço, filiação, documentos...)"
+                            >
+                              <IdCard className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {/* EXCLUIR USUÁRIO — só o ADMIN vê este botão.
                               A Secretaria (STAFF) e qualquer outro papel não veem a
                               lixeira aqui: podem editar e redefinir senha, mas não
@@ -5924,6 +5941,16 @@ export const AdminDashboard: React.FC = () => {
         >
           <SubjectManager />
         </motion.div>
+      )}
+
+      {/* FICHA COMPLETA — modal global, funciona a partir de qualquer aba
+          onde o botão apareça. */}
+      {fichaCompletaDe && (
+        <FichaCompletaModal
+          pessoa={fichaCompletaDe}
+          papel={fichaCompletaDe.role === UserRole.STUDENT ? 'ALUNO' : 'PROFESSOR'}
+          onClose={() => setFichaCompletaDe(null)}
+        />
       )}
 
       {/* PDF Viewer / Print Frame Overlay */}
