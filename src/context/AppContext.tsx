@@ -48,7 +48,8 @@ carregarEstagioVagas, salvarEstagioVaga, excluirEstagioVaga,
 carregarEstagioAvaliacoes, salvarEstagioAvaliacao,
 carregarEstagioCronogramaEtapas, salvarEstagioCronogramaEtapa,
 carregarEstagioRecibosProfessor, salvarEstagioReciboProfessor,
-carregarEstagioCronogramasLiberacao, salvarEstagioCronogramaLiberacao, excluirEstagioCronogramaLiberacao, atualizarStatusDependencia } from '../lib/repositorios';
+carregarEstagioCronogramasLiberacao, salvarEstagioCronogramaLiberacao, excluirEstagioCronogramaLiberacao, atualizarStatusDependencia,
+carregarEventosMinicursos, salvarEventoMinicurso, carregarTodosOsParticipantesDeEventos, salvarParticipanteEvento, excluirParticipanteEvento } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -198,6 +199,11 @@ interface AppContextType {
   estagioCronogramasLiberacao: any[];
   salvarEstagioCronogramaLiberacaoContexto: (crono: any) => Promise<{ ok: boolean; erro?: string }>;
   excluirEstagioCronogramaLiberacaoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  eventosMinicursos: any[];
+  salvarEventoMinicursoContexto: (ev: any) => Promise<{ ok: boolean; erro?: string }>;
+  participantesDeEventos: any[];
+  salvarParticipanteEventoContexto: (p: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirParticipanteEventoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -785,6 +791,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [estagioCronogramaEtapas, setEstagioCronogramaEtapas] = useState<any[]>([]);
   const [estagioRecibosProfessor, setEstagioRecibosProfessor] = useState<any[]>([]);
   const [estagioCronogramasLiberacao, setEstagioCronogramasLiberacao] = useState<any[]>([]);
+
+  // Minicursos e Eventos — ligado ao banco de dados real.
+  const [eventosMinicursos, setEventosMinicursos] = useState<any[]>([]);
+  const [participantesDeEventos, setParticipantesDeEventos] = useState<any[]>([]);
   const acessoAtualIdRef = React.useRef<string | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
@@ -1373,6 +1383,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar módulo de Estágios:', err?.message || err);
+          }
+
+          try {
+            const [eventosReais, participantesReais] = await Promise.all([
+              carregarEventosMinicursos(),
+              carregarTodosOsParticipantesDeEventos(),
+            ]);
+            if (!desmontado) {
+              if (eventosReais) setEventosMinicursos(eventosReais);
+              if (participantesReais) setParticipantesDeEventos(participantesReais);
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar eventos/minicursos:', err?.message || err);
           }
 
           try {
@@ -3418,6 +3441,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const resultado = await excluirEstagioCronogramaLiberacao(id);
     if (!resultado.ok) return resultado;
     setEstagioCronogramasLiberacao(prev => prev.filter(c => c.id !== id));
+    return { ok: true };
+  };
+
+  /* ------------------------------------------------------------ minicursos e eventos */
+
+  const salvarEventoMinicursoContexto = async (ev: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEventoMinicurso(ev);
+    if (!resultado.ok) return resultado;
+    setEventosMinicursos(prev => {
+      const existe = prev.some(e => e.id === ev.id);
+      return existe ? prev.map(e => e.id === ev.id ? ev : e) : [ev, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const salvarParticipanteEventoContexto = async (p: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarParticipanteEvento(p);
+    if (!resultado.ok) return resultado;
+    setParticipantesDeEventos(prev => {
+      const existe = prev.some(x => x.id === p.id);
+      return existe ? prev.map(x => x.id === p.id ? p : x) : [...prev, p];
+    });
+    return { ok: true };
+  };
+
+  const excluirParticipanteEventoContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirParticipanteEvento(id);
+    if (!resultado.ok) return resultado;
+    setParticipantesDeEventos(prev => prev.filter(x => x.id !== id));
     return { ok: true };
   };
 
@@ -6792,6 +6844,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       estagioCronogramaEtapas, salvarEstagioCronogramaEtapaContexto,
       estagioRecibosProfessor, salvarEstagioReciboProfessorContexto,
       estagioCronogramasLiberacao, salvarEstagioCronogramaLiberacaoContexto, excluirEstagioCronogramaLiberacaoContexto,
+      eventosMinicursos, salvarEventoMinicursoContexto, participantesDeEventos, salvarParticipanteEventoContexto, excluirParticipanteEventoContexto,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
