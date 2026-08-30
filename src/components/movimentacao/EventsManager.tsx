@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { EventMinicourse, EventParticipant } from '../../types/movimentacao';
 import { 
-  getEvents, saveEvent, saveEventParticipant, getEventParticipants, getOfficialTemplates, removeEventParticipant 
+  getOfficialTemplates 
 } from '../../services/movimentacaoStorage';
 import { MovimentacaoDocumentPrintModal } from './MovimentacaoDocumentPrintModal';
 import { 
@@ -14,10 +14,18 @@ interface EventsManagerProps {
 }
 
 export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => {
-  const { users } = useApp();
-  const [events, setEvents] = useState<EventMinicourse[]>([]);
+  const {
+    users,
+    eventosMinicursos: events,
+    salvarEventoMinicursoContexto,
+    participantesDeEventos,
+    salvarParticipanteEventoContexto,
+    excluirParticipanteEventoContexto,
+  } = useApp();
   const [selectedEventId, setSelectedEventId] = useState<string>('');
-  const [participants, setParticipants] = useState<EventParticipant[]>([]);
+  // "participants" já não é um estado próprio — é sempre a fatia da lista
+  // geral (que já vem do banco, no contexto) referente ao evento escolhido.
+  const participants = participantesDeEventos.filter((p: EventParticipant) => p.eventId === selectedEventId);
   
   // New Event Form
   const [title, setTitle] = useState<string>('');
@@ -41,24 +49,17 @@ export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => 
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // O contexto já carrega events/participantes do banco assim que o portal
+  // abre — aqui só escolhe o primeiro evento pra já mostrar algo selecionado.
   useEffect(() => {
-    const list = getEvents();
-    setEvents(list);
-    if (list.length > 0 && !selectedEventId) {
-      setSelectedEventId(list[0].id);
-      setParticipants(getEventParticipants(list[0].id));
+    if (events.length > 0 && !selectedEventId) {
+      setSelectedEventId(events[0].id);
     }
-  }, []);
+  }, [events, selectedEventId]);
 
-  useEffect(() => {
-    if (selectedEventId) {
-      setParticipants(getEventParticipants(selectedEventId));
-    }
-  }, [selectedEventId]);
+  const selectedEvent = events.find((e: EventMinicourse) => e.id === selectedEventId);
 
-  const selectedEvent = events.find(e => e.id === selectedEventId);
-
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !instructor.trim()) return;
 
@@ -76,17 +77,18 @@ export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => 
       createdBy: currentUser
     };
 
-    saveEvent(newEv, currentUser);
-    const updated = getEvents();
-    setEvents(updated);
+    const resultado = await salvarEventoMinicursoContexto(newEv);
+    if (!resultado.ok) {
+      setNotification({ type: 'error', message: resultado.erro || 'Não foi possível salvar.' });
+      return;
+    }
     setSelectedEventId(newEv.id);
-    setParticipants(getEventParticipants(newEv.id));
     setTitle('');
     setInstructor('');
     setNotification({ type: 'success', message: 'Minicurso / Evento cadastrado com sucesso!' });
   };
 
-  const handleAddParticipant = (e: React.FormEvent) => {
+  const handleAddParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEvent) return;
     if (!participantName.trim()) return;
@@ -108,51 +110,59 @@ export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => 
       registeredAt: new Date().toISOString()
     };
 
-    saveEventParticipant(part);
-    setParticipants(getEventParticipants(selectedEvent.id));
+    const resultadoParte = await salvarParticipanteEventoContexto(part);
+    if (!resultadoParte.ok) {
+      setNotification({ type: 'error', message: resultadoParte.erro || 'Não foi possível salvar.' });
+      return;
+    }
     setParticipantName('');
     setParticipantCpf('');
     setNotification({ type: 'success', message: `Inscrição de ${part.studentName} confirmada!` });
   };
 
   // Toggle participant attendance (Presente / Ausente)
-  const handleToggleAttendance = (part: EventParticipant) => {
+  const handleToggleAttendance = async (part: EventParticipant) => {
     const updated: EventParticipant = {
       ...part,
       attended: !part.attended
     };
-    saveEventParticipant(updated);
-    if (selectedEventId) {
-      setParticipants(getEventParticipants(selectedEventId));
-    }
+    const resultado = await salvarParticipanteEventoContexto(updated);
+    if (!resultado.ok) setNotification({ type: 'error', message: resultado.erro || 'Não foi possível salvar.' });
   };
 
   // Purge participants who did not attend (Limpar Ausentes)
-  const handlePurgeNonAttendees = () => {
+  const handlePurgeNonAttendees = async () => {
     if (!selectedEvent) return;
-    const absents = participants.filter(p => !p.attended);
+    const absents = participants.filter((p: EventParticipant) => !p.attended);
     if (absents.length === 0) {
       setNotification({ type: 'error', message: 'Não há participantes marcados como ausentes nesta lista.' });
       return;
     }
 
     if (window.confirm(`Confirma a remoção de ${absents.length} participante(s) ausente(s)? Ficarão mantidos apenas os participantes com presença confirmada.`)) {
-      absents.forEach(p => removeEventParticipant(p.id));
-      const remaining = getEventParticipants(selectedEvent.id);
-      setParticipants(remaining);
-      setNotification({ type: 'success', message: `Lista limpa com sucesso! Permanecem apenas ${remaining.length} participante(s) presentes com direito ao certificado.` });
+      for (const p of absents) {
+        const resultado = await excluirParticipanteEventoContexto(p.id);
+        if (!resultado.ok) {
+          setNotification({ type: 'error', message: resultado.erro || 'Falha ao remover um dos ausentes.' });
+          return;
+        }
+      }
+      setNotification({ type: 'success', message: `Lista limpa com sucesso! Permanecem apenas os participantes presentes com direito ao certificado.` });
     }
   };
 
-  const handleGenerateCertificate = (evt: EventMinicourse, part: EventParticipant) => {
+  const handleGenerateCertificate = async (evt: EventMinicourse, part: EventParticipant) => {
     // Mark certificate generated on participant record
     const updatedPart: EventParticipant = {
       ...part,
       certificateGenerated: true,
       issueDate: new Date().toISOString()
     };
-    saveEventParticipant(updatedPart);
-    setParticipants(getEventParticipants(evt.id));
+    const resultadoCert = await salvarParticipanteEventoContexto(updatedPart);
+    if (!resultadoCert.ok) {
+      setNotification({ type: 'error', message: resultadoCert.erro || 'Não foi possível salvar.' });
+      return;
+    }
 
     const templates = getOfficialTemplates();
     const certTpl = templates.find(t => t.docType === 'CERTIFICADO') || templates[0];
@@ -198,7 +208,7 @@ export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => 
     reader.readAsDataURL(file);
   };
 
-  const handleSaveUploadedCertificate = () => {
+  const handleSaveUploadedCertificate = async () => {
     if (!uploadModalPart || !uploadedFileBase64) return;
 
     const updated: EventParticipant = {
@@ -209,9 +219,10 @@ export const EventsManager: React.FC<EventsManagerProps> = ({ currentUser }) => 
       issueDate: new Date().toISOString()
     };
 
-    saveEventParticipant(updated);
-    if (selectedEventId) {
-      setParticipants(getEventParticipants(selectedEventId));
+    const resultado = await salvarParticipanteEventoContexto(updated);
+    if (!resultado.ok) {
+      setNotification({ type: 'error', message: resultado.erro || 'Não foi possível salvar.' });
+      return;
     }
 
     setUploadModalPart(null);
