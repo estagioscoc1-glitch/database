@@ -59,6 +59,7 @@ import { PrintModal } from './PrintModal';
 import { AcessosPresencaModule } from './AcessosPresencaModule';
 import { FichaCompletaModal } from './FichaCompletaModal';
 import { HistoricoMatriculasModule } from './HistoricoMatriculasModule';
+import { MatriculasSemestraisModule } from './MatriculasSemestraisModule';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -2078,6 +2079,7 @@ export const AdminDashboard: React.FC = () => {
           {/* SubTab Views */}
           {regSubTab === 'cursos' && <CourseManager />}
           {regSubTab === 'historico_matriculas' && <HistoricoMatriculasModule />}
+          {regSubTab === 'matriculas_semestrais' && <MatriculasSemestraisModule />}
           {regSubTab === 'funcionarios' && <StaffManager />}
           {regSubTab === 'dependencias' && (
             <DependencyManager
