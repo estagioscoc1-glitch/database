@@ -9,7 +9,7 @@ import {
   AttendanceSession, ConceptRange, AcademicCalendarEvent, Message, 
   AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs,
   InternshipRecord, StaffMember, StaffPermissions, DependencyEnrollment,
-  CalendarEventType, Prova, QuestaoProva, Resolution
+  CalendarEventType, Prova, QuestaoProva, Resolution, PreMatricula
 } from '../types';
 import { 
   initialCourses, initialConceptRanges, initialUsers, 
@@ -38,7 +38,17 @@ import {
   garantirSessaoAtiva,
   carregarDiariosDoProfessor,
 } from '../lib/supabase';
-import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva, removerAlunoDaTurma, carregarResolucoes, salvarResolucao, excluirResolucao, atualizarCursoExtra, atualizarDisciplinaExtra } from '../lib/repositorios';
+import { carregarResumoMatriculasOnline, matriculaConfigurada, type ResumoMatriculaOnline } from '../lib/supabaseMatricula';
+import { salvarNota, salvarFaltas, salvarAula, publicarEstrutura, carregarEstrutura, carregarNotas, carregarFaltas, carregarAulas, salvarMensagem, carregarMensagens, salvarDocumentoAluno, carregarDocumentosAluno, criarAcessosDosAlunos, alunosSemAcesso, carregarEventosCalendario, salvarEventosCalendario, excluirCurso, excluirDisciplina, excluirTurma, excluirAluno, excluirProfessor, excluirContaDeLogin, excluirVinculoTurmaSeVazio, excluirMensagem, carregarPeriodoAtual, salvarPeriodoAtual, salvarEstagio, carregarEstagios, idEstagio, salvarJanelasDeDeclaracao, carregarJanelasDeDeclaracao, carregarContasDeGestao, matricularEmDependencia, transferirAluno, cancelarDependencia, criarAlunoSoDependencia, criarAcessoDeUmAluno, carregarDependencias, registrarEntrada, atualizarUltimaAtividade, registrarSaida, carregarAcessos, atualizarDadosPessoa, carregarTodosOsDiarios, salvarProva, carregarProvas, excluirProva, removerAlunoDaTurma, carregarResolucoes, salvarResolucao, excluirResolucao, atualizarCursoExtra, atualizarDisciplinaExtra, carregarPreMatriculas, atualizarStatusPreMatricula, marcarPreMatriculaComoImportada, excluirPreMatricula,
+carregarEstagioRequisitoConfig, salvarEstagioRequisitoConfig,
+carregarEstagioDefinicoes, salvarEstagioDefinicao, excluirEstagioDefinicao,
+carregarEstagioCampos, salvarEstagioCampo, excluirEstagioCampo,
+carregarEstagioProfessores, salvarEstagioProfessor, excluirEstagioProfessor,
+carregarEstagioVagas, salvarEstagioVaga, excluirEstagioVaga,
+carregarEstagioAvaliacoes, salvarEstagioAvaliacao,
+carregarEstagioCronogramaEtapas, salvarEstagioCronogramaEtapa,
+carregarEstagioRecibosProfessor, salvarEstagioReciboProfessor,
+carregarEstagioCronogramasLiberacao, salvarEstagioCronogramaLiberacao, excluirEstagioCronogramaLiberacao, atualizarStatusDependencia } from '../lib/repositorios';
 import type { RegistroDeAcesso } from '../lib/repositorios';
 import {
   restaurarDoServidor, iniciarEspelho, pararEspelho, enviarAgora as enviarEspelhoAgora,
@@ -157,6 +167,37 @@ interface AppContextType {
   excluirResolucaoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   atualizarCoordenadorEResolucao: (cursoId: string, params: { coordinatorId?: string | null; resolutionId?: string | null }) => Promise<{ ok: boolean; erro?: string }>;
   atualizarCodigoEEmenta: (disciplinaId: string, params: { code?: string; syllabus?: string }) => Promise<{ ok: boolean; erro?: string }>;
+  preMatriculas: PreMatricula[];
+  recarregarPreMatriculas: () => Promise<void>;
+  atualizarStatusPreMatriculaContexto: (id: string, params: { status?: PreMatricula['status']; staffNotes?: string }) => Promise<{ ok: boolean; erro?: string }>;
+  marcarPreMatriculaComoImportadaContexto: (id: string, alunoId: string) => Promise<{ ok: boolean; erro?: string }>;
+  excluirPreMatriculaContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  resumoMatriculasOnline: ResumoMatriculaOnline[];
+  matriculaOnlineConfigurada: boolean;
+  recarregarResumoMatriculasOnline: () => Promise<void>;
+  estagioRequisitoConfig: any[];
+  salvarEstagioRequisitoConfigContexto: (cfg: any) => Promise<{ ok: boolean; erro?: string }>;
+  estagioDefinicoes: any[];
+  salvarEstagioDefinicaoContexto: (def: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirEstagioDefinicaoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  estagioCampos: any[];
+  salvarEstagioCampoContexto: (campo: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirEstagioCampoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  estagioProfessores: any[];
+  salvarEstagioProfessorContexto: (prof: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirEstagioProfessorContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  estagioVagas: any[];
+  salvarEstagioVagaContexto: (vaga: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirEstagioVagaContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
+  estagioAvaliacoes: any[];
+  salvarEstagioAvaliacaoContexto: (av: any) => Promise<{ ok: boolean; erro?: string }>;
+  estagioCronogramaEtapas: any[];
+  salvarEstagioCronogramaEtapaContexto: (etapa: any) => Promise<{ ok: boolean; erro?: string }>;
+  estagioRecibosProfessor: any[];
+  salvarEstagioReciboProfessorContexto: (recibo: any) => Promise<{ ok: boolean; erro?: string }>;
+  estagioCronogramasLiberacao: any[];
+  salvarEstagioCronogramaLiberacaoContexto: (crono: any) => Promise<{ ok: boolean; erro?: string }>;
+  excluirEstagioCronogramaLiberacaoContexto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   updatePassword: (userId: string, newPass: string) => Promise<void>;
   recoverPassword: (email: string) => Promise<string | null>;
   
@@ -253,6 +294,7 @@ interface AppContextType {
   deleteStaffMember: (id: string) => void;
   updateStaffPermissions: (staffId: string, permissions: StaffPermissions) => void;
   createDependencyEnrollment: (data: { studentId: string; courseId: string; subjectId: string; semester: number; schedule: string }) => Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }>;
+  marcarStatusDependenciaContexto: (dep: DependencyEnrollment, status: 'CANCELADO' | 'CONCLUÍDO' | 'ATIVO') => Promise<{ ok: boolean; erro?: string }>;
   cancelDependencyEnrollment: (dependencyId: string) => Promise<{ ok: boolean; erro?: string }>;
   createDependencyOnlyStudent: (data: { nome: string; matricula: string; cursoId?: string }) => Promise<{ ok: boolean; erro?: string; studentId?: string }>;
 
@@ -721,6 +763,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Resoluções (ato legal que autoriza um curso) — qualquer pessoa logada
   // lê (o próprio banco já filtra), só gestão cadastra/edita.
   const [resolutions, setResolutions] = useState<Resolution[]>([]);
+
+  // Pré-matrículas recebidas do site matriculasonline.colegiooswaldocruz.
+  // com.br — mesmo projeto Supabase, tabela isolada e própria.
+  const [preMatriculas, setPreMatriculas] = useState<PreMatricula[]>([]);
+
+  // Resumo (sem dado sensível) das matrículas recebidas pelo site externo
+  // matriculasonline.colegiooswaldocruz.com.br — projeto Supabase SEPARADO,
+  // de propósito (CPF, endereço e documento ficam isolados lá, só o admin
+  // vendo depois de logar naquele site é que acessa isso).
+  const [resumoMatriculasOnline, setResumoMatriculasOnline] = useState<ResumoMatriculaOnline[]>([]);
+
+  // Módulo de Estágios (vagas, avaliações, campos, professores de estágio,
+  // cronograma) — ligado ao banco de dados real, mesmo padrão do CRM.
+  const [estagioRequisitoConfig, setEstagioRequisitoConfig] = useState<any[]>([]);
+  const [estagioDefinicoes, setEstagioDefinicoes] = useState<any[]>([]);
+  const [estagioCampos, setEstagioCampos] = useState<any[]>([]);
+  const [estagioProfessores, setEstagioProfessores] = useState<any[]>([]);
+  const [estagioVagas, setEstagioVagas] = useState<any[]>([]);
+  const [estagioAvaliacoes, setEstagioAvaliacoes] = useState<any[]>([]);
+  const [estagioCronogramaEtapas, setEstagioCronogramaEtapas] = useState<any[]>([]);
+  const [estagioRecibosProfessor, setEstagioRecibosProfessor] = useState<any[]>([]);
+  const [estagioCronogramasLiberacao, setEstagioCronogramasLiberacao] = useState<any[]>([]);
   const acessoAtualIdRef = React.useRef<string | null>(null);
 
   const [users, setUsers] = useState<User[]>(() => {
@@ -1265,6 +1329,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (resolucoesReais && !desmontado) setResolutions(resolucoesReais);
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar resoluções:', err?.message || err);
+          }
+
+          try {
+            const preMatriculasReais = await carregarPreMatriculas();
+            if (preMatriculasReais && !desmontado) setPreMatriculas(preMatriculasReais);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar pré-matrículas:', err?.message || err);
+          }
+
+          try {
+            const resumoReal = await carregarResumoMatriculasOnline();
+            if (resumoReal && !desmontado) setResumoMatriculasOnline(resumoReal);
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar resumo de matrículas online:', err?.message || err);
+          }
+
+          try {
+            const [
+              reqConfig, definicoes, campos, professoresEst, vagas,
+              avaliacoes, etapasCrono, recibos, cronogramasLib,
+            ] = await Promise.all([
+              carregarEstagioRequisitoConfig(),
+              carregarEstagioDefinicoes(),
+              carregarEstagioCampos(),
+              carregarEstagioProfessores(),
+              carregarEstagioVagas(),
+              carregarEstagioAvaliacoes(),
+              carregarEstagioCronogramaEtapas(),
+              carregarEstagioRecibosProfessor(),
+              carregarEstagioCronogramasLiberacao(),
+            ]);
+            if (!desmontado) {
+              if (reqConfig) setEstagioRequisitoConfig(reqConfig);
+              if (definicoes) setEstagioDefinicoes(definicoes);
+              if (campos) setEstagioCampos(campos);
+              if (professoresEst) setEstagioProfessores(professoresEst);
+              if (vagas) setEstagioVagas(vagas);
+              if (avaliacoes) setEstagioAvaliacoes(avaliacoes);
+              if (etapasCrono) setEstagioCronogramaEtapas(etapasCrono);
+              if (recibos) setEstagioRecibosProfessor(recibos);
+              if (cronogramasLib) setEstagioCronogramasLiberacao(cronogramasLib);
+            }
+          } catch (err: any) {
+            console.warn('[Portal] Falha ao carregar módulo de Estágios:', err?.message || err);
           }
 
           try {
@@ -2308,6 +2416,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser?.id, currentUser?.role]);
 
+  // ATUALIZA O RESUMO DE MATRÍCULAS ONLINE PERIODICAMENTE — é um sistema
+  // externo (outro projeto Supabase), não tem como saber na hora exata que
+  // chega uma matrícula nova. A cada 3 minutos, e também ao voltar o foco
+  // na aba, pra quem estava com o portal aberto em segundo plano.
+  useEffect(() => {
+    if (!currentUser || (currentUser.role !== UserRole.ADMIN && currentUser.role !== UserRole.STAFF)) return;
+
+    const atualizarResumoMatricula = async () => {
+      const resumo = await carregarResumoMatriculasOnline();
+      if (resumo) setResumoMatriculasOnline(resumo);
+    };
+
+    const intervaloMatricula = setInterval(atualizarResumoMatricula, 180000);
+    const aoVoltarFocoMatricula = () => {
+      if (document.visibilityState === 'visible') void atualizarResumoMatricula();
+    };
+    document.addEventListener('visibilitychange', aoVoltarFocoMatricula);
+    window.addEventListener('focus', aoVoltarFocoMatricula);
+
+    return () => {
+      clearInterval(intervaloMatricula);
+      document.removeEventListener('visibilitychange', aoVoltarFocoMatricula);
+      window.removeEventListener('focus', aoVoltarFocoMatricula);
+    };
+  }, [currentUser?.id, currentUser?.role]);
+
   const updateCalendarEventDate = (id: string, date: string) => {
     let alterado: AcademicCalendarEvent | undefined;
 
@@ -3124,6 +3258,169 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ok: true };
   };
 
+  /* ------------------------------------------------------------ pré-matrículas */
+
+  const recarregarPreMatriculas = async (): Promise<void> => {
+    const reais = await carregarPreMatriculas();
+    if (reais) setPreMatriculas(reais);
+  };
+
+  const atualizarStatusPreMatriculaContexto = async (
+    id: string,
+    params: { status?: PreMatricula['status']; staffNotes?: string }
+  ): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await atualizarStatusPreMatricula(id, params);
+    if (!resultado.ok) return resultado;
+    setPreMatriculas(prev => prev.map(p => p.id === id ? { ...p, ...params } : p));
+    return { ok: true };
+  };
+
+  const marcarPreMatriculaComoImportadaContexto = async (id: string, alunoId: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await marcarPreMatriculaComoImportada(id, alunoId);
+    if (!resultado.ok) return resultado;
+    setPreMatriculas(prev => prev.map(p => p.id === id ? { ...p, status: 'IMPORTADA', generatedStudentId: alunoId } : p));
+    return { ok: true };
+  };
+
+  const excluirPreMatriculaContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirPreMatricula(id);
+    if (!resultado.ok) return resultado;
+    setPreMatriculas(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
+  };
+
+  const recarregarResumoMatriculasOnline = async (): Promise<void> => {
+    const resumo = await carregarResumoMatriculasOnline();
+    if (resumo) setResumoMatriculasOnline(resumo);
+  };
+
+  /* ------------------------------------------------------------ módulo de estágios */
+
+  const salvarEstagioRequisitoConfigContexto = async (cfg: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioRequisitoConfig(cfg);
+    if (!resultado.ok) return resultado;
+    setEstagioRequisitoConfig(prev => {
+      const existe = prev.some(c => c.id === cfg.id);
+      return existe ? prev.map(c => c.id === cfg.id ? cfg : c) : [...prev, cfg];
+    });
+    return { ok: true };
+  };
+
+  const salvarEstagioDefinicaoContexto = async (def: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioDefinicao(def);
+    if (!resultado.ok) return resultado;
+    setEstagioDefinicoes(prev => {
+      const existe = prev.some(d => d.id === def.id);
+      return existe ? prev.map(d => d.id === def.id ? def : d) : [def, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const excluirEstagioDefinicaoContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirEstagioDefinicao(id);
+    if (!resultado.ok) return resultado;
+    setEstagioDefinicoes(prev => prev.filter(d => d.id !== id));
+    return { ok: true };
+  };
+
+  const salvarEstagioCampoContexto = async (campo: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioCampo(campo);
+    if (!resultado.ok) return resultado;
+    setEstagioCampos(prev => {
+      const existe = prev.some(c => c.id === campo.id);
+      return existe ? prev.map(c => c.id === campo.id ? campo : c) : [...prev, campo];
+    });
+    return { ok: true };
+  };
+
+  const excluirEstagioCampoContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirEstagioCampo(id);
+    if (!resultado.ok) return resultado;
+    setEstagioCampos(prev => prev.filter(c => c.id !== id));
+    return { ok: true };
+  };
+
+  const salvarEstagioProfessorContexto = async (prof: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioProfessor(prof);
+    if (!resultado.ok) return resultado;
+    setEstagioProfessores(prev => {
+      const existe = prev.some(p => p.id === prof.id);
+      return existe ? prev.map(p => p.id === prof.id ? prof : p) : [...prev, prof];
+    });
+    return { ok: true };
+  };
+
+  const excluirEstagioProfessorContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirEstagioProfessor(id);
+    if (!resultado.ok) return resultado;
+    setEstagioProfessores(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
+  };
+
+  const salvarEstagioVagaContexto = async (vaga: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioVaga(vaga);
+    if (!resultado.ok) return resultado;
+    setEstagioVagas(prev => {
+      const existe = prev.some(v => v.id === vaga.id);
+      return existe ? prev.map(v => v.id === vaga.id ? vaga : v) : [vaga, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const excluirEstagioVagaContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirEstagioVaga(id);
+    if (!resultado.ok) return resultado;
+    setEstagioVagas(prev => prev.filter(v => v.id !== id));
+    return { ok: true };
+  };
+
+  const salvarEstagioAvaliacaoContexto = async (av: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioAvaliacao(av);
+    if (!resultado.ok) return resultado;
+    setEstagioAvaliacoes(prev => {
+      const existe = prev.some(a => a.id === av.id);
+      return existe ? prev.map(a => a.id === av.id ? av : a) : [...prev, av];
+    });
+    return { ok: true };
+  };
+
+  const salvarEstagioCronogramaEtapaContexto = async (etapa: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioCronogramaEtapa(etapa);
+    if (!resultado.ok) return resultado;
+    setEstagioCronogramaEtapas(prev => {
+      const existe = prev.some(e => e.id === etapa.id);
+      return existe ? prev.map(e => e.id === etapa.id ? etapa : e) : [...prev, etapa];
+    });
+    return { ok: true };
+  };
+
+  const salvarEstagioReciboProfessorContexto = async (recibo: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioReciboProfessor(recibo);
+    if (!resultado.ok) return resultado;
+    setEstagioRecibosProfessor(prev => {
+      const existe = prev.some(r => r.id === recibo.id);
+      return existe ? prev.map(r => r.id === recibo.id ? recibo : r) : [recibo, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const salvarEstagioCronogramaLiberacaoContexto = async (crono: any): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await salvarEstagioCronogramaLiberacao(crono);
+    if (!resultado.ok) return resultado;
+    setEstagioCronogramasLiberacao(prev => {
+      const existe = prev.some(c => c.id === crono.id);
+      return existe ? prev.map(c => c.id === crono.id ? crono : c) : [crono, ...prev];
+    });
+    return { ok: true };
+  };
+
+  const excluirEstagioCronogramaLiberacaoContexto = async (id: string): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await excluirEstagioCronogramaLiberacao(id);
+    if (!resultado.ok) return resultado;
+    setEstagioCronogramasLiberacao(prev => prev.filter(c => c.id !== id));
+    return { ok: true };
+  };
+
   // Coordenador e Resolução do curso — grava direto no banco antes de
   // refletir na tela, mesmo padrão de sempre.
   const atualizarCoordenadorEResolucao = async (
@@ -3500,6 +3797,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // dependência ficou vazia — o diário e a turma também. O aluno some do
   // diário do professor e do histórico dele, porque isso é uma matrícula
   // desfeita, não uma reprovação a ser preservada.
+  // Marca uma dependência como CANCELADO — não apaga a matrícula nem as
+  // notas, só muda o rótulo (diferente de `cancelDependencyEnrollment`
+  // logo abaixo, que apaga tudo — essa é pra desfazer erro de cadastro).
+  const marcarStatusDependenciaContexto = async (
+    dep: DependencyEnrollment, status: 'CANCELADO' | 'CONCLUÍDO' | 'ATIVO'
+  ): Promise<{ ok: boolean; erro?: string }> => {
+    const resultado = await atualizarStatusDependencia(dep.studentId, dep.createdClassId, status);
+    if (!resultado.ok) return resultado;
+    setDependencies(prev => prev.map(d => d.id === dep.id ? { ...d, status } : d));
+    return { ok: true };
+  };
+
   const cancelDependencyEnrollment = async (dependencyId: string): Promise<{ ok: boolean; erro?: string }> => {
     const dep = dependencies.find(d => d.id === dependencyId);
     if (!dep) return { ok: false, erro: 'Dependência não encontrada.' };
@@ -6472,11 +6781,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       acessos, recarregarAcessos, diariosDoSistema,
       provas, criarProva, salvarProvaContexto, excluirProvaContexto,
       resolutions, salvarResolucaoContexto, excluirResolucaoContexto, atualizarCoordenadorEResolucao, atualizarCodigoEEmenta,
+      preMatriculas, recarregarPreMatriculas, atualizarStatusPreMatriculaContexto, marcarPreMatriculaComoImportadaContexto, excluirPreMatriculaContexto,
+      resumoMatriculasOnline, matriculaOnlineConfigurada: matriculaConfigurada, recarregarResumoMatriculasOnline,
+      estagioRequisitoConfig, salvarEstagioRequisitoConfigContexto,
+      estagioDefinicoes, salvarEstagioDefinicaoContexto, excluirEstagioDefinicaoContexto,
+      estagioCampos, salvarEstagioCampoContexto, excluirEstagioCampoContexto,
+      estagioProfessores, salvarEstagioProfessorContexto, excluirEstagioProfessorContexto,
+      estagioVagas, salvarEstagioVagaContexto, excluirEstagioVagaContexto,
+      estagioAvaliacoes, salvarEstagioAvaliacaoContexto,
+      estagioCronogramaEtapas, salvarEstagioCronogramaEtapaContexto,
+      estagioRecibosProfessor, salvarEstagioReciboProfessorContexto,
+      estagioCronogramasLiberacao, salvarEstagioCronogramaLiberacaoContexto, excluirEstagioCronogramaLiberacaoContexto,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
       addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
-      dependencies, createDependencyEnrollment, cancelDependencyEnrollment, createDependencyOnlyStudent,
+      dependencies, createDependencyEnrollment, cancelDependencyEnrollment, marcarStatusDependenciaContexto, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
