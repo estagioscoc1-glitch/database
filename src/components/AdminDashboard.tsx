@@ -3130,7 +3130,7 @@ export const AdminDashboard: React.FC = () => {
                     return (
                       <div 
                         key={u.id}
-                        className="p-3 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl flex items-center justify-between gap-3"
+                        className="p-3 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl flex items-center flex-wrap justify-between gap-3"
                       >
                         <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
