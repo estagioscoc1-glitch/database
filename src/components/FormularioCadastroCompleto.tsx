@@ -45,6 +45,7 @@ export interface DadosCadastroCompleto {
   country?: string;
   observations?: string;
   profession?: string; // só aluno
+  dossierNumber?: string; // só aluno
   professionalCouncil?: string; // só professor
   councilNumber?: string;
   councilUf?: string;
@@ -56,6 +57,7 @@ export interface DadosCadastroCompleto {
 interface Props {
   matriculaSugeridaAluno: string;
   matriculaSugeridaProfessor: string;
+  dossieSugerido: string;
   turmas: { id: string; label: string }[];
   aoCadastrar: (dados: DadosCadastroCompleto) => void;
 }
@@ -71,16 +73,16 @@ const vazio: Omit<DadosCadastroCompleto, 'papel' | 'matricula'> = {
   birthDate: '', birthCity: '', birthState: '', rg: '', rgIssuer: '', rgUf: '',
   phone: '', whatsapp: '', zipCode: '', address: '', addressNumber: '',
   complement: '', neighborhood: '', city: '', state: '', country: 'Brasil',
-  observations: '', profession: '', professionalCouncil: '', councilNumber: '',
+  observations: '', profession: '', dossierNumber: '', professionalCouncil: '', councilNumber: '',
   councilUf: '', councilValidity: '', academicTitle: '', specialty: '',
 };
 
 export const FormularioCadastroCompleto: React.FC<Props> = React.memo(
-  ({ matriculaSugeridaAluno, matriculaSugeridaProfessor, turmas, aoCadastrar }) => {
+  ({ matriculaSugeridaAluno, matriculaSugeridaProfessor, dossieSugerido, turmas, aoCadastrar }) => {
     const [papel, setPapel] = useState<UserRole>(UserRole.STUDENT);
     const [matricula, setMatricula] = useState(matriculaSugeridaAluno);
     const [matriculaEditadaManualmente, setMatriculaEditadaManualmente] = useState(false);
-    const [dados, setDados] = useState(vazio);
+    const [dados, setDados] = useState({ ...vazio, dossierNumber: dossieSugerido });
 
     const escolherPapel = (novoPapel: UserRole) => {
       setPapel(novoPapel);
@@ -98,7 +100,7 @@ export const FormularioCadastroCompleto: React.FC<Props> = React.memo(
       e.preventDefault();
       aoCadastrar({ papel, matricula, ...dados });
       // Limpa pro próximo cadastro. Quem avisa o resultado é o painel.
-      setDados(vazio);
+      setDados({ ...vazio, dossierNumber: dossieSugerido });
       setMatricula(papel === UserRole.STUDENT ? matriculaSugeridaAluno : matriculaSugeridaProfessor);
       setMatriculaEditadaManualmente(false);
     };
@@ -203,7 +205,18 @@ export const FormularioCadastroCompleto: React.FC<Props> = React.memo(
             </div>
 
             {papel === UserRole.STUDENT && (
-              <div><label className={rotulo}>Profissão</label><input className={campo} value={dados.profession} onChange={set('profession')} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={rotulo}>Profissão</label>
+                  <input className={campo} value={dados.profession} onChange={set('profession')} />
+                </div>
+                <div>
+                  <label className={rotulo}>
+                    Número do Dossiê <span className="normal-case font-normal text-indigo-500">(sugerido — pode trocar)</span>
+                  </label>
+                  <input className={`${campo} font-mono`} value={dados.dossierNumber} onChange={set('dossierNumber')} />
+                </div>
+              </div>
             )}
 
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider pt-1">Endereço</p>
