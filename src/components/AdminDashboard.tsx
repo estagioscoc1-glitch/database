@@ -60,6 +60,7 @@ import { AcessosPresencaModule } from './AcessosPresencaModule';
 import { FichaCompletaModal } from './FichaCompletaModal';
 import { HistoricoMatriculasModule } from './HistoricoMatriculasModule';
 import { MatriculasSemestraisModule } from './MatriculasSemestraisModule';
+import { AjudaModal } from './AjudaModal';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -627,6 +628,7 @@ export const AdminDashboard: React.FC = () => {
   const [apagandoCompletoDe, setApagandoCompletoDe] = useState<string | null>(null);
   const [salvandoPermissaoDe, setSalvandoPermissaoDe] = useState<string | null>(null);
   const [fichaCompletaDe, setFichaCompletaDe] = useState<User | null>(null);
+  const [ajudaAberta, setAjudaAberta] = useState(false);
 
   // Cadastro de novo administrador.
   const [novoAdminNome, setNovoAdminNome] = useState('');
@@ -1344,6 +1346,16 @@ export const AdminDashboard: React.FC = () => {
             <Briefcase className="h-4.5 w-4.5 text-amber-500" />
             <span>Gerenciar Estágios</span>
           </button>
+          {currentUser?.role === UserRole.ADMIN && (
+            <button
+              type="button"
+              onClick={() => setAjudaAberta(true)}
+              className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-300 dark:border-slate-700"
+            >
+              <HelpCircle className="h-4.5 w-4.5 text-slate-500" />
+              <span>Ajuda</span>
+            </button>
+          )}
         </div>
 
       </div>
@@ -6173,6 +6185,9 @@ export const AdminDashboard: React.FC = () => {
           onClose={() => setFichaCompletaDe(null)}
         />
       )}
+
+      {/* AJUDA — manual do sistema, acessível de qualquer aba. */}
+      {ajudaAberta && <AjudaModal onClose={() => setAjudaAberta(false)} />}
 
       {/* PDF Viewer / Print Frame Overlay */}
       {printDoc && (() => {
