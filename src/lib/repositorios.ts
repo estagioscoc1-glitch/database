@@ -16,7 +16,7 @@
  */
 
 import { supabase, supabaseConfigurado, chamarBancoDireto } from './supabase';
-import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment, Prova, QuestaoProva, Resolution } from '../types';
+import type { GradeRecord, User, Course, ClassSection, Subject, DependencyEnrollment, Prova, QuestaoProva, Resolution, PreMatricula } from '../types';
 import { UserRole } from '../types';
 
 /* ==========================================================================
@@ -2955,6 +2955,13 @@ export async function carregarDependencias(): Promise<DependencyEnrollment[] | n
     return null;
   }
 
+  // Status real (Cancelado/Concluído) — só existe linha aqui quando NÃO
+  // está mais ativo. Sem linha nesta tabela = continua ATIVO.
+  const { data: statusRows, error: erroStatus } = await supabase
+    .from('dependencias_status').select('aluno_id, turma_id, status');
+  if (erroStatus) console.warn('[Banco] Falha ao carregar status de dependências:', erroStatus.message);
+  const mapaStatus = new Map((statusRows ?? []).map((s: any) => [`${s.aluno_id}_${s.turma_id}`, s.status]));
+
   return (data ?? []).map((m: any): DependencyEnrollment => ({
     id: `dep_${m.aluno_id}_${m.turma_id}`,
     studentId: m.aluno_id,
@@ -2966,8 +2973,33 @@ export async function carregarDependencias(): Promise<DependencyEnrollment[] | n
     schedule: m.turmas?.horario || '',
     createdClassId: m.turma_id,
     createdAt: m.data_matricula || new Date().toISOString(),
-    status: 'ATIVO',
+    status: (mapaStatus.get(`${m.aluno_id}_${m.turma_id}`) as DependencyEnrollment['status']) || 'ATIVO',
   }));
+}
+
+/** Marca uma dependência como CANCELADO ou CONCLUÍDO — não apaga nada, só
+ *  muda o rótulo. Pra desfazer de vez uma matrícula de dependência (erro
+ *  de cadastro), use `cancelarDependencia` (essa sim apaga a matrícula
+ *  inteira) — são propósitos diferentes. */
+export async function atualizarStatusDependencia(
+  alunoId: string, turmaId: string, status: 'CANCELADO' | 'CONCLUÍDO' | 'ATIVO'
+): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+
+  if (status === 'ATIVO') {
+    // Volta ao normal: simplesmente remove a exceção, se existir.
+    const { error } = await supabase.from('dependencias_status')
+      .delete().eq('aluno_id', alunoId).eq('turma_id', turmaId);
+    if (error) return falha('reverter status de dependência', error);
+    return { ok: true };
+  }
+
+  const { data, error } = await supabase.from('dependencias_status').upsert({
+    aluno_id: alunoId, turma_id: turmaId, status, atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'aluno_id,turma_id' }).select('aluno_id');
+  if (error) return falha('atualizar status de dependência', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração.' };
+  return { ok: true };
 }
 
 /** 'SABADO' (banco) -> 'SÁBADO' (front-end) */
@@ -3115,6 +3147,91 @@ export async function atualizarDisciplinaExtra(disciplinaId: string, params: {
   const { data, error } = await supabase.from('disciplinas').update(mudancas).eq('id', disciplinaId).select('id');
   if (error) return falha('atualizar código/ementa da disciplina', error);
   if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração na disciplina.' };
+  return { ok: true };
+}
+
+/* ============================================================================
+ * PRÉ-MATRÍCULAS — recebidas do site matriculasonline.colegiooswaldocruz.
+ * com.br, que grava direto nesta mesma tabela (projeto Supabase compartilhado
+ * entre os dois sites). O Portal Acadêmico só LÊ e ATUALIZA STATUS — quem
+ * cria a linha é o site de matrícula, do lado de fora deste projeto.
+ * ========================================================================== */
+
+function paraPreMatriculaApp(p: any): PreMatricula {
+  return {
+    id: p.id,
+    protocol: p.protocolo,
+    fullName: p.nome_completo,
+    cpf: p.cpf ?? undefined,
+    birthDate: p.data_nascimento ?? undefined,
+    maritalStatus: p.estado_civil ?? undefined,
+    email: p.email ?? undefined,
+    phone: p.telefone ?? undefined,
+    zipCode: p.cep ?? undefined,
+    address: p.endereco ?? undefined,
+    addressNumber: p.numero ?? undefined,
+    neighborhood: p.bairro ?? undefined,
+    city: p.cidade ?? undefined,
+    state: p.estado ?? undefined,
+    interestCourse: p.curso_interesse ?? undefined,
+    interestSchedule: p.horario_interesse ?? undefined,
+    idDocumentUrl: p.documento_identidade_url ?? undefined,
+    paymentProofUrl: p.comprovante_pagamento_url ?? undefined,
+    status: p.status,
+    importedAt: p.importada_em ?? undefined,
+    generatedStudentId: p.aluno_id_gerado ?? undefined,
+    staffNotes: p.observacoes_secretaria ?? undefined,
+    createdAt: p.criado_em,
+  };
+}
+
+export async function carregarPreMatriculas(): Promise<PreMatricula[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('pre_matriculas').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar pré-matrículas:', error.message); return null; }
+  return (data ?? []).map(paraPreMatriculaApp);
+}
+
+/** Muda o status (aprovar, rejeitar, cancelar) e/ou anota uma observação da secretaria. */
+export async function atualizarStatusPreMatricula(id: string, params: {
+  status?: PreMatricula['status'];
+  staffNotes?: string;
+}): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const mudancas: Record<string, string> = {};
+  if (params.status !== undefined) mudancas.status = params.status;
+  if (params.staffNotes !== undefined) mudancas.observacoes_secretaria = params.staffNotes;
+  if (Object.keys(mudancas).length === 0) return { ok: true };
+
+  const { data, error } = await supabase.from('pre_matriculas').update(mudancas).eq('id', id).select('id');
+  if (error) return falha('atualizar status da pré-matrícula', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração.' };
+  return { ok: true };
+}
+
+/**
+ * Marca a pré-matrícula como IMPORTADA e liga ela ao id do aluno criado —
+ * chamada logo depois que o Cadastro Completo termina de criar a ficha.
+ * Não cria o aluno (isso já é feito pelo Cadastro Completo existente) — só
+ * fecha o laço, pra não aparecer de novo como pendente.
+ */
+export async function marcarPreMatriculaComoImportada(id: string, alunoId: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('pre_matriculas').update({
+    status: 'IMPORTADA',
+    importada_em: new Date().toISOString(),
+    aluno_id_gerado: alunoId,
+  }).eq('id', id).select('id');
+  if (error) return falha('marcar pré-matrícula como importada', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou esta alteração.' };
+  return { ok: true };
+}
+
+export async function excluirPreMatricula(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('pre_matriculas').delete().eq('id', id).select('id');
+  if (error) return falha('excluir pré-matrícula', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ela continua lá.' };
   return { ok: true };
 }
 
@@ -3395,3 +3512,375 @@ export async function salvarTimelineCRM(item: any): Promise<ResultadoGravacao> {
   return { ok: true };
 }
 
+
+/* ============================================================================
+ * ESTÁGIOS — vagas, avaliações, campos, professores de estágio e cronograma.
+ * O módulo de Estágios já existia pronto mas gravava tudo só no navegador
+ * (localStorage) — mesmo padrão do CRM antes da correção. As funções abaixo
+ * seguem o mesmo princípio de sempre: gravam direto, conferem se o banco
+ * realmente aceitou.
+ * ========================================================================== */
+
+// ---------------------------------------------------------------- config de requisito
+
+export async function carregarEstagioRequisitoConfig(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_requisito_config').select('*');
+  if (error) { console.warn('[Banco] Falha ao carregar config de requisito de estágio:', error.message); return null; }
+  return (data ?? []).map((c: any) => ({
+    id: c.id, courseId: c.curso_id ?? undefined,
+    insurancePaid: c.seguro_pago, kitPaid: c.kit_pago,
+    tuitionUpToDate: c.mensalidade_em_dia, activeEnrollment: c.matricula_ativa,
+  }));
+}
+
+export async function salvarEstagioRequisitoConfig(cfg: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_requisito_config').upsert({
+    id: cfg.id, curso_id: cfg.courseId || null,
+    seguro_pago: !!cfg.insurancePaid, kit_pago: !!cfg.kitPaid,
+    mensalidade_em_dia: !!cfg.tuitionUpToDate, matricula_ativa: !!cfg.activeEnrollment,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar config de requisito de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta configuração.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- definições de estágio
+
+function paraDefinicaoEstagioApp(d: any): any {
+  return {
+    id: d.id, courseId: d.curso_id ?? '', courseName: d.curso_nome ?? '',
+    stageName: d.nome_estagio, workloadHours: d.carga_horaria ?? 0,
+    description: d.descricao ?? '', minPassingGrade: d.nota_minima ?? 0,
+    maxGrade: d.nota_maxima ?? 10, studentPrice: d.valor_aluno ?? 0,
+    teacherPayRate: d.valor_professor ?? 0, paymentMethodInfo: d.info_pagamento ?? '',
+    createdAt: d.criado_em,
+  };
+}
+
+export async function carregarEstagioDefinicoes(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_definicoes').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar definições de estágio:', error.message); return null; }
+  return (data ?? []).map(paraDefinicaoEstagioApp);
+}
+
+export async function salvarEstagioDefinicao(def: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_definicoes').upsert({
+    id: def.id, curso_id: def.courseId || null, curso_nome: def.courseName || null,
+    nome_estagio: def.stageName, carga_horaria: def.workloadHours ?? null,
+    descricao: def.description || null, nota_minima: def.minPassingGrade ?? null,
+    nota_maxima: def.maxGrade ?? null, valor_aluno: def.studentPrice ?? null,
+    valor_professor: def.teacherPayRate ?? null, info_pagamento: def.paymentMethodInfo || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar definição de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta definição.' };
+  return { ok: true };
+}
+
+export async function excluirEstagioDefinicao(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_definicoes').delete().eq('id', id).select('id');
+  if (error) return falha('excluir definição de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ela continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- campos de estágio
+
+function paraCampoEstagioApp(c: any): any {
+  return {
+    id: c.id, companyName: c.empresa, cnpj: c.cnpj ?? undefined,
+    address: c.endereco ?? undefined, sector: c.setor ?? undefined,
+    supervisorName: c.supervisor ?? undefined, phone: c.telefone ?? undefined,
+    email: c.email ?? undefined, maxCapacity: c.capacidade_max ?? undefined,
+    status: c.status, createdAt: c.criado_em,
+  };
+}
+
+export async function carregarEstagioCampos(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_campos').select('*').order('empresa');
+  if (error) { console.warn('[Banco] Falha ao carregar campos de estágio:', error.message); return null; }
+  return (data ?? []).map(paraCampoEstagioApp);
+}
+
+export async function salvarEstagioCampo(campo: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_campos').upsert({
+    id: campo.id, empresa: campo.companyName, cnpj: campo.cnpj || null,
+    endereco: campo.address || null, setor: campo.sector || null,
+    supervisor: campo.supervisorName || null, telefone: campo.phone || null,
+    email: campo.email || null, capacidade_max: campo.maxCapacity ?? null,
+    status: campo.status,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar campo de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este campo de estágio.' };
+  return { ok: true };
+}
+
+export async function excluirEstagioCampo(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_campos').delete().eq('id', id).select('id');
+  if (error) return falha('excluir campo de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ele continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- professores de estágio
+
+function paraProfessorEstagioApp(p: any): any {
+  return {
+    id: p.id, name: p.nome, email: p.email ?? undefined, phone: p.telefone ?? undefined,
+    councilNumber: p.numero_conselho ?? '', specialty: p.especialidade ?? undefined,
+    pixKey: p.chave_pix ?? undefined, status: p.status, createdAt: p.criado_em,
+  };
+}
+
+export async function carregarEstagioProfessores(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_professores').select('*').order('nome');
+  if (error) { console.warn('[Banco] Falha ao carregar professores de estágio:', error.message); return null; }
+  return (data ?? []).map(paraProfessorEstagioApp);
+}
+
+export async function salvarEstagioProfessor(prof: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_professores').upsert({
+    id: prof.id, nome: prof.name, email: prof.email || null, telefone: prof.phone || null,
+    numero_conselho: prof.councilNumber || null, especialidade: prof.specialty || null,
+    chave_pix: prof.pixKey || null, status: prof.status,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar professor de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este professor de estágio.' };
+  return { ok: true };
+}
+
+export async function excluirEstagioProfessor(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_professores').delete().eq('id', id).select('id');
+  if (error) return falha('excluir professor de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ele continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- vagas de estágio
+
+function paraVagaEstagioApp(v: any): any {
+  return {
+    id: v.id, vacancyNumber: v.numero_vaga ?? undefined, companyName: v.empresa ?? undefined,
+    sector: v.setor ?? undefined, supervisorName: v.supervisor ?? undefined,
+    courseId: v.curso_id ?? undefined, courseName: v.curso_nome ?? undefined,
+    stageId: v.estagio_id ?? undefined, stageName: v.estagio_nome ?? undefined,
+    teacherId: v.professor_id ?? '', teacherName: v.professor_nome,
+    teacherCouncilNumber: v.professor_conselho ?? undefined,
+    classId: v.turma_id ?? undefined, className: v.turma_nome ?? undefined,
+    maxStudents: v.max_alunos ?? undefined, studentsAllocated: v.alunos_alocados ?? [],
+    startDate: v.data_inicio, endDate: v.data_fim, scheduleDaysTime: v.horario ?? undefined,
+    location: v.local ?? undefined, totalHours: v.carga_total ?? undefined,
+    hourlyRate: v.valor_hora ?? undefined, accessLinkCode: v.codigo_acesso ?? undefined,
+    status: v.status, evaluationFormTemplateHtml: v.modelo_avaliacao_html ?? undefined,
+    createdAt: v.criado_em,
+  };
+}
+
+export async function carregarEstagioVagas(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_vagas').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar vagas de estágio:', error.message); return null; }
+  return (data ?? []).map(paraVagaEstagioApp);
+}
+
+export async function salvarEstagioVaga(vaga: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_vagas').upsert({
+    id: vaga.id, numero_vaga: vaga.vacancyNumber || null, empresa: vaga.companyName || null,
+    setor: vaga.sector || null, supervisor: vaga.supervisorName || null,
+    curso_id: vaga.courseId || null, curso_nome: vaga.courseName || null,
+    estagio_id: vaga.stageId || null, estagio_nome: vaga.stageName || null,
+    professor_id: vaga.teacherId || null, professor_nome: vaga.teacherName,
+    professor_conselho: vaga.teacherCouncilNumber || null,
+    turma_id: vaga.classId || null, turma_nome: vaga.className || null,
+    max_alunos: vaga.maxStudents ?? null, alunos_alocados: vaga.studentsAllocated || [],
+    data_inicio: vaga.startDate || null, data_fim: vaga.endDate || null,
+    horario: vaga.scheduleDaysTime || null, local: vaga.location || null,
+    carga_total: vaga.totalHours ?? null, valor_hora: vaga.hourlyRate ?? null,
+    codigo_acesso: vaga.accessLinkCode || null, status: vaga.status,
+    modelo_avaliacao_html: vaga.evaluationFormTemplateHtml || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar vaga de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta vaga.' };
+  return { ok: true };
+}
+
+export async function excluirEstagioVaga(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_vagas').delete().eq('id', id).select('id');
+  if (error) return falha('excluir vaga de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ela continua lá.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- avaliações de estágio
+
+function paraAvaliacaoEstagioApp(a: any): any {
+  return {
+    id: a.id, vacancyId: a.vaga_id, studentId: a.aluno_id ?? undefined,
+    studentName: a.aluno_nome, enrollmentNumber: a.matricula ?? undefined,
+    grade: a.nota ?? undefined, approved: a.aprovado ?? undefined,
+    comments: a.comentarios ?? undefined, techGrade: a.nota_tecnica ?? undefined,
+    ethicsGrade: a.nota_etica ?? undefined, punctualityGrade: a.nota_pontualidade ?? undefined,
+    reportGrade: a.nota_relatorio ?? undefined, totalAbsences: a.faltas_total ?? undefined,
+    completedHours: a.horas_cumpridas ?? undefined, finalGrade: a.nota_final ?? undefined,
+    supervisorFeedback: a.feedback_supervisor ?? undefined, evaluatedAt: a.avaliado_em ?? undefined,
+    companyName: a.empresa ?? undefined, status: a.status ?? undefined,
+    criteriaScores: a.criterios ?? [], filledAt: a.preenchido_em ?? undefined,
+    filledByTeacher: a.preenchido_por_professor_id ?? undefined,
+    teacherName: a.preenchido_por_professor_nome ?? undefined,
+    teacherId: a.preenchido_por_professor_id ?? undefined,
+  };
+}
+
+export async function carregarEstagioAvaliacoes(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_avaliacoes').select('*');
+  if (error) { console.warn('[Banco] Falha ao carregar avaliações de estágio:', error.message); return null; }
+  return (data ?? []).map(paraAvaliacaoEstagioApp);
+}
+
+export async function salvarEstagioAvaliacao(av: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_avaliacoes').upsert({
+    id: av.id, vaga_id: av.vacancyId, aluno_id: av.studentId || null,
+    aluno_nome: av.studentName, matricula: av.enrollmentNumber || null,
+    nota: av.grade ?? null, aprovado: av.approved ?? null, comentarios: av.comments || null,
+    nota_tecnica: av.techGrade ?? null, nota_etica: av.ethicsGrade ?? null,
+    nota_pontualidade: av.punctualityGrade ?? null, nota_relatorio: av.reportGrade ?? null,
+    faltas_total: av.totalAbsences ?? null, horas_cumpridas: av.completedHours ?? null,
+    nota_final: av.finalGrade ?? null, feedback_supervisor: av.supervisorFeedback || null,
+    avaliado_em: av.evaluatedAt || null, empresa: av.companyName || null, status: av.status || null,
+    criterios: av.criteriaScores || [], preenchido_em: av.filledAt || null,
+    preenchido_por_professor_id: av.filledByTeacher || av.teacherId || null,
+    preenchido_por_professor_nome: av.teacherName || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar avaliação de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta avaliação.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- etapas do cronograma de uma vaga
+
+function paraEtapaCronogramaApp(e: any): any {
+  return {
+    id: e.id, vacancyId: e.vaga_id, stageId: e.estagio_id ?? '',
+    date: e.data_etapa, time: e.hora ?? '', stepTitle: e.titulo_etapa ?? '',
+    description: e.descricao ?? '', location: e.local ?? undefined,
+  };
+}
+
+export async function carregarEstagioCronogramaEtapas(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_cronograma_etapas').select('*');
+  if (error) { console.warn('[Banco] Falha ao carregar etapas de cronograma de estágio:', error.message); return null; }
+  return (data ?? []).map(paraEtapaCronogramaApp);
+}
+
+export async function salvarEstagioCronogramaEtapa(etapa: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_cronograma_etapas').upsert({
+    id: etapa.id, vaga_id: etapa.vacancyId, estagio_id: etapa.stageId || null,
+    data_etapa: etapa.date || null, hora: etapa.time || null,
+    titulo_etapa: etapa.stepTitle || null, descricao: etapa.description || null,
+    local: etapa.location || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar etapa de cronograma de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar esta etapa.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- recibos de pagamento do professor
+
+function paraReciboProfessorApp(r: any): any {
+  return {
+    id: r.id, vacancyId: r.vaga_id ?? undefined, teacherId: r.professor_id ?? '',
+    teacherName: r.professor_nome, stageName: r.estagio_nome ?? undefined,
+    className: r.turma_nome ?? undefined, companyName: r.empresa ?? undefined,
+    studentsCount: r.qtd_alunos ?? 0, ratePerStudent: r.valor_por_aluno ?? undefined,
+    hourlyRate: r.valor_hora ?? undefined, totalHours: r.horas_total ?? undefined,
+    totalHoursAccompanying: r.horas_acompanhamento_total ?? undefined,
+    totalAmountPaid: r.valor_total_pago ?? undefined, issuedAt: r.emitido_em ?? undefined,
+    receiptNumber: r.numero_recibo ?? undefined, totalValue: r.valor_total ?? 0,
+    status: r.status, paidAt: r.pago_em ?? undefined, paidBy: r.pago_por ?? undefined,
+    generatedAt: r.gerado_em ?? undefined, createdAt: r.criado_em,
+  };
+}
+
+export async function carregarEstagioRecibosProfessor(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_recibos_professor').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar recibos de professor de estágio:', error.message); return null; }
+  return (data ?? []).map(paraReciboProfessorApp);
+}
+
+export async function salvarEstagioReciboProfessor(recibo: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_recibos_professor').upsert({
+    id: recibo.id, vaga_id: recibo.vacancyId || null, professor_id: recibo.teacherId || null,
+    professor_nome: recibo.teacherName, estagio_nome: recibo.stageName || null,
+    turma_nome: recibo.className || null, empresa: recibo.companyName || null,
+    qtd_alunos: recibo.studentsCount ?? null, valor_por_aluno: recibo.ratePerStudent ?? null,
+    valor_hora: recibo.hourlyRate ?? null, horas_total: recibo.totalHours ?? null,
+    horas_acompanhamento_total: recibo.totalHoursAccompanying ?? null,
+    valor_total_pago: recibo.totalAmountPaid ?? null, emitido_em: recibo.issuedAt || null,
+    numero_recibo: recibo.receiptNumber || null, valor_total: recibo.totalValue ?? 0,
+    status: recibo.status, pago_em: recibo.paidAt || null, pago_por: recibo.paidBy || null,
+    gerado_em: recibo.generatedAt || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar recibo de professor de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este recibo.' };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------- cronogramas de liberação (visão geral)
+
+function paraCronogramaLiberacaoApp(c: any): any {
+  return {
+    id: c.id, title: c.titulo, courseName: c.curso_nome ?? '', stageName: c.estagio_nome ?? '',
+    className: c.turma_nome ?? '', companyName: c.empresa ?? undefined,
+    releaseDate: c.data_liberacao, startDate: c.data_inicio, endDate: c.data_fim,
+    shift: c.turno, vacanciesCount: c.qtd_vagas ?? 0, status: c.status,
+    observations: c.observacoes ?? undefined, createdAt: c.criado_em,
+  };
+}
+
+export async function carregarEstagioCronogramasLiberacao(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('estagio_cronogramas_liberacao').select('*').order('data_liberacao', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar cronogramas de liberação de estágio:', error.message); return null; }
+  return (data ?? []).map(paraCronogramaLiberacaoApp);
+}
+
+export async function salvarEstagioCronogramaLiberacao(crono: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_cronogramas_liberacao').upsert({
+    id: crono.id, titulo: crono.title, curso_nome: crono.courseName || null,
+    estagio_nome: crono.stageName || null, turma_nome: crono.className || null,
+    empresa: crono.companyName || null, data_liberacao: crono.releaseDate || null,
+    data_inicio: crono.startDate || null, data_fim: crono.endDate || null,
+    turno: crono.shift || null, qtd_vagas: crono.vacanciesCount ?? null,
+    status: crono.status, observacoes: crono.observations || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar cronograma de liberação de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este cronograma.' };
+  return { ok: true };
+}
+
+export async function excluirEstagioCronogramaLiberacao(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('estagio_cronogramas_liberacao').delete().eq('id', id).select('id');
+  if (error) return falha('excluir cronograma de liberação de estágio', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ele continua lá.' };
+  return { ok: true };
+}
