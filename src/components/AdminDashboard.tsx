@@ -30,7 +30,7 @@ const ABAS_VISIVEIS = {
   crm: true,                  // CRM
   cadastros: false,           // Cadastros
   financeiro: false,          // Financeiro
-  orientacao: false,          // Movimentação
+  orientacao: true,           // Movimentação (só Estágios + Minicursos e Eventos aparecem)
   pesquisa: false,            // Pesquisa
   relatorios: false,          // Relatórios
   boletins: false,            // Boletim Completo
