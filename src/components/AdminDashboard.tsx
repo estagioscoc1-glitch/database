@@ -798,6 +798,19 @@ export const AdminDashboard: React.FC = () => {
     return String(maior + 1);
   }, [users]);
 
+  // Dossiê sugerido — a maior numeração já usada + 1. Começa do 1 se
+  // nenhum aluno tiver dossiê ainda (o script de numeração em massa cuida
+  // disso pros alunos já cadastrados).
+  const dossieSugerido = React.useMemo(() => {
+    const maior = users
+      .filter(u => u.role === UserRole.STUDENT)
+      .reduce((maior, u) => {
+        const n = Number(u.dossierNumber);
+        return Number.isFinite(n) && n > maior ? n : maior;
+      }, 0);
+    return String(maior + 1);
+  }, [users]);
+
   const matriculaSugeridaProfessor = React.useMemo(() => {
     const maior = activeTeachers.reduce((maior, t) => {
       const n = Number(t.enrollment);
@@ -2391,6 +2404,7 @@ export const AdminDashboard: React.FC = () => {
             <FormularioCadastroCompleto
               matriculaSugeridaAluno={matriculaSugeridaAluno}
               matriculaSugeridaProfessor={matriculaSugeridaProfessor}
+              dossieSugerido={dossieSugerido}
               turmas={turmasParaCadastroCompleto}
               aoCadastrar={handleCadastroCompleto}
             />
