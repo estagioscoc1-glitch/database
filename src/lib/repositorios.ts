@@ -3884,3 +3884,83 @@ export async function excluirEstagioCronogramaLiberacao(id: string): Promise<Res
   if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ele continua lá.' };
   return { ok: true };
 }
+
+/* ============================================================================
+ * MINICURSOS E EVENTOS — igual ao padrão de sempre: grava direto, confere
+ * se o banco aceitou.
+ * ========================================================================== */
+
+function paraEventoMinicursoApp(e: any): any {
+  return {
+    id: e.id, title: e.titulo, date: e.data_evento ?? '', time: e.hora ?? '',
+    workloadHours: e.carga_horaria ?? 0, location: e.local ?? '', instructor: e.instrutor ?? '',
+    description: e.descricao ?? '', feeValue: e.valor_taxa ?? 0,
+    certificateTemplateHtml: e.modelo_certificado_html ?? undefined,
+    createdAt: e.criado_em, createdBy: e.criado_por ?? undefined,
+  };
+}
+
+export async function carregarEventosMinicursos(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('eventos_minicursos').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Banco] Falha ao carregar eventos/minicursos:', error.message); return null; }
+  return (data ?? []).map(paraEventoMinicursoApp);
+}
+
+export async function salvarEventoMinicurso(ev: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('eventos_minicursos').upsert({
+    id: ev.id, titulo: ev.title, data_evento: ev.date || null, hora: ev.time || null,
+    carga_horaria: ev.workloadHours ?? null, local: ev.location || null, instrutor: ev.instructor || null,
+    descricao: ev.description || null, valor_taxa: ev.feeValue ?? null,
+    modelo_certificado_html: ev.certificateTemplateHtml || null, criado_por: ev.createdBy || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar evento/minicurso', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este evento.' };
+  return { ok: true };
+}
+
+function paraParticipanteApp(p: any): any {
+  return {
+    id: p.id, eventId: p.evento_id, studentId: p.aluno_id ?? '', studentName: p.aluno_nome,
+    enrollmentNumber: p.matricula ?? '', paid: p.pago, attended: p.presente,
+    registeredAt: p.registrado_em, certificateGenerated: p.certificado_gerado,
+    certificateUrl: p.certificado_url ?? undefined, certificateFileName: p.certificado_nome_arquivo ?? undefined,
+    issueDate: p.data_emissao ?? undefined,
+  };
+}
+
+export async function carregarParticipantesEvento(eventoId: string): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('eventos_participantes').select('*').eq('evento_id', eventoId);
+  if (error) { console.warn('[Banco] Falha ao carregar participantes do evento:', error.message); return null; }
+  return (data ?? []).map(paraParticipanteApp);
+}
+
+export async function carregarTodosOsParticipantesDeEventos(): Promise<any[] | null> {
+  if (!supabaseConfigurado) return null;
+  const { data, error } = await supabase.from('eventos_participantes').select('*');
+  if (error) { console.warn('[Banco] Falha ao carregar participantes de eventos:', error.message); return null; }
+  return (data ?? []).map(paraParticipanteApp);
+}
+
+export async function salvarParticipanteEvento(p: any): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('eventos_participantes').upsert({
+    id: p.id, evento_id: p.eventId, aluno_id: p.studentId || null, aluno_nome: p.studentName,
+    matricula: p.enrollmentNumber || null, pago: !!p.paid, presente: !!p.attended,
+    certificado_gerado: !!p.certificateGenerated, certificado_url: p.certificateUrl || null,
+    certificado_nome_arquivo: p.certificateFileName || null, data_emissao: p.issueDate || null,
+  }, { onConflict: 'id' }).select('id');
+  if (error) return falha('salvar participante do evento', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou salvar este participante.' };
+  return { ok: true };
+}
+
+export async function excluirParticipanteEvento(id: string): Promise<ResultadoGravacao> {
+  if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
+  const { data, error } = await supabase.from('eventos_participantes').delete().eq('id', id).select('id');
+  if (error) return falha('excluir participante do evento', error);
+  if (!data || data.length === 0) return { ok: false, erro: 'O banco não autorizou apagar — ele continua lá.' };
+  return { ok: true };
+}
