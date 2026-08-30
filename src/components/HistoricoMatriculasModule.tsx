@@ -9,7 +9,7 @@ import { Search, History, GraduationCap, Sparkles, Briefcase, Calendar } from 'l
 // Estágios). Tudo lido de dados que já existem e já são reais — nenhum
 // dado novo é criado aqui, essa tela só organiza o que já está espalhado.
 export const HistoricoMatriculasModule: React.FC = () => {
-  const { users, classes, grades, dependencies, internships } = useApp();
+  const { users, classes, grades, dependencies, internships, subjects } = useApp();
   const [busca, setBusca] = useState('');
   const [alunoSelecionadoId, setAlunoSelecionadoId] = useState('');
 
@@ -141,21 +141,45 @@ export const HistoricoMatriculasModule: React.FC = () => {
             {dependenciasDoAluno.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Nenhuma dependência registrada pra este aluno.</p>
             ) : (
-              <div className="space-y-2">
-                {dependenciasDoAluno.map(d => (
-                  <div key={d.id} className="p-3 bg-purple-50/60 dark:bg-purple-950/10 rounded-2xl border border-purple-150 dark:border-purple-900/30 flex items-center justify-between">
-                    <div>
-                      <span className="font-bold text-xs text-slate-800 dark:text-slate-200">{d.semester}º Semestre</span>
-                      <span className="text-[11px] text-slate-500 ml-2">{d.schedule}</span>
-                    </div>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                      d.status === 'CONCLUÍDO' ? 'bg-emerald-600 text-white' :
-                      d.status === 'CANCELADO' ? 'bg-slate-400 text-white' : 'bg-blue-600 text-white'
-                    }`}>
-                      {d.status}
-                    </span>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[10px] text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                      <th className="text-left font-bold py-2 pr-3">Ano/Semestre</th>
+                      <th className="text-left font-bold py-2 pr-3">Disciplina</th>
+                      <th className="text-left font-bold py-2 pr-3">Horário</th>
+                      <th className="text-right font-bold py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dependenciasDoAluno.map(d => {
+                      // O ano de verdade vem da turma que foi criada pra
+                      // essa dependência — o registro em si só guarda o
+                      // número do semestre, não o ano.
+                      const turmaGerada = classes.find(c => c.id === d.createdClassId);
+                      const disciplina = subjects.find(s => s.id === d.subjectId);
+                      return (
+                        <tr key={d.id} className="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
+                          <td className="py-2 pr-3 font-mono text-slate-600 dark:text-slate-300">
+                            {turmaGerada ? `${turmaGerada.year}/${d.semester}` : `?/${d.semester}`}
+                          </td>
+                          <td className="py-2 pr-3 font-bold text-slate-800 dark:text-slate-200">
+                            {disciplina?.name || 'Disciplina não identificada'}
+                          </td>
+                          <td className="py-2 pr-3">{d.schedule}</td>
+                          <td className="py-2 text-right">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              d.status === 'CONCLUÍDO' ? 'bg-emerald-600 text-white' :
+                              d.status === 'CANCELADO' ? 'bg-slate-400 text-white' : 'bg-blue-600 text-white'
+                            }`}>
+                              {d.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
