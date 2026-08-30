@@ -33,21 +33,20 @@ export type MovimentacaoSubTab =
 
 export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({ 
   currentUser = 'Administração Movimentação',
-  initialSubTab = 'grade_curricular'
+  initialSubTab = 'estagios'
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<MovimentacaoSubTab>(initialSubTab);
 
+  // Só as duas telas já corrigidas (ligadas ao banco de verdade) aparecem
+  // aqui — as outras (Matrículas, Transferências, Cancelamento,
+  // Dependência, Requerimentos, Grade Curricular, Importar Alunos)
+  // continuam existindo no código, só não aparecem no menu, porque
+  // duplicam funcionalidade que já existe em outro lugar do sistema.
+  // "Upload de Documentos" fica de fora de propósito — vai entrar no
+  // futuro menu "Gerar e Requerer Documentos".
   const submenus = [
-    { id: 'grade_curricular', label: 'Grade Curricular', icon: BookOpen },
-    { id: 'matriculas', label: 'Matrículas', icon: UserCheck },
-    { id: 'importar_alunos', label: 'Importar Alunos', icon: FileSpreadsheet },
-    { id: 'transferencias', label: 'Transferências', icon: ArrowLeftRight },
-    { id: 'cancelamento', label: 'Cancelamento de Matrícula', icon: XCircle },
-    { id: 'dependencias', label: 'Matrícula de Dependência', icon: Repeat },
-    { id: 'requerimentos', label: 'Requerimentos', icon: FileText },
-    { id: 'upload_documentos', label: 'Upload de Documentos', icon: FileUp },
-    { id: 'minicursos', label: 'Minicursos e Eventos', icon: Sparkles },
     { id: 'estagios', label: 'Estágios', icon: Briefcase },
+    { id: 'minicursos', label: 'Minicursos e Eventos', icon: Sparkles },
   ] as const;
 
   return (
