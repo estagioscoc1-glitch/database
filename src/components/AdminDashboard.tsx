@@ -50,7 +50,7 @@ import {
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
   Search, Printer, AlertTriangle, ChevronRight, HelpCircle,
   Database, Shield, ShieldCheck, UploadCloud, Lock, Unlock, Server, RefreshCw, Download, Upload, Key,
-  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles, IdCard,
+  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles, IdCard, Layers,
   Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
 } from 'lucide-react';
 import { SpreadsheetImporter } from './SpreadsheetImporter';
@@ -58,6 +58,7 @@ import { HistoricalDataImporter } from './HistoricalDataImporter';
 import { PrintModal } from './PrintModal';
 import { AcessosPresencaModule } from './AcessosPresencaModule';
 import { FichaCompletaModal } from './FichaCompletaModal';
+import { HistoricoMatriculasModule } from './HistoricoMatriculasModule';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -156,7 +157,7 @@ export const AdminDashboard: React.FC = () => {
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
   );
-  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo'>('cursos');
+  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo' | 'historico_matriculas' | 'matriculas_semestrais'>('cursos');
   const [verComoSearch, setVerComoSearch] = useState('');
   const [verComoErro, setVerComoErro] = useState<string | null>(null);
   const [acessosSearch, setAcessosSearch] = useState('');
@@ -2048,10 +2049,35 @@ export const AdminDashboard: React.FC = () => {
             >
               <Users className="h-4 w-4" /> Ver Como
             </button>
+            <button
+              type="button"
+              id="subtab-historico-matriculas"
+              onClick={() => setRegSubTab('historico_matriculas')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'historico_matriculas'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <History className="h-4 w-4" /> Histórico de Matrículas
+            </button>
+            <button
+              type="button"
+              id="subtab-matriculas-semestrais"
+              onClick={() => setRegSubTab('matriculas_semestrais')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'matriculas_semestrais'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Layers className="h-4 w-4" /> Matrículas Semestrais
+            </button>
           </div>
 
           {/* SubTab Views */}
           {regSubTab === 'cursos' && <CourseManager />}
+          {regSubTab === 'historico_matriculas' && <HistoricoMatriculasModule />}
           {regSubTab === 'funcionarios' && <StaffManager />}
           {regSubTab === 'dependencias' && (
             <DependencyManager
