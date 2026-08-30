@@ -9,7 +9,9 @@ import { Search, History, GraduationCap, Sparkles, Briefcase, Calendar } from 'l
 // Estágios). Tudo lido de dados que já existem e já são reais — nenhum
 // dado novo é criado aqui, essa tela só organiza o que já está espalhado.
 export const HistoricoMatriculasModule: React.FC = () => {
-  const { users, classes, grades, dependencies, internships, subjects } = useApp();
+  const { users, classes, grades, dependencies, internships, subjects, currentPeriod, marcarDesistenteNaTurma, marcarStatusDependenciaContexto, mostrarAviso } = useApp();
+  const [confirmandoCancelamentoTurma, setConfirmandoCancelamentoTurma] = useState(false);
+  const [confirmandoCancelamentoDepId, setConfirmandoCancelamentoDepId] = useState('');
   const [busca, setBusca] = useState('');
   const [alunoSelecionadoId, setAlunoSelecionadoId] = useState('');
 
@@ -77,7 +79,7 @@ export const HistoricoMatriculasModule: React.FC = () => {
               <button
                 key={u.id}
                 type="button"
-                onClick={() => { setAlunoSelecionadoId(u.id); setBusca(u.name); }}
+                onClick={() => { setAlunoSelecionadoId(u.id); setBusca(u.name); setConfirmandoCancelamentoTurma(false); setConfirmandoCancelamentoDepId(''); }}
                 className="w-full text-left p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs transition-all"
               >
                 <span className="font-bold text-slate-800 dark:text-slate-200">{u.name}</span>
@@ -116,19 +118,52 @@ export const HistoricoMatriculasModule: React.FC = () => {
                       <th className="text-left font-bold py-2 pr-3">Módulo</th>
                       <th className="text-left font-bold py-2 pr-3">Turma</th>
                       <th className="text-left font-bold py-2">Turno</th>
+                      <th className="text-right font-bold py-2">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {turmasDoAluno.map(t => (
-                      <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
-                        <td className="py-2 pr-3 font-mono text-slate-600 dark:text-slate-300">{t.year}/{t.semester}</td>
-                        <td className="py-2 pr-3">{t.module}º</td>
-                        <td className="py-2 pr-3 font-bold text-slate-800 dark:text-slate-200">{t.name} {t.code ? `(${t.code})` : ''}</td>
-                        <td className="py-2">{t.shift}</td>
-                      </tr>
-                    ))}
+                    {turmasDoAluno.map(t => {
+                      const ehPeriodoAtual = `${t.year}/${t.semester}` === currentPeriod;
+                      const notaDessaTurma = grades.find(g => g.studentId === aluno!.id && g.classId === t.id);
+                      const jaDesistente = notaDessaTurma?.result === 'DESISTENTE';
+                      return (
+                        <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
+                          <td className="py-2 pr-3 font-mono text-slate-600 dark:text-slate-300">{t.year}/{t.semester}</td>
+                          <td className="py-2 pr-3">{t.module}º</td>
+                          <td className="py-2 pr-3 font-bold text-slate-800 dark:text-slate-200">{t.name} {t.code ? `(${t.code})` : ''}</td>
+                          <td className="py-2">{t.shift}</td>
+                          <td className="py-2 text-right">
+                            {jaDesistente ? (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">CANCELADO</span>
+                            ) : ehPeriodoAtual ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!confirmandoCancelamentoTurma) { setConfirmandoCancelamentoTurma(true); return; }
+                                  const quantos = marcarDesistenteNaTurma(aluno!.id, t.id, true);
+                                  setConfirmandoCancelamentoTurma(false);
+                                  mostrarAviso('Matrícula cancelada', `${quantos} disciplina(s) de ${aluno!.name} nesta turma foram marcadas como canceladas/desistentes — já aparece assim no diário do professor.`);
+                                }}
+                                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                                  confirmandoCancelamentoTurma
+                                    ? 'bg-red-700 text-white animate-pulse'
+                                    : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100'
+                                }`}
+                              >
+                                {confirmandoCancelamentoTurma ? 'Confirma cancelar?' : 'Cancelar Matrícula'}
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-300 dark:text-slate-700">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+                <p className="text-[10px] text-slate-400 mt-2">
+                  Só é possível cancelar a matrícula do semestre atual ({currentPeriod}) — semestres passados fazem parte do histórico e não são alterados aqui.
+                </p>
               </div>
             )}
           </div>
@@ -148,7 +183,8 @@ export const HistoricoMatriculasModule: React.FC = () => {
                       <th className="text-left font-bold py-2 pr-3">Ano/Semestre</th>
                       <th className="text-left font-bold py-2 pr-3">Disciplina</th>
                       <th className="text-left font-bold py-2 pr-3">Horário</th>
-                      <th className="text-right font-bold py-2">Status</th>
+                      <th className="text-right font-bold py-2 pr-3">Status</th>
+                      <th className="text-right font-bold py-2">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -167,13 +203,34 @@ export const HistoricoMatriculasModule: React.FC = () => {
                             {disciplina?.name || 'Disciplina não identificada'}
                           </td>
                           <td className="py-2 pr-3">{d.schedule}</td>
-                          <td className="py-2 text-right">
+                          <td className="py-2 pr-3 text-right">
                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                               d.status === 'CONCLUÍDO' ? 'bg-emerald-600 text-white' :
                               d.status === 'CANCELADO' ? 'bg-slate-400 text-white' : 'bg-blue-600 text-white'
                             }`}>
                               {d.status}
                             </span>
+                          </td>
+                          <td className="py-2 text-right">
+                            {d.status === 'ATIVO' && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirmandoCancelamentoDepId !== d.id) { setConfirmandoCancelamentoDepId(d.id); return; }
+                                  const resultado = await marcarStatusDependenciaContexto(d, 'CANCELADO');
+                                  setConfirmandoCancelamentoDepId('');
+                                  if (!resultado.ok) { mostrarAviso('Não foi possível cancelar', resultado.erro || 'Erro desconhecido.'); return; }
+                                  mostrarAviso('Dependência cancelada', `A dependência de ${disciplina?.name || 'disciplina'} foi marcada como cancelada.`);
+                                }}
+                                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                                  confirmandoCancelamentoDepId === d.id
+                                    ? 'bg-red-700 text-white animate-pulse'
+                                    : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 hover:bg-red-100'
+                                }`}
+                              >
+                                {confirmandoCancelamentoDepId === d.id ? 'Confirma?' : 'Cancelar'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
