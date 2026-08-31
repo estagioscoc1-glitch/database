@@ -85,6 +85,11 @@ diário automaticamente.
 - **Matrículas Semestrais** — clica em "Pesquisar" e mostra: novas,
   veteranos, dependências, estágios, total geral, e a quebra por sala, do
   período letivo ativo.
+- **Grades Curriculares** — escolhe um curso e mostra a matriz curricular
+  oficial completa (módulos, componentes, carga horária), com o cabeçalho
+  oficial usado nas declarações. Tem botão de imprimir/baixar em PDF.
+  Conteúdo fixo — se a grade oficial de algum curso mudar, precisa
+  atualizar aqui manualmente também.
 
 ### Ver Como
 Admin "vira" a tela de um professor ou aluno específico (mesmas
