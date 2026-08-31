@@ -61,6 +61,7 @@ import { FichaCompletaModal } from './FichaCompletaModal';
 import { HistoricoMatriculasModule } from './HistoricoMatriculasModule';
 import { MatriculasSemestraisModule } from './MatriculasSemestraisModule';
 import { AjudaModal } from './AjudaModal';
+import { GradeCurricularModule } from './GradeCurricularModule';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -159,7 +160,7 @@ export const AdminDashboard: React.FC = () => {
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
   );
-  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo' | 'historico_matriculas' | 'matriculas_semestrais'>('cursos');
+  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo' | 'historico_matriculas' | 'matriculas_semestrais' | 'grades_curriculares'>('cursos');
   const [verComoSearch, setVerComoSearch] = useState('');
   const [verComoErro, setVerComoErro] = useState<string | null>(null);
   const [acessosSearch, setAcessosSearch] = useState('');
@@ -2099,12 +2100,25 @@ export const AdminDashboard: React.FC = () => {
             >
               <Layers className="h-4 w-4" /> Matrículas Semestrais
             </button>
+            <button
+              type="button"
+              id="subtab-grades-curriculares"
+              onClick={() => setRegSubTab('grades_curriculares')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'grades_curriculares'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <GraduationCap className="h-4 w-4" /> Grades Curriculares
+            </button>
           </div>
 
           {/* SubTab Views */}
           {regSubTab === 'cursos' && <CourseManager />}
           {regSubTab === 'historico_matriculas' && <HistoricoMatriculasModule />}
           {regSubTab === 'matriculas_semestrais' && <MatriculasSemestraisModule />}
+          {regSubTab === 'grades_curriculares' && <GradeCurricularModule />}
           {regSubTab === 'funcionarios' && <StaffManager />}
           {regSubTab === 'dependencias' && (
             <DependencyManager
