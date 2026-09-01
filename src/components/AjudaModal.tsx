@@ -83,6 +83,17 @@ const SECOES: Secao[] = [
     ],
   },
   {
+    titulo: 'Requerimentos',
+    itens: [
+      { titulo: 'O que é', texto: 'Fila de pedidos de documento da secretaria: Histórico Escolar, Declaração de Conclusão, Diploma, Segunda Via de Diploma, Transferência, Contrato e Requerimento de Matrícula. Grava no banco de dados, então o pedido aberto num computador aparece em todos os outros na hora. Não confundir com a tela antiga de mesmo nome escondida dentro de Movimentação, que guardava tudo só no navegador e não deve ser usada.' },
+      { titulo: 'Fila de Pedidos', texto: 'Mostra todos os requerimentos. Os cinco quadradinhos de cima contam quantos estão em cada situação (Solicitado, Em andamento, Pronto, Entregue, Cancelado) — e clicar num deles filtra a lista. Tem busca por nome, matrícula, protocolo ou tipo. Pedido que passou do prazo aparece com a tarja vermelha "Prazo vencido". A situação se muda pela caixinha na própria linha; ao marcar "Entregue", a data da entrega é gravada sozinha.' },
+      { titulo: 'Novo Requerimento', texto: 'Busca o aluno pelo nome ou matrícula, escolhe o que ele está pedindo, e o prazo de entrega já é calculado sozinho a partir do prazo cadastrado naquele tipo. O número de protocolo (REQ-2026-0001) também é gerado automaticamente.' },
+      { titulo: 'Tipos e Prazos', texto: 'O catálogo do que pode ser pedido. Aqui a secretaria edita nome, prazo em dias, valor da taxa e a explicação que aparece na hora de abrir o pedido — sem precisar chamar ninguém pra mexer no código. Os sete tipos da escola já vêm cadastrados.' },
+      { titulo: 'Taxa', texto: 'O botão com o valor alterna entre PAGA e A PAGAR, marcado à mão pela secretaria. A conferência automática de aluno inadimplente depende do menu Financeiro, que ainda não foi ligado ao banco de dados.' },
+      { titulo: 'Apagar x Cancelar', texto: 'Prefira mudar a situação para "Cancelado" quando o aluno desistir do pedido — assim fica registrado no histórico. O botão da lixeira apaga de vez e não tem volta.' },
+    ],
+  },
+  {
     titulo: 'Criador de Provas (painel do professor)',
     itens: [
       { titulo: 'Montar uma prova', texto: 'O professor escolhe turma/disciplina, monta o cabeçalho, adiciona questões (múltipla escolha, objetiva, ou correlacionar colunas), pode inserir imagem e tabela dentro de uma questão, define frase motivacional (com alinhamento escolhido) e imprime — com timbre oficial da escola.' },

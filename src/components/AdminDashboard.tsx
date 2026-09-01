@@ -33,6 +33,7 @@ const ABAS_VISIVEIS = {
   orientacao: true,           // Movimentação (só Estágios + Minicursos e Eventos aparecem)
   pesquisa: false,            // Pesquisa
   relatorios: false,          // Relatórios
+  requerimentos: true,        // Requerimentos (Histórico, Diploma, Transferência...)
   boletins: false,            // Boletim Completo
 
   // Estas continuam visíveis: são as que a escola usa desde a segunda.
@@ -62,6 +63,7 @@ import { HistoricoMatriculasModule } from './HistoricoMatriculasModule';
 import { MatriculasSemestraisModule } from './MatriculasSemestraisModule';
 import { AjudaModal } from './AjudaModal';
 import { GradeCurricularModule } from './GradeCurricularModule';
+import { RequerimentosModule } from './requerimentos/RequerimentosModule';
 import { HistoricoCompletoModule } from './HistoricoCompletoModule';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -155,7 +157,7 @@ export const AdminDashboard: React.FC = () => {
     currentUser, verComoUsuario, acessos, recarregarAcessos, apagarPessoaPorCompleto
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
+  const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'requerimentos' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
     // A aba inicial precisa ser uma que esteja VISÍVEL. Antes era 'crm' — que
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
@@ -1455,10 +1457,24 @@ export const AdminDashboard: React.FC = () => {
           <span>Relatórios</span>
         </button>
         )}
+        {ABAS_VISIVEIS.requerimentos && (
+        <button
+          type="button"
+          onClick={() => setActiveTab('requerimentos')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'requerimentos'
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Requerimentos</span>
+        </button>
+        )}
 
         {/* A barrinha separadora só faz sentido se houver algo à esquerda dela. */}
         {(ABAS_VISIVEIS.crm || ABAS_VISIVEIS.cadastros || ABAS_VISIVEIS.financeiro
-          || ABAS_VISIVEIS.orientacao || ABAS_VISIVEIS.pesquisa || ABAS_VISIVEIS.relatorios) && (
+          || ABAS_VISIVEIS.orientacao || ABAS_VISIVEIS.pesquisa || ABAS_VISIVEIS.relatorios
+          || ABAS_VISIVEIS.requerimentos) && (
           <span className="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></span>
         )}
 
@@ -1629,6 +1645,16 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 'relatorios' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <RelatoriosModule />
+        </motion.div>
+      )}
+
+      {/* Tab: REQUERIMENTOS — fila de pedidos de documento da secretaria.
+          Grava no banco de dados (tabelas requerimentos / requerimentos_tipos).
+          Não confundir com a tela antiga de mesmo nome escondida dentro de
+          Movimentação, que guardava tudo só no navegador. */}
+      {activeTab === 'requerimentos' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <RequerimentosModule currentUser={currentUser?.name || 'Administração'} />
         </motion.div>
       )}
 
