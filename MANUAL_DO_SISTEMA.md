@@ -161,9 +161,11 @@ Três abas:
 - **Tipos e Prazos** — o catálogo do que pode ser pedido. A secretaria edita
   nome, prazo em dias, taxa e a explicação, sem precisar mexer no código.
 
-Os sete tipos que a escola usa já vêm cadastrados: Histórico Escolar,
+Os nove tipos que a escola usa já vêm cadastrados: Histórico Escolar,
 Declaração de Conclusão, Diploma, Segunda Via de Diploma, Transferência,
-Contrato e Requerimento de Matrícula.
+Contrato, Requerimento de Matrícula, Certificado de Auxiliar de Enfermagem e
+Relatório do Estágio. Precisando de mais algum, a própria secretaria cadastra
+pelo botão "Novo Tipo" — não precisa mexer no código.
 
 **Sobre a taxa:** hoje é marcada à mão pela secretaria (o botão de valor
 alterna entre PAGA e A PAGAR). A conferência automática de aluno inadimplente
