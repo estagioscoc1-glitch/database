@@ -142,6 +142,44 @@ pendente.
 
 ---
 
+## Requerimentos
+
+Fila de pedidos de documento da secretaria. **Grava no banco de dados**, então
+o pedido aberto num computador aparece em todos os outros na hora.
+
+Três abas:
+
+- **Fila de Pedidos** — todos os requerimentos abertos, com contadores por
+  situação (Solicitado, Em andamento, Pronto, Entregue, Cancelado) que também
+  funcionam como filtro ao clicar. Busca por nome, matrícula, protocolo ou
+  tipo. Pedido que passou do prazo ganha a tarja vermelha **"Prazo vencido"**.
+  A situação muda pela caixinha na própria linha; marcar "Entregue" grava a
+  data de entrega sozinho.
+- **Novo Requerimento** — busca o aluno pelo nome ou matrícula, escolhe o tipo,
+  e o prazo de entrega é calculado automaticamente a partir do prazo cadastrado
+  naquele tipo. Gera número de protocolo no formato `REQ-2026-0001`.
+- **Tipos e Prazos** — o catálogo do que pode ser pedido. A secretaria edita
+  nome, prazo em dias, taxa e a explicação, sem precisar mexer no código.
+
+Os sete tipos que a escola usa já vêm cadastrados: Histórico Escolar,
+Declaração de Conclusão, Diploma, Segunda Via de Diploma, Transferência,
+Contrato e Requerimento de Matrícula.
+
+**Sobre a taxa:** hoje é marcada à mão pela secretaria (o botão de valor
+alterna entre PAGA e A PAGAR). A conferência automática de aluno inadimplente
+depende do menu Financeiro, que ainda não foi ligado ao banco.
+
+> O que o requerimento guarda é o **pedido**, não o documento em si. A emissão
+> do papel continua sendo feita nas telas de impressão de sempre. Quando o
+> futuro menu "Gerar e Requerer Documentos" for construído, é ali que os dois
+> lados se encontram.
+
+> **Não confundir** com a tela antiga de mesmo nome, escondida dentro do menu
+> Movimentação. Aquela guardava tudo só dentro do navegador de um computador e
+> não deve ser usada.
+
+---
+
 ## Criador de Provas (painel do professor)
 Escolhe turma/disciplina, monta o cabeçalho, adiciona questões (múltipla
 escolha, objetiva, ou correlacionar colunas), pode inserir imagem e
@@ -154,6 +192,12 @@ folha de gabarito separada, só pro professor.
 ## Pendências conhecidas / decisões já tomadas
 
 - **Financeiro** e **Relatórios** (menus ocultos) — ainda não investigados.
+- **Requerimentos** — a taxa é conferida à mão. Quando o Financeiro for ligado
+  ao banco, o aviso automático de aluno inadimplente entra na tela de abrir
+  requerimento.
+- **Requerimento do próprio aluno** — hoje só a Administração/Secretaria abre
+  pedido. As regras de segurança do banco já estão preparadas pra, no futuro,
+  o aluno ver os pedidos dele no painel dele.
 - **Sala de Aula** e **Módulo como entidade própria** — o banco já tem
   suporte pronto (`salas`, `modulos_curso`, `turmas.sala_id`), só nunca
   foi conectado a nenhuma tela.
