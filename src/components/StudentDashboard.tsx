@@ -10,7 +10,7 @@ import {
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
   AlertTriangle, BookOpen, Clock, Sparkles, ExternalLink, FileText, 
   Image as ImageIcon, Mic, Download, X, Paperclip, ShieldCheck, ShieldAlert,
-  Upload, UploadCloud, Briefcase, MapPin, Award, History
+  Upload, UploadCloud, Briefcase, MapPin, Award, History, User
 } from 'lucide-react';
 import { PrintModal } from './PrintModal';
 import { escapeHtml } from '../utils/security';
@@ -268,16 +268,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               >
                 💼 Estágios Curriculares
               </button>
-              <button
-                onClick={() => setActiveSubTab('certificados')}
-                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
-                  activeSubTab === 'certificados'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                🏆 Meus Certificados
-              </button>
+              {/* Botão "Meus Certificados" removido do menu a pedido — a
+                  tela em si continua existindo no código (mais abaixo),
+                  só não tem mais como chegar nela por aqui. */}
             </div>
           </div>
 
@@ -940,6 +933,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                     {record?.location ? `Realizado em: ${record.location}` : 'Pendente de lançamento'}
                                   </span>
                                 </div>
+
+                                {/* Professor responsável — só aparece se já
+                                    tiver sido preenchido na hora do
+                                    lançamento. */}
+                                {record?.teacherName && (
+                                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                    <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                    <span className="text-slate-600 dark:text-slate-350 font-medium">
+                                      Professor: {record.teacherName}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
 
                               <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
