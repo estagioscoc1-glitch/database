@@ -228,6 +228,40 @@ assinatura do secretário. **Cinco modelos, todos editáveis:**
 > o texto aqui muda também o que sai quando o aluno emite pelo painel dele. Não
 > existem mais dois textos diferentes do mesmo documento.
 
+### Ficha Geral de Estágio (aba dentro de Requerimentos)
+
+Monta o **Resumo das Avaliações dos Estágios Curriculares** — o documento que
+vai assinado pela secretaria, pela coordenação de estágio e pela direção.
+
+Busca o aluno e traz os estágios que ele já tem lançados no módulo de Estágios:
+componente, carga horária, unidade médica, nota e supervisor. **Nenhuma nota é
+digitada aqui** — a nota continua sendo lançada onde sempre foi.
+
+**Como as notas aparecem na ficha:** as cinco colunas — conhecimento técnico,
+habilidade técnica, atitudes pessoais, valores éticos e média final — repetem a
+mesma nota lançada naquele estágio. Não são cinco notas diferentes. É como a
+escola preenche na prática.
+
+**A única conta que o sistema faz** é a média geral, no pé da ficha: média
+simples das notas dos componentes, sem peso por carga horária. Componente sem
+nota sai com traço e fica fora do cálculo, e a tela avisa quantos estão assim.
+
+> **Atenção às fichas antigas.** A planilha que a escola usava tinha um erro de
+> fórmula na média geral: dividia a soma das notas por 101 em vez de pelo número
+> de componentes. Numa ficha conferida, mostrava 8,2178 onde o correto era 8,30.
+> As fichas geradas aqui usam a conta certa, então as médias podem sair
+> levemente diferentes das antigas. Vale avisar a coordenação de estágio.
+
+O único campo editável na tela é o **registro do supervisor** no conselho
+(COREN, CRTR), que aparece impresso ao lado do nome e não existia no cadastro.
+Salva sozinho ao sair do campo.
+
+Em "Cabeçalho e vistos" dá para ajustar, por curso, a resolução do cabeçalho e
+os nomes e cargos dos três vistos. Enfermagem usa a Resolução CEE/GO nº
+018/2022 e Radiologia a CEE 041/2022 — por isso a configuração é por curso.
+
+Imprima em **paisagem**, porque a tabela é larga.
+
 ### Aditivo de Dependência (dentro de Contratos)
 
 Quando o aluno escolhido está matriculado em dependência, aparece um quadro
