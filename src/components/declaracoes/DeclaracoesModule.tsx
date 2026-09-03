@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
 import { DeclaracaoPrintView } from './DeclaracaoPrintView';
-import { MODELOS_PADRAO, CAMPOS_DECLARACAO } from '../../lib/declaracaoTextos';
+import { MODELOS_PADRAO, CAMPOS_DECLARACAO, cursoPermiteModelo } from '../../lib/declaracaoTextos';
 import type { ModeloDeclaracao, TipoDeclaracao } from '../../lib/declaracaoTextos';
 import {
   carregarModelo, salvarModelo, restaurarModeloPadrao, registrarDeclaracao,
@@ -10,7 +10,7 @@ import {
 } from '../../lib/supabaseDeclaracoes';
 import {
   FileText, Search, X, Save, RotateCcw, AlertTriangle, CheckCircle2,
-  Pencil, Plus, Trash2, Info, Stamp,
+  Pencil, Plus, Trash2, Info, Stamp, Lock,
 } from 'lucide-react';
 
 // ===========================================================================
@@ -79,6 +79,19 @@ export const DeclaracoesModule: React.FC<Props> = ({ currentUser = 'Administraç
   // Trocar o tipo limpa os campos manuais do tipo anterior.
   useEffect(() => { setManuais({}); }, [tipo]);
 
+  // Ao trocar de aluno, se o tipo escolhido não servir pro curso dele, volta
+  // para o primeiro liberado. Sem isso dava para escolher a declaração com um
+  // aluno de Enfermagem, trocar para um de Segurança do Trabalho e gerar
+  // assim mesmo — foi exatamente o que aconteceu.
+  useEffect(() => {
+    if (!aluno) return;
+    const atual = MODELOS_PADRAO.find(m => m.tipo === tipo);
+    if (atual && !cursoPermiteModelo(atual, cursoAluno?.name)) {
+      const primeiro = MODELOS_PADRAO.find(m => cursoPermiteModelo(m, cursoAluno?.name));
+      if (primeiro) setTipo(primeiro.tipo);
+    }
+  }, [aluno, cursoAluno]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const montarDados = (): DadosDeclaracao => ({
     alunoId: aluno?.id,
     alunoNome: aluno?.name || '',
@@ -116,6 +129,12 @@ export const DeclaracoesModule: React.FC<Props> = ({ currentUser = 'Administraç
 
   const gerar = async () => {
     if (!aluno) return;
+    // Segunda barreira, além do botão desabilitado. Se algum caminho novo
+    // deixar passar, a geração para aqui.
+    if (!cursoPermiteModelo(modeloEscolhido, cursoAluno?.name)) {
+      mostrar('erro', `A ${modeloEscolhido.nome} não pode ser emitida para aluno de ${cursoAluno?.name || 'curso não identificado'}.`);
+      return;
+    }
     setGerando(true);
     const { modelo } = await carregarModelo(tipo);
     const dados = montarDados();
@@ -259,16 +278,32 @@ export const DeclaracoesModule: React.FC<Props> = ({ currentUser = 'Administraç
               <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <label className={rotulo}>2. Qual declaração</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {MODELOS_PADRAO.map(m => (
-                    <button key={m.tipo} type="button" onClick={() => setTipo(m.tipo)}
-                            className={`text-left px-4 py-3 rounded-2xl border transition-all ${
-                              tipo === m.tipo
-                                ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:border-slate-750'}`}>
-                      <p className="font-black text-xs text-slate-800 dark:text-white">{m.nome}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{m.explica}</p>
-                    </button>
-                  ))}
+                  {MODELOS_PADRAO.map(m => {
+                    // TRAVA POR CURSO — ver cursoPermiteModelo em declaracaoTextos.ts.
+                    // Botão bloqueado não é só visual: o clique nem seleciona.
+                    const liberado = cursoPermiteModelo(m, cursoAluno?.name);
+                    return (
+                      <button key={m.tipo} type="button"
+                              disabled={!liberado}
+                              onClick={() => liberado && setTipo(m.tipo)}
+                              className={`text-left px-4 py-3 rounded-2xl border transition-all ${
+                                !liberado
+                                  ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed dark:bg-slate-800/40'
+                                  : tipo === m.tipo
+                                    ? 'bg-blue-50 border-blue-400 dark:bg-blue-950/30'
+                                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:border-slate-750'}`}>
+                        <p className="font-black text-xs text-slate-800 dark:text-white flex items-center gap-1.5">
+                          {!liberado && <Lock className="h-3 w-3 text-slate-400 flex-shrink-0" />}
+                          {m.nome}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                          {liberado
+                            ? m.explica
+                            : `Não disponível para ${cursoAluno?.name || 'aluno sem curso identificado'}. Só para ${(m.cursosPermitidos ?? []).join(', ')}.`}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {(modeloEscolhido.camposManuais?.length ?? 0) > 0 && (
