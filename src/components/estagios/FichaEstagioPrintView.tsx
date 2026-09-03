@@ -101,7 +101,7 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
           src={LOGO_COLEGIO_OSWALDO_CRUZ}
           alt="Colégio Oswaldo Cruz"
           referrerPolicy="no-referrer"
-          style={{ display: 'block', margin: '0 auto', maxHeight: '2.6cm', maxWidth: '60%', objectFit: 'contain' }}
+          style={{ display: 'block', margin: '0 auto', height: '3.4cm', maxWidth: '85%', objectFit: 'contain' }}
         />
         <p style={{ fontSize: '8.5pt', margin: '4px 0 0' }}>
           Rua 20 nº 796 - Centro - Goiânia - GO CEP 74020-170 &nbsp;"{config.resolucao}"
@@ -206,7 +206,7 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
           { rotulo: 'VISTO DA DIREÇÃO:', nome: config.nomeDirecao, cargo: config.cargoDirecao },
         ].map((v, i) => (
           <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-            <p style={{ fontSize: '8pt', fontWeight: 'bold', textAlign: 'left', margin: '0 0 1.4cm' }}>{v.rotulo}</p>
+            <p style={{ fontSize: '8.5pt', fontWeight: 'bold', textAlign: 'center', margin: '0 0 1.6cm' }}>{v.rotulo}</p>
             <div style={{ borderTop: '0.5pt solid #000', paddingTop: '3px' }}>
               <p style={{ fontSize: '8.5pt', margin: 0, fontWeight: 'bold' }}>{v.nome}</p>
               <p style={{ fontSize: '7.5pt', margin: 0 }}>{v.cargo}</p>
