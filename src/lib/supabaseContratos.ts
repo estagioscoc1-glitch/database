@@ -121,3 +121,106 @@ export function porExtenso(valor: number): string {
   }
   return texto;
 }
+
+// ===========================================================================
+//  ACESSO AO BANCO
+//  Depende das tabelas criadas por supabase/16_contratos.sql. Se aquele
+//  script ainda não tiver sido rodado, tudo abaixo devolve o padrão de
+//  fábrica e o portal continua funcionando normalmente.
+// ===========================================================================
+
+import { supabase } from './supabase';
+import { CLAUSULAS_PRESENCIAL, CLAUSULAS_EAD } from './contratoTextos';
+import type { ClausulaContrato } from './contratoTextos';
+
+/** Texto que vale hoje: o editado no banco, ou o padrão de fábrica. */
+export async function carregarClausulas(
+  modalidade: ModalidadeContrato
+): Promise<{ clausulas: ClausulaContrato[]; editado: boolean; erro?: string }> {
+  const padrao = modalidade === 'EAD' ? CLAUSULAS_EAD : CLAUSULAS_PRESENCIAL;
+
+  const { data, error } = await supabase
+    .from('contratos_modelos')
+    .select('clausulas')
+    .eq('modalidade', modalidade)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[Contratos] Usando o texto padrão:', error.message);
+    return { clausulas: padrao, editado: false };
+  }
+  if (!data?.clausulas || !Array.isArray(data.clausulas) || data.clausulas.length === 0) {
+    return { clausulas: padrao, editado: false };
+  }
+  return { clausulas: data.clausulas as ClausulaContrato[], editado: true };
+}
+
+export async function salvarClausulas(
+  modalidade: ModalidadeContrato,
+  clausulas: ClausulaContrato[],
+  editadoPor?: string
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('contratos_modelos').upsert(
+    {
+      modalidade,
+      clausulas,
+      editado_por: editadoPor ?? null,
+      atualizado_em: new Date().toISOString(),
+    },
+    { onConflict: 'modalidade' }
+  );
+  if (error) {
+    if (error.message.includes('does not exist')) {
+      return { erro: 'A tabela de modelos ainda não existe. Rode supabase/16_contratos.sql no Supabase.' };
+    }
+    return { erro: error.message };
+  }
+  return {};
+}
+
+/** Volta o modelo ao texto original, apagando a versão editada. */
+export async function restaurarPadrao(modalidade: ModalidadeContrato): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('contratos_modelos').delete().eq('modalidade', modalidade);
+  if (error) return { erro: error.message };
+  return {};
+}
+
+/** Registra no histórico o que foi impresso. Falha aqui não impede imprimir. */
+export async function registrarEmissao(
+  d: DadosContrato,
+  extras: {
+    matricula?: string;
+    turmaNome?: string;
+    emitidoPor?: string;
+    temAditivoDependencia?: boolean;
+    aditivoValorParcela?: number;
+    aditivoNumParcelas?: number;
+  } = {}
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('contratos_emitidos').insert({
+    aluno_id: d.alunoId ?? null,
+    aluno_nome: d.alunoNome,
+    aluno_matricula: extras.matricula ?? null,
+    curso_nome: d.cursoNome ?? null,
+    turma_nome: extras.turmaNome ?? null,
+    modulo: Number(d.modulo) || null,
+    contratante_nome: d.contratanteNome,
+    cpf: d.cpf ?? null,
+    modalidade: d.modalidade,
+    ano: d.ano,
+    valor_total: d.valorTotal,
+    entrada: d.entrada,
+    num_parcelas: d.numParcelas,
+    valor_parcela: d.valorParcela,
+    tem_aditivo_dependencia: extras.temAditivoDependencia ?? false,
+    aditivo_valor_parcela: extras.aditivoValorParcela ?? null,
+    aditivo_num_parcelas: extras.aditivoNumParcelas ?? null,
+    emitido_por: extras.emitidoPor ?? null,
+    data_contrato: d.dataContrato,
+  });
+  if (error) {
+    console.warn('[Contratos] Não deu para registrar no histórico:', error.message);
+    return { erro: error.message };
+  }
+  return {};
+}
