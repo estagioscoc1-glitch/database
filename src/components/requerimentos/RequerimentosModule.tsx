@@ -10,10 +10,11 @@ import {
 import {
   FileText, Plus, Search, Inbox, Settings2, AlertTriangle, Trash2,
   CheckCircle2, Clock, CalendarClock, RefreshCw, X, Save, DollarSign,
-  FileSignature, Stamp,
+  FileSignature, Stamp, ClipboardList,
 } from 'lucide-react';
 import { ContratosModule } from '../contratos/ContratosModule';
 import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
+import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
 
 // ===========================================================================
 //  MENU REQUERIMENTOS
@@ -49,7 +50,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -275,6 +276,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'tipos', rotulo: 'Tipos e Prazos', icone: Settings2 },
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
+            { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
           ] as const).map(t => {
             const Icone = t.icone;
             const ativa = aba === t.id;
@@ -732,6 +734,11 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
       {/* Declarações — os cinco modelos, incluindo os três que o aluno também
           emite sozinho pelo painel dele (Escolaridade, SETRANSP e Vacina). */}
       {aba === 'declaracoes' && <DeclaracoesModule currentUser={currentUser} />}
+
+      {/* Ficha Geral de Estágio — o "Resumo das Avaliações dos Estágios
+          Curriculares", que vai assinado pela secretaria, pela coordenação
+          de estágio e pela direção. */}
+      {aba === 'ficha' && <FichaEstagioModule currentUser={currentUser} />}
     </div>
   );
 };
