@@ -200,6 +200,35 @@ escola exige que o aluno viste cada página. Por isso é obrigatório desmarcar
 "Cabeçalhos e rodapés" na caixa do navegador: senão a URL sai por cima do timbre
 e a data por cima da linha de visto.
 
+### Declarações (aba dentro de Requerimentos)
+
+Gera as declarações da escola, prontas para imprimir, com o timbre e a
+assinatura do secretário. **Cinco modelos, todos editáveis:**
+
+| Modelo | Para que serve |
+|---|---|
+| Declaração de Conclusão | Aluno que terminou um curso técnico, enquanto o diploma não fica pronto |
+| Declaração de Auxiliar de Enfermagem | Qualificação intermediária, módulos I e II do Técnico em Enfermagem |
+| Declaração de Escolaridade | Matrícula ativa e frequência regular |
+| Declaração de SETRANSP | Passe estudantil meia-tarifa |
+| Declaração de Vacina | Encaminhamento à Secretaria de Saúde para o estágio |
+
+- **Gerar Declaração** — busca o aluno e preenche sozinho: nome, matrícula,
+  filiação, data de nascimento e naturalidade vêm da ficha; curso, módulo e
+  turno vêm da turma. O que não existe no cadastro — a data em que o aluno
+  concluiu o curso, por exemplo — aparece como caixa para preencher à mão.
+  Antes de gerar, um aviso lista o que está faltando, para não descobrir só
+  depois de imprimir.
+- **Editar Modelos** — o texto de cada declaração é editável pela secretaria,
+  parágrafo por parágrafo, incluindo o título e se mostra ou não a assinatura
+  e o rodapé. Ao salvar, a versão editada passa a valer nas declarações novas.
+
+> As três últimas (Escolaridade, SETRANSP e Vacina) são as mesmas que o aluno
+> emite sozinho pelo painel dele. **Atenção:** editar o modelo aqui muda o
+> texto das declarações emitidas por esta tela. A tela do próprio aluno ainda
+> usa a versão escrita fixa no código e não acompanha essa edição — ligar as
+> duas é um passo separado, ainda pendente.
+
 > **Não confundir** com a tela antiga de mesmo nome, escondida dentro do menu
 > Movimentação. Aquela guardava tudo só dentro do navegador de um computador e
 > não deve ser usada.
