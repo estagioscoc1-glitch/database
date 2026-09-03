@@ -9,14 +9,14 @@ import type { ClausulaContrato } from '../../lib/contratoTextos';
 // ===========================================================================
 //  CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS — documento para impressão
 //
-//  ASSINATURA EM TODAS AS FOLHAS — como isso funciona:
-//  A escola exige que o aluno viste cada página. Não dá pra saber de antemão
-//  onde o navegador vai quebrar as páginas (depende do tamanho do nome, do
-//  endereço, da fonte instalada). A solução é um rodapé com
-//  "position: fixed" dentro do @media print: o navegador REPETE elementos
-//  fixos em todas as folhas impressas. Assim a linha de visto aparece no pé
-//  de cada página, quantas forem. O padding-bottom do corpo reserva o espaço
-//  pra ele não cobrir o texto.
+//  TIMBRE NA PRIMEIRA FOLHA, VISTO EM TODAS — como isso funciona:
+//  O timbre fica dentro do <tbody> da tabela, então sai uma vez só, no alto
+//  da primeira página. A linha de visto fica no <tfoot>: o navegador repete
+//  o rodapé de uma tabela longa em cada folha impressa e reserva a altura
+//  dele em todas, sem o texto passar por cima.
+//  A escola exige que o aluno viste cada página, e não dá pra saber de
+//  antemão onde o navegador vai quebrar as folhas (depende do tamanho do
+//  nome, do endereço, da fonte instalada). Por isso o visto é <tfoot>.
 //
 //  IMPRESSÃO — mesmo padrão já testado no ProvaPrintView e no
 //  GradeCurricularModule: portal preso ao document.body + @media print que
@@ -128,14 +128,14 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
 
   const Documento = (
     /* POR QUE UMA TABELA, E NÃO DIVS:
-       O timbre precisa sair no alto de TODAS as folhas e a linha de visto no
-       pé de TODAS as folhas. A primeira tentativa usou "position: fixed", que
-       de fato repetia — mas só reservava espaço na primeira folha, então da
-       segunda em diante o texto subia e passava por baixo do timbre.
-       Com tabela isso não acontece: o navegador repete o <thead> no alto e o
-       <tfoot> no pé de cada folha impressa E reserva a altura deles em todas,
-       porque faz parte do jeito que ele monta tabelas longas. É a maneira mais
-       confiável de conseguir cabeçalho e rodapé repetidos em impressão. */
+       A linha de visto precisa sair no pé de TODAS as folhas. A primeira
+       tentativa usou "position: fixed", que até repetia — mas só reservava
+       espaço na primeira folha, então da segunda em diante o texto subia e
+       passava por baixo. Com tabela isso não acontece: o navegador repete o
+       <tfoot> no pé de cada folha impressa E reserva a altura dele em todas,
+       porque faz parte do jeito que ele monta tabelas longas.
+       O timbre NÃO está no <thead> de propósito — se estivesse, repetiria
+       junto. Ele fica dentro do <tbody>, e por isso sai só na primeira. */
     <table
       className="contrato-doc"
       style={{
@@ -147,20 +147,6 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
         color: '#000',
       }}
     >
-      {/* TIMBRE — repete no alto de todas as folhas */}
-      <thead>
-        <tr>
-          <td className="contrato-cab-cel" style={{ padding: '0 0 5px', borderBottom: '0.5pt solid #000' }}>
-            <img
-              src={LOGO_COLEGIO_OSWALDO_CRUZ}
-              alt="Colégio Oswaldo Cruz"
-              referrerPolicy="no-referrer"
-              style={{ display: 'block', margin: '0 auto', maxHeight: '2cm', maxWidth: '100%', objectFit: 'contain' }}
-            />
-          </td>
-        </tr>
-      </thead>
-
       {/* VISTO — repete no pé de todas as folhas */}
       <tfoot>
         <tr>
@@ -178,6 +164,19 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
       <tbody>
         <tr>
           <td style={{ padding: '10px 0 12px', verticalAlign: 'top' }}>
+
+            {/* TIMBRE — só na primeira folha.
+                Está aqui dentro do <tbody> de propósito. Se voltasse para o
+                <thead>, o navegador repetiria em todas as folhas. */}
+            <div className="contrato-cab-cel contrato-nao-quebrar"
+                 style={{ paddingBottom: '5px', borderBottom: '0.5pt solid #000', marginBottom: '9px' }}>
+              <img
+                src={LOGO_COLEGIO_OSWALDO_CRUZ}
+                alt="Colégio Oswaldo Cruz"
+                referrerPolicy="no-referrer"
+                style={{ display: 'block', margin: '0 auto', maxHeight: '2cm', maxWidth: '100%', objectFit: 'contain' }}
+              />
+            </div>
 
             {/* Identificação e título — só na primeira folha, pois está no corpo */}
             <div className="contrato-nao-quebrar" style={{ textAlign: 'center', marginBottom: '10px' }}>
