@@ -219,6 +219,13 @@ assinatura do secretário. **Cinco modelos, todos editáveis:**
   concluiu o curso, por exemplo — aparece como caixa para preencher à mão.
   Antes de gerar, um aviso lista o que está faltando, para não descobrir só
   depois de imprimir.
+> **Trava por curso.** A Declaração de Auxiliar de Enfermagem só pode ser
+> emitida para aluno de Enfermagem. Ela atesta a conclusão dos módulos I e II
+> do Técnico em Enfermagem, então para qualquer outro curso o documento seria
+> falso. Para aluno de outro curso o botão aparece cinza, com cadeado, e a
+> geração é recusada mesmo que algum caminho novo deixe passar pelo botão. O
+> mesmo valerá para o Certificado de Auxiliar quando for construído.
+
 - **Editar Modelos** — o texto de cada declaração é editável pela secretaria,
   parágrafo por parágrafo, incluindo o título e se mostra ou não a assinatura
   e o rodapé. Ao salvar, a versão editada passa a valer nas declarações novas.
