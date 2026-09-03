@@ -224,10 +224,24 @@ assinatura do secretário. **Cinco modelos, todos editáveis:**
   e o rodapé. Ao salvar, a versão editada passa a valer nas declarações novas.
 
 > As três últimas (Escolaridade, SETRANSP e Vacina) são as mesmas que o aluno
-> emite sozinho pelo painel dele. **Atenção:** editar o modelo aqui muda o
-> texto das declarações emitidas por esta tela. A tela do próprio aluno ainda
-> usa a versão escrita fixa no código e não acompanha essa edição — ligar as
-> duas é um passo separado, ainda pendente.
+> emite sozinho pelo painel dele. **As duas telas usam o mesmo modelo:** editar
+> o texto aqui muda também o que sai quando o aluno emite pelo painel dele. Não
+> existem mais dois textos diferentes do mesmo documento.
+
+### Aditivo de Dependência (dentro de Contratos)
+
+Quando o aluno escolhido está matriculado em dependência, aparece um quadro
+amarelo na tela de gerar contrato, listando as disciplinas e oferecendo o
+**Termo Aditivo — Matrícula em Dependência**. É documento separado, assinado
+junto com o contrato.
+
+O valor vem sugerido como R$ 80,00 por mês em 6 parcelas, e ambos são
+editáveis antes de gerar. O total é calculado na hora.
+
+O sistema descobre a dependência sozinho por dois caminhos: o cadastro formal
+de dependência com situação ATIVO, e as turmas marcadas como dependência em
+que o aluno esteja. Os dois são consultados porque, dependendo de como a
+secretaria fez o cadastro, a informação pode estar só num deles.
 
 > **Não confundir** com a tela antiga de mesmo nome, escondida dentro do menu
 > Movimentação. Aquela guardava tudo só dentro do navegador de um computador e
