@@ -38,6 +38,24 @@ export interface ModeloDeclaracao {
    * preenchimento antes de gerar.
    */
   camposManuais?: { chave: string; rotulo: string; tipo: 'texto' | 'data' }[];
+  /**
+   * TRAVA POR CURSO.
+   * Quando preenchido, a declaração só pode ser gerada para aluno cujo curso
+   * contenha um destes termos. Existe porque a Declaração de Auxiliar de
+   * Enfermagem chegou a ser emitida para um aluno de Segurança do Trabalho:
+   * o documento atesta conclusão dos módulos I e II do Técnico em Enfermagem,
+   * então para qualquer outro curso ele é falso.
+   * Vazio ou ausente = serve para todos os cursos.
+   */
+  cursosPermitidos?: string[];
+}
+
+/** Confere se o curso do aluno permite gerar aquele modelo. */
+export function cursoPermiteModelo(m: ModeloDeclaracao, nomeCurso?: string): boolean {
+  if (!m.cursosPermitidos || m.cursosPermitidos.length === 0) return true;
+  const curso = (nomeCurso || '').toUpperCase();
+  if (!curso) return false; // sem curso identificado, não libera documento restrito
+  return m.cursosPermitidos.some(termo => curso.includes(termo.toUpperCase()));
 }
 
 export const MODELOS_PADRAO: ModeloDeclaracao[] = [
@@ -58,7 +76,8 @@ export const MODELOS_PADRAO: ModeloDeclaracao[] = [
   {
     tipo: 'AUXILIAR_ENFERMAGEM',
     nome: 'Declaração de Auxiliar de Enfermagem',
-    explica: 'Qualificação intermediária, para quem concluiu os módulos I e II do Técnico em Enfermagem.',
+    explica: 'Qualificação intermediária, para quem concluiu os módulos I e II do Técnico em Enfermagem. Só para alunos de Enfermagem.',
+    cursosPermitidos: ['ENFERMAGEM'],
     titulo: 'Declaração',
     paragrafos: [
       'Declaramos para os devidos fins que {{ALUNO}}, filho(a) de {{FILIACAO}}, natural de {{NATURALIDADE}}, nascido(a) em {{NASCIMENTO}}. Concluiu a Qualificação de Auxiliar de Enfermagem em {{DATA_QUALIFICACAO}}, uma vez que a mesma alcançou todas as competências curriculares dos módulos I e II, conforme as prerrogativas previstas no plano de curso deste estabelecimento de ensino de acordo com a Lei Federal Nº 9394/96; Decreto Federal 5154/2004; parecer CNE/CEB Nº 16/1999; Resolução CNE/CEB Nº 04/1999; Lei complementar Estadual Nº 26/1998 e Resolução CEE/GO Nº 018/2022.',
