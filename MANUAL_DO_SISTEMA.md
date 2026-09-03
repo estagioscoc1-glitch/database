@@ -176,6 +176,30 @@ depende do menu Financeiro, que ainda não foi ligado ao banco.
 > futuro menu "Gerar e Requerer Documentos" for construído, é ali que os dois
 > lados se encontram.
 
+### Contratos (aba dentro de Requerimentos)
+
+Gera o **Contrato de Prestação de Serviços Educacionais** do aluno, pronto para
+imprimir e assinar.
+
+- **Gerar Contrato** — busca o aluno e preenche tudo sozinho: nome, estado civil,
+  CPF, RG, endereço vêm da ficha; **curso e módulo vêm da turma em que o aluno
+  está matriculado**. Um aluno do 2º módulo recebe um contrato escrito "2º módulo"
+  sem ninguém digitar. Se o aluno não tiver turma, os campos ficam em vermelho e a
+  secretaria preenche à mão — o sistema nunca inventa o módulo.
+- **Editar Modelo** — o texto do contrato é editável pela própria secretaria,
+  cláusula por cláusula, sem precisar de programador. Existem dois modelos:
+  Presencial e EAD. Ao salvar, a versão editada passa a valer nos contratos novos;
+  os já impressos não mudam. O botão "Voltar ao original" descarta as edições.
+
+Os campos entre chaves — `{{NOME}}`, `{{MODULO}}`, `{{CURSO}}` — são trocados pelos
+dados reais na hora de gerar. A lista completa aparece dentro do editor.
+
+Na impressão, o timbre do colégio se repete no topo de **todas as folhas** e a
+linha "Visto do(a) contratante" se repete no pé de **todas as folhas**, porque a
+escola exige que o aluno viste cada página. Por isso é obrigatório desmarcar
+"Cabeçalhos e rodapés" na caixa do navegador: senão a URL sai por cima do timbre
+e a data por cima da linha de visto.
+
 > **Não confundir** com a tela antiga de mesmo nome, escondida dentro do menu
 > Movimentação. Aquela guardava tudo só dentro do navegador de um computador e
 > não deve ser usada.
