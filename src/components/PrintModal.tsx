@@ -10,6 +10,8 @@ import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { LOGO_COLEGIO_OSWALDO_CRUZ, LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
+import { carregarModelo, preencherDeclaracao } from '../lib/supabaseDeclaracoes';
+import type { ModeloDeclaracao, TipoDeclaracao } from '../lib/declaracaoTextos';
 
 interface PrintModalProps {
   documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | 'historico_completo';
@@ -233,6 +235,53 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     }
     return `Técnico em ${name}`;
   };
+
+  // =========================================================================
+  //  TEXTO EDITÁVEL DAS DECLARAÇÕES
+  //
+  //  Estas três declarações (Escolaridade, SETRANSP e Vacina) tinham o texto
+  //  escrito fixo aqui dentro. Agora ele vem do mesmo modelo que a secretaria
+  //  edita em Requerimentos > Declarações > Editar Modelos, para não existirem
+  //  dois textos diferentes do mesmo documento — um que o aluno emite e outro
+  //  que a secretaria emite.
+  //
+  //  Se o banco estiver fora do ar ou o script 17_declaracoes.sql ainda não
+  //  tiver sido rodado, carregarModelo devolve o texto padrão de fábrica.
+  //  Ou seja: a declaração NUNCA deixa de sair por causa disso.
+  // =========================================================================
+  const TIPO_POR_DOCUMENTO: Record<string, TipoDeclaracao> = {
+    decl_escolaridade: 'ESCOLARIDADE',
+    decl_ctransp: 'SETRANSP',
+    decl_vacina: 'VACINA',
+  };
+  const [modeloDecl, setModeloDecl] = useState<ModeloDeclaracao | null>(null);
+
+  useEffect(() => {
+    const tipo = TIPO_POR_DOCUMENTO[documentType];
+    if (!tipo) { setModeloDecl(null); return; }
+    let ativo = true;
+    void carregarModelo(tipo).then(({ modelo }) => { if (ativo) setModeloDecl(modelo); });
+    return () => { ativo = false; };
+  }, [documentType]);
+
+  /** Junta os dados do aluno com as datas que só existem calculadas aqui. */
+  const dadosDeclaracao = (manuais: Record<string, string>) => ({
+    alunoId: targetStudent?.id,
+    alunoNome: targetStudent?.name || '',
+    matricula: targetStudent?.username || (targetStudent as any)?.enrollment || '',
+    cursoNome: formatCourseName(nomeCursoParaDeclaracao(targetCourse)),
+    modulo: targetClass?.module ? String(targetClass.module) : '',
+    turno: capitalizeWord((targetClass as any)?.shift || 'Noturno'),
+    nomeMae: (targetStudent as any)?.motherName || '',
+    nomePai: (targetStudent as any)?.fatherName || '',
+    dataNascimento: (targetStudent as any)?.birthDate || '',
+    cidadeNascimento: (targetStudent as any)?.birthCity || '',
+    ufNascimento: (targetStudent as any)?.birthState || '',
+    cpf: (targetStudent as any)?.cpf || '',
+    rg: (targetStudent as any)?.rg || '',
+    manuais,
+    dataEmissao: new Date().toISOString().split('T')[0],
+  });
 
   const getFormattedStartDateEscolaridade = () => {
     if (inicioModulo) {
@@ -1816,8 +1865,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </h2>
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-10">
-                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          Declaramos, para os devidos fins, que o aluno <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong>, está regularmente matriculado neste estabelecimento de ensino, no curso <strong className="underline font-bold text-black">{formatCourseName(nomeCursoParaDeclaracao(targetCourse)).toUpperCase()}</strong>, com número de matrícula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong>. O referido aluno está matriculado no turno <strong className="underline font-bold text-black">{capitalizeWord(targetClass?.shift || 'Noturno').toUpperCase()}</strong>, com início em <strong className="underline font-bold text-black font-mono">{getFormattedStartDateEscolaridade().toUpperCase()}</strong> e término do curso na data de <strong className="underline font-bold text-black font-mono">{getFormattedEndDateEscolaridade().toUpperCase()}</strong>.
+                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem', whiteSpace: 'pre-line' }}>
+                          {modeloDecl
+                            ? modeloDecl.paragrafos.map(par => preencherDeclaracao(par, dadosDeclaracao({
+                                INICIO: getFormattedStartDateEscolaridade().toUpperCase(),
+                                TERMINO: getFormattedEndDateEscolaridade().toUpperCase(),
+                              }))).join('\n\n')
+                            : 'Carregando o texto da declaração…'}
                         </p>
                       </div>
                     </div>
@@ -1864,8 +1918,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </h2>
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-10">
-                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          Declaramos para os fins de AQUISIÇÃO DE PASSE ESCOLAR junto SETRANSP, que <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) deste Estabelecimento de Ensino no curso de <strong className="underline font-bold text-black">{formatCourseName(nomeCursoParaDeclaracao(targetCourse)).toUpperCase()}</strong>, com o numero de matricula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong> com início em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(inicioModulo, true)}</strong> e término em <strong className="underline font-bold text-black font-mono">{getFormattedDateBr(terminoModulo, false)}</strong>.
+                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem', whiteSpace: 'pre-line' }}>
+                          {modeloDecl
+                            ? modeloDecl.paragrafos.map(par => preencherDeclaracao(par, dadosDeclaracao({
+                                INICIO: getFormattedDateBr(inicioModulo, true),
+                                TERMINO: getFormattedDateBr(terminoModulo, false),
+                              }))).join('\n\n')
+                            : 'Carregando o texto da declaração…'}
                         </p>
                       </div>
                     </div>
@@ -1900,10 +1959,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </h2>
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-8 select-text">
-                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          A Gerência de Estágios do Colégio Oswaldo Cruz, vem por intermédio desta, declarar junto à Secretaria Municipal de Saúde de desse município que o Sr (a). <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) desta instituição de ensino e está regularmente matriculado no Curso Técnico em <strong className="underline font-bold text-black">{targetCourse ? nomeCursoParaDeclaracao(targetCourse).toUpperCase() : 'ENFERMAGEM'}</strong>, para o <strong className="underline font-bold text-black">{getSemesterTextAutomatic().toUpperCase()}</strong>.
+                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem', whiteSpace: 'pre-line' }}>
+                          {modeloDecl
+                            ? modeloDecl.paragrafos.map(par => preencherDeclaracao(par, dadosDeclaracao({
+                                SEMESTRE: getSemesterTextAutomatic().toUpperCase(),
+                              }))).join('\n\n')
+                            : 'Carregando o texto da declaração…'}
                         </p>
-                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
+                        <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem', whiteSpace: 'pre-line' }}>
                           Para tanto solicitamos que o aluno supracitado receba as seguintes vacinas e todas as demais que tiver disponível nessa unidade de saúde e que componha o PNI do nosso País. (Programa nacional de imunização)
                         </p>
                         
