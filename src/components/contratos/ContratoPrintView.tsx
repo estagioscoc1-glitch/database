@@ -60,7 +60,7 @@ const CSS_IMPRESSAO = `
       text-align: justify;
       color: #000;
       /* espaço reservado pro timbre (topo) e pro visto (rodapé) que se repetem */
-      padding-top: 2.1cm;
+      padding-top: 1.35cm;
       padding-bottom: 1.4cm;
     }
     /* O NAVEGADOR REPETE ISTO EM TODAS AS FOLHAS. É o timbre por página. */
@@ -72,12 +72,12 @@ const CSS_IMPRESSAO = `
       display: block !important;
       text-align: center;
       background: #fff;
-      padding-bottom: 4px;
-      border-bottom: 1px solid #000;
+      padding-bottom: 2px;
+      border-bottom: 0.5pt solid #000;
     }
     .contrato-logo-topo img {
       width: 100%;
-      max-height: 1.7cm;
+      max-height: 1.0cm;
       object-fit: contain;
       display: block;
       margin: 0 auto;
@@ -296,7 +296,7 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
   );
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="no-print fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
 
         <div className="no-print flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
