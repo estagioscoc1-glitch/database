@@ -10,9 +10,10 @@ import {
 import {
   FileText, Plus, Search, Inbox, Settings2, AlertTriangle, Trash2,
   CheckCircle2, Clock, CalendarClock, RefreshCw, X, Save, DollarSign,
-  FileSignature,
+  FileSignature, Stamp,
 } from 'lucide-react';
 import { ContratosModule } from '../contratos/ContratosModule';
+import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
 
 // ===========================================================================
 //  MENU REQUERIMENTOS
@@ -48,7 +49,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -273,6 +274,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'novo',  rotulo: 'Novo Requerimento', icone: Plus },
             { id: 'tipos', rotulo: 'Tipos e Prazos', icone: Settings2 },
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
+            { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
           ] as const).map(t => {
             const Icone = t.icone;
             const ativa = aba === t.id;
@@ -726,6 +728,10 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
           Fica aqui porque "Contrato" também é um dos tipos de requerimento
           que a secretaria atende, então o atendente não precisa trocar de menu. */}
       {aba === 'contratos' && <ContratosModule currentUser={currentUser} />}
+
+      {/* Declarações — os cinco modelos, incluindo os três que o aluno também
+          emite sozinho pelo painel dele (Escolaridade, SETRANSP e Vacina). */}
+      {aba === 'declaracoes' && <DeclaracoesModule currentUser={currentUser} />}
     </div>
   );
 };
