@@ -10,7 +10,9 @@ import {
 import {
   FileText, Plus, Search, Inbox, Settings2, AlertTriangle, Trash2,
   CheckCircle2, Clock, CalendarClock, RefreshCw, X, Save, DollarSign,
+  FileSignature,
 } from 'lucide-react';
+import { ContratosModule } from '../contratos/ContratosModule';
 
 // ===========================================================================
 //  MENU REQUERIMENTOS
@@ -46,7 +48,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -270,6 +272,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'fila',  rotulo: 'Fila de Pedidos', icone: Inbox },
             { id: 'novo',  rotulo: 'Novo Requerimento', icone: Plus },
             { id: 'tipos', rotulo: 'Tipos e Prazos', icone: Settings2 },
+            { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
           ] as const).map(t => {
             const Icone = t.icone;
             const ativa = aba === t.id;
@@ -719,6 +722,10 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
           )}
         </div>
       )}
+      {/* Contratos — tela própria, com geração e editor de modelo.
+          Fica aqui porque "Contrato" também é um dos tipos de requerimento
+          que a secretaria atende, então o atendente não precisa trocar de menu. */}
+      {aba === 'contratos' && <ContratosModule currentUser={currentUser} />}
     </div>
   );
 };
