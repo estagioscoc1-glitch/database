@@ -235,7 +235,7 @@ export const FichaEstagioModule: React.FC<Props> = () => {
                               value={c.supervisorRegistro}
                               onChange={e => editarRegistro(i, e.target.value)}
                               onBlur={() => void gravarRegistro(c)}
-                              placeholder="COREN 000.000"
+                              placeholder="COREN: 000.000"
                               className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px]"
                             />
                           </td>

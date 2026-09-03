@@ -101,12 +101,12 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
           src={LOGO_COLEGIO_OSWALDO_CRUZ}
           alt="Colégio Oswaldo Cruz"
           referrerPolicy="no-referrer"
-          style={{ display: 'block', margin: '0 auto', maxHeight: '1.6cm', maxWidth: '100%', objectFit: 'contain' }}
+          style={{ display: 'block', margin: '0 auto', maxHeight: '2.6cm', maxWidth: '60%', objectFit: 'contain' }}
         />
-        <p style={{ fontSize: '7.5pt', margin: '3px 0 0' }}>
+        <p style={{ fontSize: '8.5pt', margin: '4px 0 0' }}>
           Rua 20 nº 796 - Centro - Goiânia - GO CEP 74020-170 &nbsp;"{config.resolucao}"
         </p>
-        <p style={{ fontSize: '7.5pt', margin: 0 }}>
+        <p style={{ fontSize: '8.5pt', margin: 0 }}>
           Fone (0xx62) 3223-7602 &nbsp;•&nbsp; www.colegiooswaldocruz.com.br
         </p>
       </div>
@@ -119,9 +119,11 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
         <tbody>
           <tr>
-            <td style={{ ...celula, width: '10%', fontWeight: 'bold' }}>ALUNO:</td>
-            <td style={{ ...celula, width: '55%' }}>{alunoNome.toUpperCase()}</td>
-            <td style={{ ...celula, width: '10%', fontWeight: 'bold' }}>CURSO:</td>
+            <td style={{ ...celula, width: '9%', fontWeight: 'bold' }}>ALUNO:</td>
+            <td style={celula}>{alunoNome.toUpperCase()}</td>
+          </tr>
+          <tr>
+            <td style={{ ...celula, fontWeight: 'bold' }}>CURSO:</td>
             <td style={celula}>{cursoNome.toUpperCase()}</td>
           </tr>
         </tbody>
@@ -135,7 +137,7 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
             <th rowSpan={2} style={{ ...cabecalhoCel, width: '6%' }}>CARGA HORÁRIA</th>
             <th rowSpan={2} style={{ ...cabecalhoCel, width: '20%' }}>UNIDADE MÉDICA</th>
             <th colSpan={5} style={cabecalhoCel}>ELEMENTOS DA COMPETÊNCIA</th>
-            <th rowSpan={2} style={{ ...cabecalhoCel, width: '22%' }}>SUPERVISOR DE ESTÁGIO</th>
+            <th colSpan={2} style={cabecalhoCel}>SUPERVISOR DE ESTÁGIO</th>
           </tr>
           <tr>
             <th style={{ ...cabecalhoCel, width: '6%' }}>CONHECIMENTO TÉCNICO PROFISSIONAL</th>
@@ -143,6 +145,8 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
             <th style={{ ...cabecalhoCel, width: '6%' }}>ATITUDES PESSOAIS</th>
             <th style={{ ...cabecalhoCel, width: '6%' }}>VALORES ÉTICOS</th>
             <th style={{ ...cabecalhoCel, width: '6%' }}>MÉDIA FINAL</th>
+            <th style={{ ...cabecalhoCel, width: '17%' }}>PROFESSOR</th>
+            <th style={{ ...cabecalhoCel, width: '9%' }}>REGISTRO</th>
           </tr>
         </thead>
         <tbody>
@@ -159,11 +163,9 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
                 <td style={notaCel}>{n}</td>
                 <td style={notaCel}>{n}</td>
                 <td style={{ ...notaCel, fontWeight: 'bold' }}>{n}</td>
-                <td style={celula}>
-                  {c.supervisor || '—'}
-                  {c.supervisorRegistro && (
-                    <span style={{ display: 'block', fontSize: '7pt' }}>{c.supervisorRegistro}</span>
-                  )}
+                <td style={celula}>{c.supervisor || '—'}</td>
+                <td style={{ ...celula, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  {c.supervisorRegistro || '—'}
                 </td>
               </tr>
             );
@@ -177,19 +179,24 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
             <td style={{ ...notaCel, fontWeight: 'bold', fontSize: '10pt', background: '#f2f2f2' }}>
               {formatarNota(media)}
             </td>
+            <td style={{ ...celula, textAlign: 'right', fontWeight: 'bold', background: '#f2f2f2' }}>
+              RESULTADO FINAL
+            </td>
             <td style={{ ...celula, textAlign: 'center', fontWeight: 'bold', background: '#f2f2f2' }}>
-              RESULTADO FINAL: {media === null ? '—' : apto ? 'APTO' : 'NÃO APTO'}
+              {media === null ? '—' : apto ? 'APTO' : 'NÃO APTO'}
             </td>
           </tr>
         </tbody>
       </table>
 
       {/* Legenda dos níveis */}
-      <p style={{ fontSize: '7.5pt', margin: '6px 0 0' }}>
-        NÍVEL I (0,0 - 3,9) / NÍVEL II (4,0 - 5,9) / NÍVEL III (6,0 - 7,9) /
-        NÍVEL IV (8,0 - 8,9) / NÍVEL V (9,0 - 10,0)
-        {media !== null && <strong> &nbsp;—&nbsp; Resultado: {nivelDaMedia(media)}</strong>}
-      </p>
+      <div style={{ fontSize: '8pt', margin: '6px 0 0', lineHeight: 1.4 }}>
+        <p style={{ margin: 0 }}>NÍVEL I (0,0 - 3,9) / NÍVEL II (4,0 - 5,9) / NÍVEL III (6,0 - 7,9)</p>
+        <p style={{ margin: 0 }}>
+          NÍVEL IV (8,0 - 8,9) / NÍVEL V (9,0 - 10,0)
+          {media !== null && <strong> &nbsp;—&nbsp; Resultado: {nivelDaMedia(media)}</strong>}
+        </p>
+      </div>
 
       {/* Vistos */}
       <div className="ficha-nao-quebrar" style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginTop: '1.6cm' }}>
