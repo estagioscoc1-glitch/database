@@ -8,6 +8,19 @@
 
 export type ModalidadeContrato = 'PRESENCIAL' | 'EAD';
 
+/** Campos que só o aditivo de dependência usa. */
+export interface DadosAditivo {
+  disciplinas: string[];
+  valorParcela: number;
+  numParcelas: number;
+}
+
+export const PADRAO_ADITIVO: DadosAditivo = {
+  disciplinas: [],
+  valorParcela: 80,
+  numParcelas: 6,
+};
+
 export interface DadosContrato {
   // Quem assina (pode ser o próprio aluno ou o responsável)
   contratanteNome: string;
@@ -42,6 +55,9 @@ export interface DadosContrato {
   valorMaterialEstagio: number;
 
   dataContrato: string; // AAAA-MM-DD
+
+  /** Preenchido só quando o documento é o aditivo de dependência. */
+  aditivo?: DadosAditivo;
 }
 
 /** Valores que vêm dos contratos oficiais da escola, usados como sugestão. */

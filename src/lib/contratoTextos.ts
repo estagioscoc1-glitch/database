@@ -216,3 +216,46 @@ export const CAMPOS_DISPONIVEIS: { campo: string; explica: string }[] = [
   { campo: '{{VALOR_MATERIAL_EXT}}', explica: 'Material de estágio por extenso' },
   { campo: '{{DATA}}', explica: 'Data do contrato' },
 ];
+
+
+// ---------------------------------------------------------------------------
+// ADITIVO DE DEPENDÊNCIA
+//
+// Documento separado do contrato, assinado só por quem está matriculado em
+// dependência. Vale para as duas modalidades (presencial e EAD), porque o que
+// muda é a cobrança da disciplina em dependência, não o formato do curso.
+//
+// Campos próprios deste documento, além dos que já existem no contrato:
+//   {{DISCIPLINAS}}      lista das matérias em dependência do aluno
+//   {{QTD_DISCIPLINAS}}  quantas são
+//   {{DEP_VALOR}}        valor da parcela mensal — R$ 80,00
+//   {{DEP_VALOR_EXT}}    o mesmo valor por extenso
+//   {{DEP_PARCELAS}}     quantidade de parcelas — 6
+//   {{DEP_TOTAL}}        valor total (parcela x quantidade)
+//   {{DEP_TOTAL_EXT}}    o total por extenso
+// ---------------------------------------------------------------------------
+export const CLAUSULAS_ADITIVO_DEPENDENCIA: ClausulaContrato[] = [
+  {
+    titulo: 'Cláusula Primeira — Do objeto',
+    paragrafos: [
+      'O presente instrumento é aditivo ao Contrato de Prestação de Serviços Educacionais firmado entre as partes, e tem por objeto a matrícula do(a) estudante {{ALUNO}} em regime de Progressão Parcial (dependência), referente à(s) seguinte(s) disciplina(s): {{DISCIPLINAS}}.',
+      'Parágrafo único - Permanecem inalteradas todas as demais cláusulas e condições do contrato original, que continua em pleno vigor naquilo que não conflitar com este aditivo.',
+    ],
+  },
+  {
+    titulo: 'Cláusula Segunda — Do valor',
+    paragrafos: [
+      'Pela prestação dos serviços educacionais em regime de dependência, o(a) CONTRATANTE pagará o valor de {{DEP_VALOR}} ({{DEP_VALOR_EXT}}) por mês, divididos em {{DEP_PARCELAS}} parcelas mensais consecutivas, totalizando {{DEP_TOTAL}} ({{DEP_TOTAL_EXT}}).',
+      '§ 1º - O vencimento de cada parcela ocorrerá até o dia 30 de cada mês, nas mesmas condições de multa e juros por atraso previstas no contrato original.',
+      '§ 2º - O valor aqui pactuado é devido independentemente do resultado final obtido na disciplina cursada em dependência, e não se confunde com as parcelas do módulo regular.',
+      '§ 3º - Conforme já previsto no contrato original, os valores referentes a disciplinas cursadas em dependência não são objeto de cobertura por bolsas de estudo de qualquer natureza.',
+    ],
+  },
+  {
+    titulo: 'Cláusula Terceira — Do funcionamento',
+    paragrafos: [
+      'As aulas da dependência serão ministradas em contra turno, conforme horário divulgado pela Instituição, ficando o(a) estudante ciente de que deverá ter disponibilidade para frequentá-las.',
+      'Parágrafo único - A desistência da disciplina em dependência, depois de iniciadas as aulas, não desobriga o(a) CONTRATANTE do pagamento das parcelas vencidas e da parcela do mês em que o pedido for formalizado na secretaria.',
+    ],
+  },
+];
