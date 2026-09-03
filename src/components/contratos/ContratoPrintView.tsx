@@ -25,6 +25,8 @@ import type { ClausulaContrato } from '../../lib/contratoTextos';
 
 interface Props {
   dados: DadosContrato;
+  /** Título grande impresso na folha. O aditivo usa um diferente. */
+  tituloDocumento?: string;
   /** Texto do contrato. Vem do modelo salvo no banco, ou do padrão de fábrica
    *  se ninguém nunca editou. Quem resolve isso é o ContratosModule. */
   clausulas: ClausulaContrato[];
@@ -90,6 +92,13 @@ function preencher(texto: string, d: DadosContrato): string {
     VALOR_BIOSSEGURANCA_EXT: porExtenso(d.valorBiosseguranca),
     VALOR_MATERIAL: formatarDinheiro(d.valorMaterialEstagio),
     VALOR_MATERIAL_EXT: porExtenso(d.valorMaterialEstagio),
+    DISCIPLINAS: (d.aditivo?.disciplinas ?? []).join('; ') || '____________________________',
+    QTD_DISCIPLINAS: String((d.aditivo?.disciplinas ?? []).length || 0),
+    DEP_VALOR: formatarDinheiro(d.aditivo?.valorParcela ?? 0),
+    DEP_VALOR_EXT: porExtenso(d.aditivo?.valorParcela ?? 0),
+    DEP_PARCELAS: String(d.aditivo?.numParcelas ?? 0).padStart(2, '0'),
+    DEP_TOTAL: formatarDinheiro((d.aditivo?.valorParcela ?? 0) * (d.aditivo?.numParcelas ?? 0)),
+    DEP_TOTAL_EXT: porExtenso((d.aditivo?.valorParcela ?? 0) * (d.aditivo?.numParcelas ?? 0)),
     DATA: d.dataContrato
       ? new Date(d.dataContrato + 'T12:00:00').toLocaleDateString('pt-BR')
       : new Date().toLocaleDateString('pt-BR'),
@@ -97,7 +106,7 @@ function preencher(texto: string, d: DadosContrato): string {
   return texto.replace(/\{\{(\w+)\}\}/g, (_, chave) => mapa[chave] ?? `{{${chave}}}`);
 }
 
-export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }) => {
+export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, tituloDocumento, onClose }) => {
   const [imprimindo, setImprimindo] = useState(false);
   const ead = dados.modalidade === 'EAD';
   const resolucao = ead
@@ -187,7 +196,7 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
                 Fone: (62) 3223.7602 &nbsp;•&nbsp; www.colegiooswaldocruz.com.br
               </p>
               <h1 style={{ fontSize: '12pt', fontWeight: 'bold', margin: '9px 0 8px' }}>
-                CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
+                {tituloDocumento || 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS'}
               </h1>
             </div>
 
@@ -266,7 +275,7 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, onClose }
           <div className="flex items-center gap-2 min-w-0">
             <FileSignature className="h-4 w-4 text-blue-600 flex-shrink-0" />
             <span className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">
-              Contrato — {dados.alunoNome}
+              {tituloDocumento ? 'Aditivo' : 'Contrato'} — {dados.alunoNome}
             </span>
             <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase flex-shrink-0">
               {ead ? 'EAD' : 'Presencial'}

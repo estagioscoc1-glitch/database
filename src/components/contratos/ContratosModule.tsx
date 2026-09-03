@@ -4,10 +4,10 @@ import { UserRole } from '../../types';
 import { ContratoPrintView } from './ContratoPrintView';
 import {
   carregarClausulas, salvarClausulas, restaurarPadrao, registrarEmissao,
-  PADRAO_CONTRATO, formatarDinheiro,
+  PADRAO_CONTRATO, PADRAO_ADITIVO, formatarDinheiro,
   type DadosContrato, type ModalidadeContrato,
 } from '../../lib/supabaseContratos';
-import { CAMPOS_DISPONIVEIS, type ClausulaContrato } from '../../lib/contratoTextos';
+import { CAMPOS_DISPONIVEIS, CLAUSULAS_ADITIVO_DEPENDENCIA, type ClausulaContrato } from '../../lib/contratoTextos';
 import {
   FileSignature, Search, X, Save, RotateCcw, AlertTriangle, CheckCircle2,
   Pencil, Plus, Trash2, FileText, Info,
@@ -44,7 +44,7 @@ interface Props {
 }
 
 export const ContratosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
-  const { users, classes, courses } = useApp();
+  const { users, classes, courses, subjects, dependencies } = useApp();
 
   const [aba, setAba] = useState<'gerar' | 'modelos'>('gerar');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
@@ -59,7 +59,13 @@ export const ContratosModule: React.FC<Props> = ({ currentUser = 'Administraçã
   const [aluno, setAluno] = useState<any | null>(null);
   const [modalidade, setModalidade] = useState<ModalidadeContrato>('PRESENCIAL');
   const [dados, setDados] = useState<DadosContrato | null>(null);
-  const [preview, setPreview] = useState<{ dados: DadosContrato; clausulas: ClausulaContrato[] } | null>(null);
+  const [preview, setPreview] = useState<{
+    dados: DadosContrato;
+    clausulas: ClausulaContrato[];
+    tituloDocumento?: string;
+  } | null>(null);
+  const [depValorParcela, setDepValorParcela] = useState(PADRAO_ADITIVO.valorParcela);
+  const [depNumParcelas, setDepNumParcelas] = useState(PADRAO_ADITIVO.numParcelas);
   const [gerando, setGerando] = useState(false);
 
   const alunos = useMemo(() => users.filter(u => u.role === UserRole.STUDENT), [users]);
@@ -131,6 +137,62 @@ export const ContratosModule: React.FC<Props> = ({ currentUser = 'Administraçã
       emitidoPor: currentUser,
     });
     setGerando(false);
+  };
+
+  /**
+   * DEPENDÊNCIAS DO ALUNO
+   * O aditivo só aparece pra quem realmente está em dependência. Duas fontes:
+   *  1) a lista de dependências (DependencyEnrollment), que é o registro
+   *     formal com status ATIVO;
+   *  2) turmas marcadas como isDependency em que o aluno esteja — acontece
+   *     quando a secretaria criou o diário de dependência direto, sem passar
+   *     pelo cadastro formal.
+   * Juntar as duas evita o aditivo sumir por causa de caminho de cadastro.
+   */
+  const disciplinasDependencia = useMemo(() => {
+    if (!aluno) return [] as string[];
+    const nomes = new Set<string>();
+
+    for (const d of (dependencies ?? [])) {
+      if (d.studentId !== aluno.id) continue;
+      if (d.status !== 'ATIVO') continue;
+      const disc = subjects.find(s => s.id === d.subjectId);
+      nomes.add(disc?.name || 'Disciplina não identificada');
+    }
+
+    const turmaDep = classes.find(c => c.id === aluno.classId && (c as any).isDependency);
+    if (turmaDep && (turmaDep as any).dependencySubjectId) {
+      const disc = subjects.find(s => s.id === (turmaDep as any).dependencySubjectId);
+      if (disc) nomes.add(disc.name);
+    }
+
+    return Array.from(nomes);
+  }, [aluno, dependencies, subjects, classes]);
+
+  const temDependencia = disciplinasDependencia.length > 0;
+
+  const gerarAditivo = () => {
+    if (!dados) return;
+    setPreview({
+      dados: {
+        ...dados,
+        aditivo: {
+          disciplinas: disciplinasDependencia,
+          valorParcela: depValorParcela,
+          numParcelas: depNumParcelas,
+        },
+      },
+      clausulas: CLAUSULAS_ADITIVO_DEPENDENCIA,
+      tituloDocumento: 'TERMO ADITIVO — MATRÍCULA EM DEPENDÊNCIA',
+    });
+    void registrarEmissao(dados, {
+      matricula: aluno?.enrollment,
+      turmaNome: turmaAluno?.name,
+      emitidoPor: currentUser,
+      temAditivoDependencia: true,
+      aditivoValorParcela: depValorParcela,
+      aditivoNumParcelas: depNumParcelas,
+    });
   };
 
   // ----------------------------------------------------------- MODELOS
@@ -441,6 +503,45 @@ export const ContratosModule: React.FC<Props> = ({ currentUser = 'Administraçã
                   )}
                 </div>
 
+                {/* ADITIVO DE DEPENDÊNCIA — só aparece pra quem está em dependência */}
+                {temDependencia && (
+                  <div className="p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <FileSignature className="h-4 w-4 text-amber-700" />
+                      <p className="font-black text-xs text-amber-800 uppercase tracking-wider">
+                        Este aluno está em dependência
+                      </p>
+                    </div>
+                    <p className="text-[11px] font-bold text-amber-800 leading-relaxed">
+                      Disciplina{disciplinasDependencia.length > 1 ? 's' : ''}: {disciplinasDependencia.join('; ')}.
+                      O aditivo é um documento separado, assinado junto com o contrato.
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className={rotulo}>Parcela (R$)</label>
+                        <input type="number" step="0.01" min={0} className={campo}
+                               value={depValorParcela}
+                               onChange={e => setDepValorParcela(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <label className={rotulo}>Nº de parcelas</label>
+                        <input type="number" min={1} className={campo}
+                               value={depNumParcelas}
+                               onChange={e => setDepNumParcelas(Number(e.target.value))} />
+                      </div>
+                      <div className="col-span-2 flex items-end">
+                        <p className="text-[11px] font-black text-amber-800">
+                          Total: {formatarDinheiro(depValorParcela * depNumParcelas)}
+                        </p>
+                      </div>
+                    </div>
+                    <button type="button" onClick={gerarAditivo}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-xl text-xs">
+                      <FileSignature className="h-4 w-4" /> Gerar Aditivo de Dependência
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 pt-1">
                   <button type="button" onClick={() => void gerar()} disabled={gerando}
                           className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-2xl text-xs">
@@ -552,6 +653,7 @@ export const ContratosModule: React.FC<Props> = ({ currentUser = 'Administraçã
         <ContratoPrintView
           dados={preview.dados}
           clausulas={preview.clausulas}
+          tituloDocumento={preview.tituloDocumento}
           onClose={() => setPreview(null)}
         />
       )}
