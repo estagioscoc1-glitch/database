@@ -103,11 +103,12 @@ function linhaParaComponente(e: any): ComponenteEstagio {
 export async function carregarEstagiosDoAluno(
   alunoId: string
 ): Promise<{ componentes: ComponenteEstagio[]; erro?: string }> {
+  // Só as colunas que a ficha usa. Com select('*') o banco monta e trafega
+  // campos que a tela descarta em seguida.
   const { data, error } = await supabase
     .from('estagios')
-    .select('*')
-    .eq('aluno_id', alunoId)
-    .order('componente', { ascending: true });
+    .select('componente, carga_horaria, local_realizado, professor_nome, nota, supervisor_registro')
+    .eq('aluno_id', alunoId);
 
   if (error) {
     const m = (error.message || '').toLowerCase();
