@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, ScrollText, AlertTriangle } from 'lucide-react';
 import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../../lib/imageAssets';
+import { FONTE_DOCUMENTOS } from '../../lib/documentoEstilo';
 import { LEGENDA_CONCEITOS } from '../../lib/historicoTextos';
 import type { ModeloHistorico } from '../../lib/historicoTextos';
 import { cargaDasDisciplinas, percentualFrequencia } from '../../lib/supabaseHistorico';
@@ -107,7 +108,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
     iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : '';
 
   const Documento = (
-    <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', color: '#000' }}>
+    <div style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000' }}>
 
       {/* Timbre */}
       <div style={{ textAlign: 'center', marginBottom: '4px' }}>

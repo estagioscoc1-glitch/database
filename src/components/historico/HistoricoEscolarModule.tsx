@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
 import { HistoricoEscolarPrintView } from './HistoricoEscolarPrintView';
@@ -39,7 +39,7 @@ interface Props {
 }
 
 export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
-  const { users, classes, courses, subjects, grades, dependencies } = useApp();
+  const { users, classes, courses, subjects, grades, dependencies, attendance } = useApp();
 
   const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState<any | null>(null);
@@ -198,6 +198,38 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     });
     setAnoSemestrePorModulo(mapa);
   };
+
+  // Ao escolher o aluno, joga a frequência calculada no campo (editável).
+  useEffect(() => {
+    if (frequenciaCalculada) setFrequencia(frequenciaCalculada.presentes);
+  }, [frequenciaCalculada]);
+
+  /**
+   * FREQUÊNCIA CALCULADA DAS CHAMADAS.
+   *
+   * Cada chamada (AttendanceSession) guarda quantas aulas teve naquele dia
+   * (lessonsCount) e quem estava presente. Somando as aulas de todas as
+   * chamadas dá o total ministrado; somando só as que o aluno tem "P" dá o
+   * que ele cumpriu.
+   *
+   * Devolve null quando não há nenhuma chamada lançada para esse aluno. Nesse
+   * caso o campo fica em branco para a secretaria preencher à mão — melhor um
+   * campo vazio do que um zero que pareceria frequência nula.
+   */
+  const frequenciaCalculada = useMemo(() => {
+    if (!aluno) return null;
+    let ministradas = 0;
+    let presentes = 0;
+    for (const ch of (attendance ?? [])) {
+      const marca = (ch as any).records?.[aluno.id];
+      if (marca !== 'P' && marca !== 'F') continue; // aluno não estava nessa turma
+      const aulas = Number((ch as any).lessonsCount || 0);
+      ministradas += aulas;
+      if (marca === 'P') presentes += aulas;
+    }
+    if (ministradas === 0) return null;
+    return { ministradas, presentes, percentual: (presentes / ministradas) * 100 };
+  }, [aluno, attendance]);
 
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
@@ -408,6 +440,11 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                        placeholder={String(modelo.cargaTotal)}
                        value={frequencia}
                        onChange={e => setFrequencia(e.target.value === '' ? '' : Number(e.target.value))} />
+                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                  {frequenciaCalculada
+                    ? `Calculado das chamadas: ${frequenciaCalculada.presentes} de ${frequenciaCalculada.ministradas} aulas (${frequenciaCalculada.percentual.toFixed(1).replace('.', ',')}%). Confira e corrija se precisar.`
+                    : 'Nenhuma chamada lançada para este aluno — preencha à mão.'}
+                </p>
               </div>
               <div>
                 <label className={rotulo}>Resultado final</label>
