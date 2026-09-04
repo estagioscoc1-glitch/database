@@ -120,3 +120,52 @@ export const VERSO_VAZIO: VersoDiploma = {
 /** Observação padrão do Certificado de Auxiliar, transcrita do modelo. */
 export const OBSERVACAO_AUXILIAR =
   'Este certificado foi expedido a pedido de seu portador, uma vez que o mesmo alcançou todas as competências curriculares dos módulos I e II, indispensáveis ao perfil profissional para a Qualificação Técnica em Auxiliar de Enfermagem conforme as prerrogativas previstas no Plano de Curso deste estabelecimento de ensino de acordo com a Lei Federal Nº 9394/96; Decreto Federal 5154/2004; Parecer CNE/CEB Nº 16/1999; Resolução CNE/CEB Nº 04/1999; Lei Complementar Estadual Nº 26/1998 e Resolução CEE/GO Nº 018/2022';
+
+// ---------------------------------------------------------------------------
+// QUADRO DE REGISTRO — o retângulo do pé do verso
+//
+// É onde a escola lança o registro oficial do documento. O texto foi
+// transcrito do arquivo do Certificado de Auxiliar, que era o único dos três
+// com esse bloco preenchido.
+// ---------------------------------------------------------------------------
+export const REGISTRO_CABECALHO = ['REPÚBLICA FEDERATIVA DO BRASIL', 'ESTADO DE GOIÁS'];
+export const REGISTRO_RODAPE = [
+  'Entidade Mantenedora - Colégio Oswaldo Cruz Ltda.',
+  'Rua 20, nº 796, Centro - Goiânia - Goiás',
+];
+
+// ---------------------------------------------------------------------------
+// HISTÓRICO DO VERSO — Instrumentação Cirúrgica
+//
+// A Especialização Técnica traz o histórico no PRÓPRIO VERSO do certificado,
+// e não em folha separada como nos cursos técnicos. São poucos componentes,
+// então cabe. Transcrito do arquivo oficial.
+// ---------------------------------------------------------------------------
+export const COMPONENTES_INSTRUMENTACAO: { nome: string; ch: number }[] = [
+  { nome: 'Ética e bioética aplicada à instrumentação cirúrgica', ch: 20 },
+  { nome: 'Teoria e técnicas aplicadas à instrumentação cirúrgica', ch: 60 },
+  { nome: 'Noções de anestesiologia', ch: 20 },
+  { nome: 'Anatomia aplicada a instrumentação cirúrgica', ch: 40 },
+  { nome: 'Microbiologia e controle de infecção hospitalar', ch: 20 },
+  { nome: 'Estágio Supervisionado', ch: 100 },
+];
+
+export const COMPETENCIAS_INSTRUMENTACAO: string[] = [
+  'Identificar os instrumentais de acordo com cada especialidade cirúrgica;',
+  'Integrar a equipe multiprofissional;',
+  'Interpretar o mapa cirúrgico;',
+  'Apoiar psicologicamente o paciente;',
+  'Verificar suficiência de equipamentos, materiais cirúrgicos e instrumentais conforme cada especialidade cirúrgica evitando sua falta durante a cirurgia;',
+  'Utilizar técnica de escovação e paramentação cirúrgica;',
+  'Dispor instrumental em sua mesa e do auxiliar de acordo com o tempo cirúrgico mantendo-os sempre limpos e no local adequado;',
+  'Organizar e manter organizadas mesas de instrumentais cirúrgicos desde o início até o fim da cirurgia;',
+  'Manter a assepsia rigorosa e ter pronto todo o material necessário para o ato cirúrgico;',
+  'Auxiliar o cirurgião e o assistente na colocação dos campos que delimitam a área operatória;',
+  'Entregar os instrumentais ao cirurgião ou ao primeiro auxiliar, sincronizados com os tempos cirúrgicos ou através de pedido por sinais manuais / verbais, segundo técnicas da instrumentação cirúrgica;',
+  'Contar número de compressas, materiais e instrumental pós-cirurgia;',
+  'Proceder a higienização da região operada e realizar curativo adequado à cirurgia realizada;',
+  'Identificar e encaminhar material biológico;',
+  'Conferir e encaminhar instrumentais para a limpeza e esterilização conforme técnicas da instrumentação cirúrgica.',
+];
+
+export const CONCEITOS_INSTRUMENTACAO = 'A - 86 a 100     B - 76 a 85     C - 60 a 75     D - 00 a 59';
