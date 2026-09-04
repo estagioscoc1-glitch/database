@@ -60,6 +60,9 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
   const [depAnoSemestre, setDepAnoSemestre] = useState<Record<string, string>>({});
   // Disciplinas dispensadas por aproveitamento de estudos, marcadas à mão.
   const [dispensas, setDispensas] = useState<Record<string, boolean>>({});
+  // Conceito obtido na dependência. Vem do diário da dependência quando ele
+  // existe; este campo permite corrigir ou informar quando não existe.
+  const [depConceito, setDepConceito] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<any | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -119,14 +122,31 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
       const disc = subjects.find(x => x.id === (d as any).subjectId);
       const nome = (disc?.name || '').trim().toUpperCase();
       if (!nome) continue;
-      const nota = notasPorNome[nome]?.nota ?? null;
+
+      // A NOTA DA DEPENDÊNCIA É OUTRO REGISTRO.
+      // Quando a secretaria cria uma dependência, o sistema gera um diário
+      // separado (createdClassId). A nota dessa segunda tentativa fica ligada
+      // a ESSE diário. Buscar pela disciplina, como eu fazia antes, trazia a
+      // nota da primeira tentativa — aquela que o aluno reprovou. Era por isso
+      // que saía "D" no lugar do "A" que a aluna tirou na dependência.
+      const diarioDep = (d as any).createdClassId;
+      const notaDep = (grades ?? []).find(
+        (g: any) => g.studentId === aluno.id && g.classId === diarioDep
+      );
+      const valorDep = notaDep
+        ? ((notaDep as any).finalGrade ?? (notaDep as any).pf ?? (notaDep as any).average ?? null)
+        : null;
+
       mapa[nome] = {
-        conceito: conceitoDaNota(nota),
+        // O conceito digitado pela secretaria manda; é a rede de segurança
+        // para quando o diário da dependência não estiver no sistema.
+        conceito: (depConceito[nome] || '').trim().toUpperCase()
+          || (valorDep !== null && valorDep !== undefined ? conceitoDaNota(Number(valorDep)) : '----'),
         anoSemestre: depAnoSemestre[nome] ?? '',
       };
     }
     return mapa;
-  }, [aluno, dependencies, subjects, notasPorNome, depAnoSemestre]);
+  }, [aluno, dependencies, subjects, grades, depAnoSemestre, depConceito]);
 
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
@@ -151,8 +171,10 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
         let apAno = '----';
 
         if (dispensado) {
-          conceito = 'Ap. Est.';
-          apMfc = temNota ? conceitoDaNota(achado!.nota) : '----';
+          conceito = 'Ap. Est';
+          // A planilha da escola deixa M.F.C. e Ano/S. em branco na dispensa.
+          // Se a secretaria preencher, sai preenchido.
+          apMfc = (depConceito[chave] || '').trim().toUpperCase() || '----';
           apAno = depAnoSemestre[chave] || '----';
         } else if (dep) {
           conceito = 'DEP';
@@ -174,7 +196,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
         };
       }),
     }));
-  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre]);
+  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre, depConceito]);
 
   const totalDisciplinas = linhasPorModulo.reduce((s, m) => s + m.linhas.length, 0);
   const comNota = linhasPorModulo.reduce(
@@ -388,7 +410,9 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
               <div className="p-4 space-y-3">
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   Disciplina cursada em <strong>dependência</strong> sai como <strong>DEP</strong> na coluna
-                  CONCEITO, e o conceito obtido vai para M.F.C., com o ano e semestre ao lado.
+                  CONCEITO, e o conceito obtido <strong>na dependência</strong> vai para M.F.C., com o ano
+                  e semestre ao lado. O sistema busca esse conceito no diário da dependência; se ele
+                  ainda não existir, digite abaixo.
                   Disciplina <strong>dispensada</strong> por aproveitamento de estudos sai como
                   <strong> Ap. Est.</strong> As dependências são achadas sozinhas no cadastro — só o
                   ano/semestre precisa ser informado.
@@ -399,6 +423,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                       <tr>
                         <th className="px-3 py-2 text-left font-black text-slate-500 uppercase">Disciplina</th>
                         <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Situação</th>
+                        <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">M.F.C.</th>
                         <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Ano/Sem.</th>
                         <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Dispensa</th>
                       </tr>
@@ -416,6 +441,16 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                                 : dep
                                   ? <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-black">DEP</span>
                                   : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input
+                                className="w-14 px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px] text-center font-bold uppercase"
+                                placeholder={dep ? dep.conceito : '—'}
+                                maxLength={8}
+                                disabled={!dep && !dispensas[chave]}
+                                value={depConceito[chave] ?? ''}
+                                onChange={e => setDepConceito({ ...depConceito, [chave]: e.target.value })}
+                              />
                             </td>
                             <td className="px-3 py-1.5">
                               <input
