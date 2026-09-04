@@ -3,6 +3,10 @@ import { createPortal } from 'react-dom';
 import { Printer, X, Award, AlertTriangle } from 'lucide-react';
 import { FUNDO_DIPLOMA_FRENTE, FUNDO_DIPLOMA_VERSO } from '../../lib/diplomaAssets';
 import type { ModeloDiploma, VersoDiploma } from '../../lib/diplomaTextos';
+import {
+  REGISTRO_CABECALHO, REGISTRO_RODAPE, COMPONENTES_INSTRUMENTACAO,
+  COMPETENCIAS_INSTRUMENTACAO, CONCEITOS_INSTRUMENTACAO,
+} from '../../lib/diplomaTextos';
 
 // ===========================================================================
 //  DIPLOMA / CERTIFICADO — documento para impressão
@@ -41,6 +45,9 @@ interface Props {
   };
   verso: VersoDiploma;
   imprimirVerso: boolean;
+  /** Notas do histórico do verso, só na Especialização. */
+  notasInstrumentacao?: Record<string, string>;
+  frequenciaInstrumentacao?: string;
   onClose: () => void;
 }
 
@@ -81,7 +88,8 @@ function preencher(texto: string, d: Props['dados']): string {
 }
 
 export const DiplomaPrintView: React.FC<Props> = ({
-  modelo, dados, verso, imprimirVerso, onClose,
+  modelo, dados, verso, imprimirVerso, notasInstrumentacao = {},
+  frequenciaInstrumentacao = '', onClose,
 }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
@@ -224,16 +232,128 @@ export const DiplomaPrintView: React.FC<Props> = ({
       }}>
         {verso.observacoes}
       </div>
+      {/* QUADRO DE REGISTRO — o retângulo do pé da folha. */}
       <div style={{
-        position: 'absolute', left: '6%', right: '6%', top: '70%',
-        display: 'flex', justifyContent: 'space-around', fontSize: '12pt',
+        position: 'absolute', left: '6%', right: '6%', top: '69.5%', bottom: '3%',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'space-between', padding: '2.5% 3%', textAlign: 'center',
       }}>
-        {verso.registro && <span>Registro nº {verso.registro}</span>}
-        {verso.livro && <span>Livro {verso.livro}</span>}
-        {verso.folha && <span>Folha {verso.folha}</span>}
+        <div>
+          <div style={{ fontSize: '11pt', fontWeight: 'bold', letterSpacing: '0.08em' }}>REGISTRO</div>
+          {REGISTRO_CABECALHO.map((l, i) => (
+            <div key={i} style={{ fontSize: '10pt', fontWeight: 'bold' }}>{l}</div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: '11pt', lineHeight: 1.9 }}>
+          <div>
+            {modelo.palavraDocumento === 'DIPLOMA' ? 'Diploma' : 'Certificado'} registrado sob o
+            nº <strong>{verso.registro || '________'}</strong>,
+            Livro <strong>{verso.livro || '______'}</strong>,
+            Folha <strong>{verso.folha || '______'}</strong>.
+          </div>
+          <div style={{ marginTop: '1.6em' }}>
+            <span style={{ borderTop: '1px solid #000', padding: '2px 3em 0' }}>
+              {dados.nomeSecretario} — Secretário
+            </span>
+          </div>
+        </div>
+
+        <div style={{ fontSize: '9pt', lineHeight: 1.4 }}>
+          {REGISTRO_RODAPE.map((l, i) => <div key={i}>{l}</div>)}
+        </div>
       </div>
     </div>
   );
+
+  /* VERSO DA ESPECIALIZAÇÃO — histórico no próprio verso.
+     A Instrumentação Cirúrgica não usa o verso padrão com Curso Anterior e
+     Observações: ela traz o histórico ali mesmo, com os componentes, a
+     frequência, a carga horária e as competências. São poucos componentes,
+     então cabe numa folha só — diferente dos cursos técnicos, cujo histórico
+     é documento separado. */
+  const cargaTotalInstr = COMPONENTES_INSTRUMENTACAO.reduce((t, c) => t + c.ch, 0);
+  const celI: React.CSSProperties = {
+    border: '0.5pt solid #000', padding: '2px 6px', fontSize: '9.5pt',
+  };
+
+  const VersoInstrumentacao = (
+    <div
+      className="dip-folha dip-folha-verso"
+      style={{
+        position: 'relative', width: '210mm', height: '297mm',
+        background: '#fff', fontFamily: serif, color: '#000',
+        padding: '1.6cm 1.5cm',
+      }}
+    >
+      <h2 style={{ textAlign: 'center', fontSize: '12pt', fontWeight: 'bold', margin: '0 0 14px' }}>
+        HISTÓRICO ESCOLAR
+      </h2>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px' }}>
+        <thead>
+          <tr>
+            <th style={{ ...celI, background: '#e8e8e8', fontWeight: 'bold', width: '62%' }}>
+              COMPONENTES CURRICULARES
+            </th>
+            <th style={{ ...celI, background: '#e8e8e8', fontWeight: 'bold', textAlign: 'center' }}>C.H.</th>
+            <th style={{ ...celI, background: '#e8e8e8', fontWeight: 'bold', textAlign: 'center' }}>CONCEITO</th>
+          </tr>
+        </thead>
+        <tbody>
+          {COMPONENTES_INSTRUMENTACAO.map(c => (
+            <tr key={c.nome}>
+              <td style={celI}>{c.nome}</td>
+              <td style={{ ...celI, textAlign: 'center' }}>{c.ch}</td>
+              <td style={{ ...celI, textAlign: 'center', fontWeight: 'bold' }}>
+                {notasInstrumentacao[c.nome] || '----'}
+              </td>
+            </tr>
+          ))}
+          <tr>
+            <td style={{ ...celI, fontWeight: 'bold', textAlign: 'right' }}>CARGA HORÁRIA TOTAL:</td>
+            <td style={{ ...celI, textAlign: 'center', fontWeight: 'bold' }}>{cargaTotalInstr}</td>
+            <td style={{ ...celI, textAlign: 'center', fontWeight: 'bold' }}>
+              {frequenciaInstrumentacao || '----'}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style={{ fontSize: '9pt', margin: '0 0 12px' }}>
+        <strong>FREQUÊNCIA:</strong> {frequenciaInstrumentacao || '----'} &nbsp;&nbsp;·&nbsp;&nbsp;
+        <strong>CONCEITOS:</strong> {CONCEITOS_INSTRUMENTACAO}
+      </p>
+
+      <p style={{ fontSize: '10pt', fontWeight: 'bold', margin: '0 0 6px' }}>
+        COMPETÊNCIAS ADQUIRIDAS:
+      </p>
+      <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '9pt', lineHeight: 1.45 }}>
+        {COMPETENCIAS_INSTRUMENTACAO.map((c, i) => (
+          <li key={i} style={{ marginBottom: '2px', textAlign: 'justify' }}>{c}</li>
+        ))}
+      </ul>
+
+      <div style={{ position: 'absolute', left: '1.5cm', right: '1.5cm', bottom: '2cm' }}>
+        <p style={{ fontSize: '10pt', margin: '0 0 1.4cm' }}>{dados.cidadeData}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-around', gap: '30px' }}>
+          {[
+            { nome: dados.nomeSecretario, cargo: 'Secretário' },
+            { nome: dados.nomeDirecao, cargo: 'Diretora' },
+          ].map((a, i) => (
+            <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ borderTop: '1px solid #000', paddingTop: '3px' }}>
+                <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>{a.nome}</div>
+                <div style={{ fontSize: '9pt' }}>{a.cargo}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO' ? VersoInstrumentacao : Verso;
 
   return createPortal(
     <div className="no-print fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -280,7 +400,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
 
           {imprimirVerso && (
             <div className="mx-auto" style={{ width: '210mm', height: '185mm', transform: 'scale(0.62)', transformOrigin: 'top center' }}>
-              <div className="bg-white shadow-lg">{Verso}</div>
+              <div className="bg-white shadow-lg">{VersoEscolhido}</div>
             </div>
           )}
         </div>
@@ -289,7 +409,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {imprimindo && createPortal(
         <div className="dip-portal" style={{ position: 'fixed', left: '-10000px', top: 0, width: '297mm' }}>
           {Frente}
-          {imprimirVerso && Verso}
+          {imprimirVerso && VersoEscolhido}
         </div>,
         document.body
       )}

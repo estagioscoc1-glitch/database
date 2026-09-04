@@ -4,7 +4,7 @@ import { UserRole } from '../../types';
 import { DiplomaPrintView } from './DiplomaPrintView';
 import {
   MODELOS_DIPLOMA, RESOLUCOES_DIPLOMA, resolucaoSugeridaDiploma,
-  cursoPermiteDiploma, VERSO_VAZIO, OBSERVACAO_AUXILIAR,
+  cursoPermiteDiploma, VERSO_VAZIO, OBSERVACAO_AUXILIAR, COMPONENTES_INSTRUMENTACAO,
   type TipoDiploma, type VersoDiploma,
 } from '../../lib/diplomaTextos';
 import { dataPorExtenso, cursoParaDocumento } from '../../lib/supabaseDeclaracoes';
@@ -34,6 +34,9 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
   const [verso, setVerso] = useState<VersoDiploma>({ ...VERSO_VAZIO });
   const [imprimirVerso, setImprimirVerso] = useState(true);
   const [preview, setPreview] = useState<any | null>(null);
+  // Notas do histórico do verso — só a Especialização Técnica usa.
+  const [notasInstr, setNotasInstr] = useState<Record<string, string>>({});
+  const [freqInstr, setFreqInstr] = useState('');
 
   const modelo = MODELOS_DIPLOMA.find(m => m.tipo === tipo)!;
 
@@ -243,9 +246,40 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
               </div>
             </details>
 
+            {tipo === 'CERTIFICADO_ESPECIALIZACAO' && (
+              <details className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <summary className="px-4 py-3 cursor-pointer text-xs font-black text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50">
+                  Histórico do verso — conceitos e frequência
+                </summary>
+                <div className="p-4 space-y-3">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    A Especialização Técnica traz o histórico no próprio verso, e não em folha
+                    separada. Lance o conceito de cada componente (A, B, C ou D).
+                  </p>
+                  {COMPONENTES_INSTRUMENTACAO.map(c => (
+                    <div key={c.nome} className="flex items-center gap-3">
+                      <span className="flex-1 text-[12px] text-slate-700 dark:text-slate-200">
+                        {c.nome} <span className="text-slate-400">({c.ch}h)</span>
+                      </span>
+                      <input className="w-16 px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[12px] text-center font-bold uppercase"
+                             maxLength={2} value={notasInstr[c.nome] ?? ''}
+                             onChange={e => setNotasInstr({ ...notasInstr, [c.nome]: e.target.value })} />
+                    </div>
+                  ))}
+                  <div>
+                    <label className={rotulo}>Frequência</label>
+                    <input className={campo} placeholder="99%" value={freqInstr}
+                           onChange={e => setFreqInstr(e.target.value)} />
+                  </div>
+                </div>
+              </details>
+            )}
+
             <details className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <summary className="px-4 py-3 cursor-pointer text-xs font-black text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50">
-                Verso — curso anterior, registro e observações
+                {tipo === 'CERTIFICADO_ESPECIALIZACAO'
+                  ? 'Registro no verso — número, livro e folha'
+                  : 'Verso — curso anterior, registro e observações'}
               </summary>
               <div className="p-4 space-y-3">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -276,7 +310,10 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
             </details>
 
             <button type="button" disabled={!liberado}
-                    onClick={() => setPreview({ modelo, dados: d, verso, imprimirVerso })}
+                    onClick={() => setPreview({
+                      modelo, dados: d, verso, imprimirVerso,
+                      notasInstrumentacao: notasInstr, frequenciaInstrumentacao: freqInstr,
+                    })}
                     className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-2xl text-xs">
               <Award className="h-4 w-4" /> Gerar {modelo.palavraDocumento}
             </button>
@@ -290,6 +327,8 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
           dados={preview.dados}
           verso={preview.verso}
           imprimirVerso={preview.imprimirVerso}
+          notasInstrumentacao={preview.notasInstrumentacao}
+          frequenciaInstrumentacao={preview.frequenciaInstrumentacao}
           onClose={() => setPreview(null)}
         />
       )}
