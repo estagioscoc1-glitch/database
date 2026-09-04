@@ -747,10 +747,6 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
           resolução, carga horária e competências próprias. */}
       {aba === 'historico' && <HistoricoEscolarModule currentUser={currentUser} />}
 
-      {/* Histórico Escolar — completo ou parcial. O parcial é o que a escola
-          chama de "Modelo de Transferência". Cada curso tem o seu modelo,
-          com resolução, carga horária e competências próprias. */}
-      {aba === 'historico' && <HistoricoEscolarModule currentUser={currentUser} />}
     </div>
   );
 };
