@@ -141,12 +141,15 @@ export const REGISTRO_RODAPE = [
 // e não em folha separada como nos cursos técnicos. São poucos componentes,
 // então cabe. Transcrito do arquivo oficial.
 // ---------------------------------------------------------------------------
+// Cargas horárias lidas do verso do arquivo oficial. Somam 340h, que é o
+// total impresso no documento. (A primeira versão trazia valores que eu havia
+// estimado, porque a tabela do Word veio sem a coluna preenchida.)
 export const COMPONENTES_INSTRUMENTACAO: { nome: string; ch: number }[] = [
-  { nome: 'Ética e bioética aplicada à instrumentação cirúrgica', ch: 20 },
-  { nome: 'Teoria e técnicas aplicadas à instrumentação cirúrgica', ch: 60 },
+  { nome: 'Ética e bioética aplicada à instrumentação cirúrgica', ch: 40 },
+  { nome: 'Teoria e técnicas aplicadas à instrumentação cirúrgica', ch: 100 },
   { nome: 'Noções de anestesiologia', ch: 20 },
   { nome: 'Anatomia aplicada a instrumentação cirúrgica', ch: 40 },
-  { nome: 'Microbiologia e controle de infecção hospitalar', ch: 20 },
+  { nome: 'Microbiologia e controle de infecção hospitalar', ch: 40 },
   { nome: 'Estágio Supervisionado', ch: 100 },
 ];
 
