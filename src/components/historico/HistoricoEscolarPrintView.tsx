@@ -183,10 +183,15 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                 {li === 0 && (
                   <td rowSpan={mod.linhas.length}
                       style={{ ...celC, fontWeight: 'bold', padding: '2px 0' }}>
-                    {/* Girado, como na planilha: o nome do módulo e, abaixo,
-                        o ano/semestre em que a turma cursou. */}
-                    <div style={{ ...girado, fontSize: '7pt' }}>
-                      {mod.nome}{mod.anoSemestre ? `  ${mod.anoSemestre}` : ''}
+                    {/* Girado, como na planilha. O nome do módulo e o
+                        ano/semestre são DUAS LINHAS separadas, não uma frase
+                        só: com writing-mode vertical, dois blocos empilham
+                        lado a lado e viram duas linhas paralelas depois da
+                        rotação — exatamente como na planilha, onde "MÓDULO I"
+                        e "2025/2" aparecem um ao lado do outro. */}
+                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', gap: '2px' }}>
+                      <div>{mod.nome}</div>
+                      {mod.anoSemestre && <div>{mod.anoSemestre}</div>}
                     </div>
                   </td>
                 )}
