@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, ClipboardList, AlertTriangle } from 'lucide-react';
 import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../../lib/imageAssets';
+import { cursoParaDocumento } from '../../lib/supabaseDeclaracoes';
 import {
   mediaGeral, formatarNota, nivelDaMedia,
   type ComponenteEstagio, type ConfigFicha,
@@ -124,7 +125,7 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
           </tr>
           <tr>
             <td style={{ ...celula, fontWeight: 'bold' }}>CURSO:</td>
-            <td style={celula}>{cursoNome.toUpperCase()}</td>
+            <td style={celula}>{cursoParaDocumento(cursoNome).toUpperCase()}</td>
           </tr>
         </tbody>
       </table>
