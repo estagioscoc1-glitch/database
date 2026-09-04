@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Printer, X, Award, AlertTriangle } from 'lucide-react';
 import { FUNDO_DIPLOMA_FRENTE, FUNDO_DIPLOMA_VERSO } from '../../lib/diplomaAssets';
 import type { ModeloDiploma, VersoDiploma } from '../../lib/diplomaTextos';
+import { CertificadoFrente, CertificadoVerso } from './CertificadoRetrato';
 import {
   REGISTRO_CABECALHO, REGISTRO_RODAPE, COMPONENTES_INSTRUMENTACAO,
   COMPETENCIAS_INSTRUMENTACAO, CONCEITOS_INSTRUMENTACAO,
@@ -51,9 +52,9 @@ interface Props {
   onClose: () => void;
 }
 
-const CSS_IMPRESSAO = `
+const CSS_IMPRESSAO = (ORIENTACAO: string) => `
   @media print {
-    @page { size: A4 landscape; margin: 0; }
+    @page { size: A4 ${ORIENTACAO}; margin: 0; }
     #root, .no-print { display: none !important; }
     html, body {
       background: #fff !important; margin: 0 !important; padding: 0 !important;
@@ -71,7 +72,7 @@ const CSS_IMPRESSAO = `
       break-after: page; page-break-after: always;
     }
     /* O verso é retrato: gira a folha para caber na mesma impressão. */
-    .dip-folha-verso { width: 210mm; height: 297mm; }
+    .dip-folha-verso, .dip-folha-retrato { width: 210mm; height: 297mm; }
     .dip-folha:last-child { break-after: auto; page-break-after: auto; }
   }
 `;
@@ -93,11 +94,17 @@ export const DiplomaPrintView: React.FC<Props> = ({
 }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
+  // PRECISA FICAR AQUI, antes do useEffect de impressão, que a usa para
+  // escolher a orientação da folha. Declarada mais abaixo, o JavaScript
+  // recusa lê-la e derruba a tela — foi o mesmo erro que quebrou o Histórico.
+  const ehCertificadoRetrato = modelo.tipo !== 'DIPLOMA';
+
+
   useEffect(() => {
     if (!imprimindo) return;
     const style = document.createElement('style');
     style.setAttribute('data-dip-print', 'true');
-    style.innerHTML = CSS_IMPRESSAO;
+    style.innerHTML = CSS_IMPRESSAO(ehCertificadoRetrato ? 'portrait' : 'landscape');
     document.head.appendChild(style);
     const encerrar = () => setImprimindo(false);
     window.addEventListener('afterprint', encerrar);
@@ -353,7 +360,21 @@ export const DiplomaPrintView: React.FC<Props> = ({
     </div>
   );
 
-  const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO' ? VersoInstrumentacao : Verso;
+  /* QUAL ARTE CADA DOCUMENTO USA.
+     O Diploma dos cursos técnicos é paisagem, sobre a digitalização do papel
+     de segurança. Os dois certificados — Auxiliar e Especialização — são
+     retrato, com a moldura desenhada. São documentos diferentes, e não
+     variações do mesmo, então cada um tem a sua arte. */
+
+  const FrenteEscolhida = ehCertificadoRetrato
+    ? <CertificadoFrente dados={dados} preencher={(t: string) => preencher(t, dados)} />
+    : Frente;
+
+  const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO'
+    ? VersoInstrumentacao
+    : ehCertificadoRetrato
+      ? <CertificadoVerso verso={verso} />
+      : Verso;
 
   return createPortal(
     <div className="no-print fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -394,8 +415,12 @@ export const DiplomaPrintView: React.FC<Props> = ({
             impresso. Antes o texto era medido em "em", que não acompanha a
             redução da folha: na tela saía gigante e no PDF saía certo. */}
         <div className="flex-1 overflow-auto p-6 bg-slate-200 space-y-6">
-          <div className="mx-auto" style={{ width: '297mm', height: '130mm', transform: 'scale(0.62)', transformOrigin: 'top center' }}>
-            <div className="bg-white shadow-lg">{Frente}</div>
+          <div className="mx-auto" style={{
+            width: ehCertificadoRetrato ? '210mm' : '297mm',
+            height: ehCertificadoRetrato ? '185mm' : '130mm',
+            transform: 'scale(0.62)', transformOrigin: 'top center',
+          }}>
+            <div className="bg-white shadow-lg">{FrenteEscolhida}</div>
           </div>
 
           {imprimirVerso && (
@@ -407,8 +432,8 @@ export const DiplomaPrintView: React.FC<Props> = ({
       </div>
 
       {imprimindo && createPortal(
-        <div className="dip-portal" style={{ position: 'fixed', left: '-10000px', top: 0, width: '297mm' }}>
-          {Frente}
+        <div className="dip-portal" style={{ position: 'fixed', left: '-10000px', top: 0, width: ehCertificadoRetrato ? '210mm' : '297mm' }}>
+          {FrenteEscolhida}
           {imprimirVerso && VersoEscolhido}
         </div>,
         document.body
