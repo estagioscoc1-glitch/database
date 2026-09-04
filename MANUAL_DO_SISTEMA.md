@@ -235,6 +235,47 @@ assinatura do secretário. **Cinco modelos, todos editáveis:**
 > o texto aqui muda também o que sai quando o aluno emite pelo painel dele. Não
 > existem mais dois textos diferentes do mesmo documento.
 
+### Histórico Escolar (aba dentro de Requerimentos)
+
+Gera o histórico escolar do aluno, **completo** ou **parcial**. O parcial é o
+que a escola chama de "Modelo de Transferência": disciplinas não cursadas saem
+como "À Cursar" e o estágio como "à cursar".
+
+**Quatro modelos, um por curso:** Enfermagem, Enfermagem EAD, Radiologia e
+Segurança do Trabalho. Não é só o nome que muda:
+
+| | Enfermagem | Enf. EAD | Radiologia | Seg. Trabalho |
+|---|---|---|---|---|
+| Resolução padrão | CEE/GO 018/2022 | CEE/CEP 059/2023 | CEE/GO 041/2022 | CEE/GO 221/2019 |
+| Carga total | 1800h | 1800h | 1744h | 1440h |
+| Estágio | 600h | 600h | 400h | 240h |
+
+As grades e as competências foram **extraídas das planilhas oficiais**, não
+digitadas à mão, para não entrar erro de digitação em documento oficial.
+
+> **Trava por curso**, igual à da Declaração de Auxiliar. Se o curso do aluno
+> não bater com nenhum modelo, a tela não deixa gerar e explica o motivo.
+> "Técnico em Enfermagem EAD" cai no modelo EAD, e não no presencial, porque
+> o casamento é pelo termo mais específico.
+
+**Resolução escolhível.** O cabeçalho vem com a resolução padrão do curso, mas
+dá para escolher outra da lista ou digitar uma que não esteja lá. Isso é
+necessário porque o histórico de aluno antigo precisa trazer a resolução que
+estava em vigor quando ele cursou, e não a de hoje.
+
+**Conceito em letra.** A coluna CONCEITO imprime A, B, C ou D, conforme a
+legenda oficial do rodapé: A (86 a 100), B (76 a 85), C (60 a 75), D (00 a 59).
+A nota do portal, de 0 a 10, é convertida. Disciplina sem nota sai com traço, e
+não com D — não lançada é diferente de reprovado.
+
+Antes de gerar, a tela avisa quantas disciplinas estão sem nota. Sai em duas
+folhas: notas na primeira, competências na segunda.
+
+> **Duas correções feitas na extração**, com aprovação da escola: em Enfermagem,
+> "Enfermagem em Pediatria" aparecia duas vezes no módulo II e ficou uma só; em
+> Radiologia, havia uma linha com 80h e sem nome de disciplina, que foi
+> descartada.
+
 ### Ficha Geral de Estágio (aba dentro de Requerimentos)
 
 Monta o **Resumo das Avaliações dos Estágios Curriculares** — o documento que
