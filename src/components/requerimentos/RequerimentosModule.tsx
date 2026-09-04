@@ -10,12 +10,13 @@ import {
 import {
   FileText, Plus, Search, Inbox, Settings2, AlertTriangle, Trash2,
   CheckCircle2, Clock, CalendarClock, RefreshCw, X, Save, DollarSign,
-  FileSignature, Stamp, ClipboardList, ScrollText,
+  FileSignature, Stamp, ClipboardList, ScrollText, Award,
 } from 'lucide-react';
 import { ContratosModule } from '../contratos/ContratosModule';
 import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
 import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
 import { HistoricoEscolarModule } from '../historico/HistoricoEscolarModule';
+import { DiplomasModule } from '../diplomas/DiplomasModule';
 
 // ===========================================================================
 //  MENU REQUERIMENTOS
@@ -51,7 +52,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'historico'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -279,6 +280,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
             { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
             { id: 'historico', rotulo: 'Histórico Escolar', icone: ScrollText },
+            { id: 'diplomas', rotulo: 'Diplomas', icone: Award },
           ] as const).map(t => {
             const Icone = t.icone;
             const ativa = aba === t.id;
@@ -746,6 +748,10 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
           chama de "Modelo de Transferência". Trava por curso: cada curso tem
           resolução, carga horária e competências próprias. */}
       {aba === 'historico' && <HistoricoEscolarModule currentUser={currentUser} />}
+
+      {/* Diplomas e certificados — desenhados por cima da digitalização do
+          papel oficial. Tudo preenchido do cadastro e tudo editável. */}
+      {aba === 'diplomas' && <DiplomasModule currentUser={currentUser} />}
 
     </div>
   );
