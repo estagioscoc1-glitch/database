@@ -249,6 +249,18 @@ Segurança do Trabalho. Não é só o nome que muda:
 | Resolução padrão | CEE/GO 018/2022 | CEE/CEP 059/2023 | CEE/GO 041/2022 | CEE/GO 221/2019 |
 | Carga total | 1800h | 1800h | 1744h | 1440h |
 | Estágio | 600h | 600h | 400h | 240h |
+| Grade | própria | própria | própria | própria |
+
+> **O EAD tem grade própria**, com Módulo Básico, Intermediário e Avançado — é
+> a mesma que está cadastrada em Grades Curriculares, não uma cópia da grade
+> presencial.
+
+> **A modalidade nunca sai impressa.** Histórico, declaração, diploma e ficha
+> de estágio trazem apenas "Técnico em Enfermagem", sem "EAD" nem
+> "Semipresencial". O que o aluno conclui é o Técnico em Enfermagem, com o
+> mesmo registro, tenha cursado presencial ou a distância. O "EAD" aparece só
+> na tela, para o atendente conferir qual modelo foi escolhido, e no contrato,
+> onde a modalidade contratada é informação relevante.
 
 As grades e as competências foram **extraídas das planilhas oficiais**, não
 digitadas à mão, para não entrar erro de digitação em documento oficial.
