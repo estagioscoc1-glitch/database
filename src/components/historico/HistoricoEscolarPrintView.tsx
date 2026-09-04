@@ -169,13 +169,11 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             <th rowSpan={2} style={{ ...celCab, width: '3%', padding: '2px 0' }}>
               <div style={{ ...girado, fontSize: '6pt' }}>DEPENDÊNCIA</div>
             </th>
-            <th colSpan={4} style={celCab}>APROVEITAMENTO DE ESTUDOS</th>
+            <th colSpan={2} style={celCab}>APROVEITAMENTO DE ESTUDOS</th>
           </tr>
           <tr>
-            <th style={{ ...celCab, width: '8%' }}>M.F.C.</th>
-            <th style={{ ...celCab, width: '8%' }}>Ano/S.</th>
-            <th style={{ ...celCab, width: '8%' }}>NOTAS</th>
-            <th style={{ ...celCab, width: '8%' }}>FALTAS</th>
+            <th style={{ ...celCab, width: '11%' }}>M.F.C.</th>
+            <th style={{ ...celCab, width: '11%' }}>Ano/S.</th>
           </tr>
         </thead>
         <tbody>
@@ -199,8 +197,6 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                 {li === 0 && <td rowSpan={mod.linhas.length} style={{ ...celC, background: VERDE }} />}
                 <td style={celDep}>{l.apMfc}</td>
                 <td style={celDep}>{l.apAnoSemestre}</td>
-                <td style={celDep}>{l.apNotas}</td>
-                <td style={celDep}>{l.apFaltas}</td>
               </tr>
             ))
           )}
@@ -214,25 +210,26 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             <td style={{ ...celC, fontWeight: 'bold' }}>{parcial ? '----' : 'APTO (A)'}</td>
             <td style={celC}>----</td>
             <td style={celC}>{modelo.cargaEstagio}</td>
-            <td colSpan={5} style={celC}>--------------------</td>
+            <td colSpan={3} style={celC}>--------------------</td>
           </tr>
 
           {/* Totais */}
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>CARGA HORÁRIA TOTAL:</td>
             <td colSpan={2} style={{ ...celC, fontWeight: 'bold' }}>{modelo.cargaTotal}</td>
-            <td colSpan={3} style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>FREQUÊNCIA OBTIDA:</td>
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>FREQUÊNCIA OBTIDA:</td>
             <td style={celC}>{dados.frequenciaObtida ?? '----'}</td>
-            <td style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>% FREQ.:</td>
-            <td style={celC}>{percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}</td>
+            <td colSpan={2} style={{ ...celC, fontSize: '6.5pt' }}>
+              <strong>% FREQ.:</strong> {percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}
+            </td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>RESULTADO FINAL:</td>
-            <td colSpan={8} style={{ ...cel, fontWeight: 'bold' }}>{dados.resultadoFinal}</td>
+            <td colSpan={6} style={{ ...cel, fontWeight: 'bold' }}>{dados.resultadoFinal}</td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>OBSERVAÇÕES:</td>
-            <td colSpan={8} style={cel}>{modelo.observacoes || '\u00a0'}</td>
+            <td colSpan={6} style={cel}>{modelo.observacoes || '\u00a0'}</td>
           </tr>
         </tbody>
       </table>

@@ -39,7 +39,7 @@ interface Props {
 }
 
 export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
-  const { users, classes, courses, subjects, grades } = useApp();
+  const { users, classes, courses, subjects, grades, dependencies } = useApp();
 
   const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState<any | null>(null);
@@ -55,6 +55,11 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
   // ("MÓDULO I  2025/1"). Não dá para deduzir do cadastro, porque o aluno
   // pode ter cursado os módulos em semestres diferentes.
   const [anoSemestrePorModulo, setAnoSemestrePorModulo] = useState<Record<string, string>>({});
+  // Ano/semestre em que a dependência foi cursada, por disciplina. Não existe
+  // no cadastro de dependência, então a secretaria informa.
+  const [depAnoSemestre, setDepAnoSemestre] = useState<Record<string, string>>({});
+  // Disciplinas dispensadas por aproveitamento de estudos, marcadas à mão.
+  const [dispensas, setDispensas] = useState<Record<string, boolean>>({});
   const [preview, setPreview] = useState<any | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -98,28 +103,78 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     return mapa;
   }, [aluno, grades, subjects]);
 
+  /**
+   * DEPENDÊNCIAS DO ALUNO, indexadas pelo nome da disciplina.
+   * Quando o aluno cursou a disciplina em dependência, a coluna CONCEITO sai
+   * como "DEP" e o conceito de verdade vai para o bloco de aproveitamento,
+   * junto do ano/semestre em que ele fez a dependência. É como a escola
+   * preenche: o "D" da primeira tentativa não fica no histórico.
+   */
+  const dependenciasPorNome = useMemo(() => {
+    const mapa: Record<string, { conceito: string; anoSemestre: string }> = {};
+    if (!aluno) return mapa;
+    for (const d of (dependencies ?? [])) {
+      if ((d as any).studentId !== aluno.id) continue;
+      if ((d as any).status === 'CANCELADO') continue;
+      const disc = subjects.find(x => x.id === (d as any).subjectId);
+      const nome = (disc?.name || '').trim().toUpperCase();
+      if (!nome) continue;
+      const nota = notasPorNome[nome]?.nota ?? null;
+      mapa[nome] = {
+        conceito: conceitoDaNota(nota),
+        anoSemestre: depAnoSemestre[nome] ?? '',
+      };
+    }
+    return mapa;
+  }, [aluno, dependencies, subjects, notasPorNome, depAnoSemestre]);
+
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
     return modelo.modulos.map(mod => ({
       nome: mod.nome,
       anoSemestre: anoSemestrePorModulo[mod.nome] || '',
       linhas: mod.disciplinas.map((d): LinhaHistorico => {
-        const achado = notasPorNome[d.nome.trim().toUpperCase()];
+        const chave = d.nome.trim().toUpperCase();
+        const achado = notasPorNome[chave];
         const temNota = achado && achado.nota !== null;
+        const dep = dependenciasPorNome[chave];
+        const dispensado = dispensas[chave];
+
+        // Ordem de prioridade na coluna CONCEITO:
+        //   1) dispensado por aproveitamento de estudos -> "Ap. Est."
+        //   2) cursou em dependência -> "DEP", e o conceito real vai pro
+        //      bloco de aproveitamento, com o ano/semestre da dependência
+        //   3) nota lançada -> letra
+        //   4) sem nota -> "À Cursar" no parcial, traço no completo
+        let conceito: string;
+        let apMfc = '----';
+        let apAno = '----';
+
+        if (dispensado) {
+          conceito = 'Ap. Est.';
+          apMfc = temNota ? conceitoDaNota(achado!.nota) : '----';
+          apAno = depAnoSemestre[chave] || '----';
+        } else if (dep) {
+          conceito = 'DEP';
+          apMfc = dep.conceito;
+          apAno = dep.anoSemestre || '----';
+        } else if (temNota) {
+          conceito = conceitoDaNota(achado!.nota);
+        } else {
+          conceito = tipo === 'PARCIAL' ? 'À Cursar' : '----';
+        }
+
         return {
           nome: d.nome,
           ch: d.ch,
-          // No parcial, disciplina sem nota é "À Cursar". No completo, traço.
-          conceito: temNota ? conceitoDaNota(achado!.nota) : (tipo === 'PARCIAL' ? 'À Cursar' : '----'),
+          conceito,
           faltas: achado && achado.faltas !== null ? String(achado.faltas) : '----',
-          apMfc: '----',
-          apAnoSemestre: '----',
-          apNotas: '----',
-          apFaltas: '----',
+          apMfc,
+          apAnoSemestre: apAno,
         };
       }),
     }));
-  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo]);
+  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre]);
 
   const totalDisciplinas = linhasPorModulo.reduce((s, m) => s + m.linhas.length, 0);
   const comNota = linhasPorModulo.reduce(
@@ -322,6 +377,67 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                 Deixe em branco para imprimir só o nome do módulo.
               </p>
             </div>
+
+            {/* Situações especiais por disciplina */}
+            <details className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <summary className="px-4 py-3 cursor-pointer text-xs font-black text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50">
+                Dependências e dispensas — clique para ajustar
+                {Object.keys(dependenciasPorNome).length > 0 &&
+                  ` (${Object.keys(dependenciasPorNome).length} dependência${Object.keys(dependenciasPorNome).length > 1 ? 's' : ''} encontrada${Object.keys(dependenciasPorNome).length > 1 ? 's' : ''})`}
+              </summary>
+              <div className="p-4 space-y-3">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Disciplina cursada em <strong>dependência</strong> sai como <strong>DEP</strong> na coluna
+                  CONCEITO, e o conceito obtido vai para M.F.C., com o ano e semestre ao lado.
+                  Disciplina <strong>dispensada</strong> por aproveitamento de estudos sai como
+                  <strong> Ap. Est.</strong> As dependências são achadas sozinhas no cadastro — só o
+                  ano/semestre precisa ser informado.
+                </p>
+                <div className="max-h-72 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-[11px]">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-black text-slate-500 uppercase">Disciplina</th>
+                        <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Situação</th>
+                        <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Ano/Sem.</th>
+                        <th className="px-3 py-2 text-center font-black text-slate-500 uppercase">Dispensa</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modelo.modulos.flatMap(mod => mod.disciplinas).map(d => {
+                        const chave = d.nome.trim().toUpperCase();
+                        const dep = dependenciasPorNome[chave];
+                        return (
+                          <tr key={d.nome} className="border-t border-slate-100 dark:border-slate-800">
+                            <td className="px-3 py-1.5 text-slate-700 dark:text-slate-200">{d.nome}</td>
+                            <td className="px-3 py-1.5 text-center">
+                              {dispensas[chave]
+                                ? <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 font-black">Ap. Est.</span>
+                                : dep
+                                  ? <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-black">DEP</span>
+                                  : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <input
+                                className="w-24 px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px] text-center"
+                                placeholder="2026/1"
+                                disabled={!dep && !dispensas[chave]}
+                                value={depAnoSemestre[chave] ?? ''}
+                                onChange={e => setDepAnoSemestre({ ...depAnoSemestre, [chave]: e.target.value })}
+                              />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input type="checkbox" checked={!!dispensas[chave]}
+                                     onChange={e => setDispensas({ ...dispensas, [chave]: e.target.checked })} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
 
             {comNota < totalDisciplinas && (
               <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
