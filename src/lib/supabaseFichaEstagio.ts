@@ -260,14 +260,35 @@ export function ordenarComoPlanilha(
   nomeCurso?: string
 ): ComponenteEstagio[] {
   const curso = normalizar(nomeCurso);
-  const regra = ORDEM_POR_CURSO.find(r => r.termos.some(t => curso.includes(normalizar(t))));
+  let regra = ORDEM_POR_CURSO.find(r => r.termos.some(t => curso.includes(normalizar(t))));
+
+  // SEM DEPENDER DO NOME DO CURSO.
+  // Se o aluno estiver sem turma, ou a turma sem curso, nomeCurso vem vazio e
+  // antes a ficha caía de volta na ordem alfabética do banco — sem aviso
+  // nenhum. Agora, quando o curso não identifica a regra, descobrimos pela
+  // própria lista: vale a ordem que reconhecer mais componentes do aluno.
+  if (!regra) {
+    let melhorAcertos = 0;
+    for (const r of ORDEM_POR_CURSO) {
+      const acertos = componentes.filter(c => {
+        const n = normalizar(c.componente);
+        return r.ordem.some(item => item.chaves.some(k => n.includes(normalizar(k))));
+      }).length;
+      if (acertos > melhorAcertos) {
+        melhorAcertos = acertos;
+        regra = r;
+      }
+    }
+  }
+
   if (!regra) return componentes;
+  const regraFinal = regra;
 
   const posicao = (nome: string): number => {
     const n = normalizar(nome);
     let melhor = -1;
     let tamanho = 0;
-    regra.ordem.forEach((item, i) => {
+    regraFinal.ordem.forEach((item, i) => {
       for (const chave of item.chaves) {
         const c = normalizar(chave);
         if (n.includes(c) && c.length > tamanho) {
