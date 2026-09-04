@@ -148,6 +148,57 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     return mapa;
   }, [aluno, dependencies, subjects, grades, depAnoSemestre, depConceito]);
 
+  /**
+   * SUGESTÃO DO ANO/SEMESTRE POR MÓDULO.
+   *
+   * A turma do aluno guarda o ano, o semestre e em que módulo ela está. Com
+   * isso dá para andar para trás no calendário: se o aluno está no módulo III
+   * em 2026/1, ele cursou o II em 2025/2 e o I em 2025/1. Cada módulo é um
+   * semestre.
+   *
+   * É SÓ SUGESTÃO, e por isso os campos continuam editáveis. Aluno que trancou,
+   * reprovou ou entrou por transferência não segue essa sequência, e nesse caso
+   * a secretaria corrige. Deixar em branco também é opção: o documento imprime
+   * só o nome do módulo.
+   */
+  const sugerirAnoSemestre = (a: any) => {
+    const { turma } = contexto(a);
+    const modeloDele = modeloDoCurso(courses.find(
+      c => c.id === (turma as any)?.courseId || c.id === (a as any)?.courseId
+    )?.name);
+    if (!turma || !modeloDele || !turma.year || !turma.semester) {
+      setAnoSemestrePorModulo({});
+      return;
+    }
+
+    // Posição do módulo atual dentro da grade (0 = primeiro).
+    const posAtual = Math.max(0, (turma.module || 1) - 1);
+    let ano = turma.year;
+    let sem = turma.semester;
+
+    // Anda para trás até o primeiro módulo, guardando o semestre de cada um.
+    const semestres: string[] = [];
+    for (let i = posAtual; i >= 0; i--) {
+      semestres[i] = `${ano}/${sem}`;
+      sem -= 1;
+      if (sem < 1) { sem = 2; ano -= 1; }
+    }
+
+    // E para a frente, para os módulos que ele ainda vai cursar.
+    ano = turma.year; sem = turma.semester;
+    for (let i = posAtual; i < modeloDele.modulos.length; i++) {
+      semestres[i] = semestres[i] ?? `${ano}/${sem}`;
+      sem += 1;
+      if (sem > 2) { sem = 1; ano += 1; }
+    }
+
+    const mapa: Record<string, string> = {};
+    modeloDele.modulos.forEach((mod, i) => {
+      if (semestres[i]) mapa[mod.nome] = semestres[i];
+    });
+    setAnoSemestrePorModulo(mapa);
+  };
+
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
     return modelo.modulos.map(mod => ({
@@ -271,7 +322,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                   const { curso } = contexto(a);
                   return (
                     <button key={a.id} type="button"
-                            onClick={() => { setAluno(a); setBusca(''); setResolucao(''); }}
+                            onClick={() => { setAluno(a); setBusca(''); setResolucao(''); sugerirAnoSemestre(a); }}
                             className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0">
                       <p className="font-bold text-sm text-slate-800 dark:text-white">{a.name}</p>
                       <p className="text-[11px] text-slate-500">
@@ -396,6 +447,8 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
               </div>
               <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
                 Sai girado na coluna "Mod." do documento, junto do nome do módulo, como na planilha.
+                Vem sugerido a partir da turma do aluno, contando um semestre por módulo — confira,
+                porque quem trancou, reprovou ou entrou por transferência não segue essa sequência.
                 Deixe em branco para imprimir só o nome do módulo.
               </p>
             </div>
