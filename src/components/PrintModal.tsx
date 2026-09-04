@@ -10,7 +10,7 @@ import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { LOGO_COLEGIO_OSWALDO_CRUZ, LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
-import { carregarModelo, preencherDeclaracao } from '../lib/supabaseDeclaracoes';
+import { carregarModelo, preencherDeclaracao, cursoParaDocumento } from '../lib/supabaseDeclaracoes';
 import type { ModeloDeclaracao, TipoDeclaracao } from '../lib/declaracaoTextos';
 
 interface PrintModalProps {
@@ -269,7 +269,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     alunoId: targetStudent?.id,
     alunoNome: targetStudent?.name || '',
     matricula: targetStudent?.username || (targetStudent as any)?.enrollment || '',
-    cursoNome: formatCourseName(nomeCursoParaDeclaracao(targetCourse)),
+    // Sem a modalidade: declaração não traz EAD. Ver cursoParaDocumento.
+    cursoNome: cursoParaDocumento(formatCourseName(nomeCursoParaDeclaracao(targetCourse))),
     modulo: targetClass?.module ? String(targetClass.module) : '',
     turno: capitalizeWord((targetClass as any)?.shift || 'Noturno'),
     nomeMae: (targetStudent as any)?.motherName || '',
