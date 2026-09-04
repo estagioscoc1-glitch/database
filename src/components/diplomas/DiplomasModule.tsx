@@ -37,6 +37,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
   // Notas do histórico do verso — só a Especialização Técnica usa.
   const [notasInstr, setNotasInstr] = useState<Record<string, string>>({});
   const [freqInstr, setFreqInstr] = useState('');
+  const [faltasInstr, setFaltasInstr] = useState<Record<string, string>>({});
 
   const modelo = MODELOS_DIPLOMA.find(m => m.tipo === tipo)!;
 
@@ -262,8 +263,11 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
                         {c.nome} <span className="text-slate-400">({c.ch}h)</span>
                       </span>
                       <input className="w-16 px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[12px] text-center font-bold uppercase"
-                             maxLength={2} value={notasInstr[c.nome] ?? ''}
+                             placeholder="A" maxLength={2} value={notasInstr[c.nome] ?? ''}
                              onChange={e => setNotasInstr({ ...notasInstr, [c.nome]: e.target.value })} />
+                      <input className="w-16 px-2 py-1 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[12px] text-center"
+                             placeholder="faltas" maxLength={3} value={faltasInstr[c.nome] ?? ''}
+                             onChange={e => setFaltasInstr({ ...faltasInstr, [c.nome]: e.target.value })} />
                     </div>
                   ))}
                   <div>
@@ -313,6 +317,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
                     onClick={() => setPreview({
                       modelo, dados: d, verso, imprimirVerso,
                       notasInstrumentacao: notasInstr, frequenciaInstrumentacao: freqInstr,
+                      faltasInstrumentacao: faltasInstr,
                     })}
                     className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-2xl text-xs">
               <Award className="h-4 w-4" /> Gerar {modelo.palavraDocumento}
@@ -329,6 +334,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
           imprimirVerso={preview.imprimirVerso}
           notasInstrumentacao={preview.notasInstrumentacao}
           frequenciaInstrumentacao={preview.frequenciaInstrumentacao}
+          faltasInstrumentacao={preview.faltasInstrumentacao}
           onClose={() => setPreview(null)}
         />
       )}
