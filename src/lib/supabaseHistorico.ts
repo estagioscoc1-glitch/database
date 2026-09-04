@@ -22,11 +22,15 @@ export interface LinhaHistorico {
   ch: number;
   conceito: string;
   faltas: string;
-  /** Aproveitamento de estudos e/ou dependência */
+  /**
+   * Bloco "Aproveitamento de Estudos e/ou Dependência".
+   * Quando o aluno fez a disciplina em dependência, a coluna CONCEITO recebe
+   * "DEP" e é AQUI que entra o conceito obtido na dependência, com o ano e
+   * semestre em que ela foi cursada. Quando foi dispensado por aproveitamento
+   * de estudos, a coluna CONCEITO recebe "Ap. Est.".
+   */
   apMfc: string;
   apAnoSemestre: string;
-  apNotas: string;
-  apFaltas: string;
 }
 
 export interface DadosHistorico {
