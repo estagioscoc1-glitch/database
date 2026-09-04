@@ -23,7 +23,15 @@ export interface ModuloHistorico { nome: string; disciplinas: DisciplinaHistoric
 
 export interface ModeloHistorico {
   chave: string;
+  /**
+   * Nome do curso COMO SAI IMPRESSO. Nunca inclui a modalidade: o que o
+   * aluno conclui é o Técnico em Enfermagem, com o mesmo registro, tenha
+   * cursado presencial ou EAD. Histórico, declaração e diploma não podem
+   * trazer "EAD".
+   */
   cursoNome: string;
+  /** Só para a tela, para o atendente saber qual modelo foi escolhido. */
+  nomeInterno?: string;
   titulo: string;
   resolucao: string;
   /** Termos que o nome do curso do aluno precisa conter para liberar este modelo. */
@@ -39,48 +47,45 @@ export interface ModeloHistorico {
 export const MODELOS_HISTORICO: ModeloHistorico[] = [
   {
     chave: 'ENFERMAGEM_EAD',
-    cursoNome: 'Técnico em Enfermagem EAD',
-    titulo: 'HISTÓRICO ESCOLAR DO CURSO TÉCNICO EM ENFERMAGEM EAD',
+    cursoNome: 'Técnico em Enfermagem',
+    // Identificação interna. Nunca é impressa — ver nomeInterno abaixo.
+    nomeInterno: 'Técnico em Enfermagem (EAD)',
+    titulo: 'HISTÓRICO ESCOLAR DO CURSO TÉCNICO EM ENFERMAGEM',
     resolucao: 'Resolução CEE/CEP nº 059/2023',
     termosCurso: ['ENFERMAGEM EAD', 'ENFERMAGEM À DISTÂNCIA', 'ENFERMAGEM A DISTANCIA'],
     cargaEstagio: 600,
     cargaTotal: 1800,
     observacoes: 'Atividades extra-curriculares: 100 horas',
     modulos: [
-      { nome: 'MÓDULO I', disciplinas: [
+      { nome: 'MÓDULO BÁSICO', disciplinas: [
         { nome: 'Anatomia e Fisiologia Humana', ch: 80 },
-        { nome: 'Biossegurança nas Ações de Saúde', ch: 40 },
-        { nome: 'Introdução à Enfermagem', ch: 120 },
         { nome: 'Microbiologia e Parasitologia', ch: 40 },
-        { nome: 'Noções de Farmacologia', ch: 40 },
-        { nome: 'Nutrição', ch: 40 },
-        { nome: 'Primeiros Socorros', ch: 40 },
-      ] },
-      { nome: 'MÓDULO II', disciplinas: [
-        { nome: 'Enfermagem em Centro Cirúrgico', ch: 40 },
-        { nome: 'Enfermagem em Cent. De Mat. E Esterilização', ch: 20 },
-        { nome: 'Enfermagem em Clínica Cirúrgica', ch: 40 },
-        { nome: 'Enfermagem em Clínica Médica', ch: 40 },
-        { nome: 'Enfermagem em Obstetrícia', ch: 40 },
-        { nome: 'Enfermagem em Pediatria', ch: 40 },
-        { nome: 'Enfermagem em Saúde Mental', ch: 40 },
-        { nome: 'Ética e Legislação Profissional', ch: 20 },
-        { nome: 'Psicologia do Trabalho em Saúde', ch: 40 },
+        { nome: 'Biossegurança nas Ações de Saúde', ch: 40 },
         { nome: 'Saúde Coletiva I', ch: 40 },
-        { nome: 'Saúde Coletiva', ch: 80 },
+        { nome: 'Nutrição', ch: 40 },
+        { nome: 'Fundamentos de Enfermagem', ch: 160 },
       ] },
-      { nome: 'MÓDULO III', disciplinas: [
+      { nome: 'MÓDULO INTERMEDIÁRIO', disciplinas: [
+        { nome: 'Centro de Material e Esterilização', ch: 20 },
+        { nome: 'Ética e Legislação', ch: 20 },
+        { nome: 'Psicologia do Trabalho em Saúde', ch: 20 },
+        { nome: 'Gestão e Descarte de Resíduos em Saúde', ch: 20 },
+        { nome: 'Assistência de Enfermagem em Clínica Médica', ch: 80 },
+        { nome: 'Assistência de Enfermagem em Clínica Cirúrgica', ch: 80 },
+        { nome: 'Saúde Coletiva II', ch: 40 },
+        { nome: 'Assistência de Enfermagem à Criança e à Mulher', ch: 80 },
+      ] },
+      { nome: 'MÓDULO AVANÇADO', disciplinas: [
+        { nome: 'Assistência de Enfermagem em Urgências e Emergências', ch: 80 },
+        { nome: 'Assistência de Enfermagem em Saúde Mental', ch: 40 },
+        { nome: 'Assistência de Enfermagem a Pacientes em Estado Grave', ch: 40 },
         { nome: 'Cardiologia', ch: 40 },
         { nome: 'Dietoterapia', ch: 40 },
-        { nome: 'Enfermagem em Unidade de Terapia Intensiva', ch: 40 },
-        { nome: 'Enfermagem em Urgência e Emergência', ch: 40 },
-        { nome: 'Introdução ao Trabalho Científico', ch: 40 },
-        { nome: 'Fundamentos de Informática', ch: 20 },
-        { nome: 'Gastroenterologia', ch: 20 },
+        { nome: 'Gastroenterologia', ch: 40 },
         { nome: 'Geriatria', ch: 40 },
         { nome: 'Nefrologia', ch: 40 },
         { nome: 'Neurologia', ch: 40 },
-        { nome: 'Queimaduras Graves', ch: 40 },
+        { nome: 'Projeto Integrador Multidisciplinar', ch: 40 },
       ] },
     ],
     competenciasGerais: [

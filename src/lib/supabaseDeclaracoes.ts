@@ -62,13 +62,32 @@ function montarFiliacao(pai?: string, mae?: string): string {
   return p || m || '____________________________';
 }
 
+/**
+ * NOME DO CURSO COMO SAI IMPRESSO.
+ *
+ * Histórico, declaração e diploma nunca trazem a modalidade. O que o aluno
+ * conclui é o Técnico em Enfermagem, com o mesmo registro, tenha cursado
+ * presencial ou a distância. Então "Técnico em Enfermagem EAD" e
+ * "Técnico em Enfermagem — EAD Semipresencial" viram só
+ * "Técnico em Enfermagem" no documento.
+ */
+export function cursoParaDocumento(nome?: string): string {
+  return (nome || '')
+    .replace(/\s*[—\-–]\s*EAD\s*Semipresencial/gi, '')
+    .replace(/\s*[—\-–]?\s*\bEAD\b\s*/gi, ' ')
+    .replace(/\s*[—\-–]?\s*Semipresencial\s*/gi, ' ')
+    .replace(/\s*[—\-–]\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 /** Troca os {{CAMPOS}} pelos valores reais. */
 export function preencherDeclaracao(texto: string, d: DadosDeclaracao): string {
   const naturalidade = [d.cidadeNascimento, d.ufNascimento].filter(Boolean).join(' - ');
   const mapa: Record<string, string> = {
     ALUNO: (d.alunoNome || '').toUpperCase(),
     MATRICULA: d.matricula || '____________',
-    CURSO: (d.cursoNome || '____________________').toUpperCase(),
+    CURSO: (cursoParaDocumento(d.cursoNome) || '____________________').toUpperCase(),
     MODULO: d.modulo || '',
     TURNO: (d.turno || '').toUpperCase(),
     FILIACAO: montarFiliacao(d.nomePai, d.nomeMae),
