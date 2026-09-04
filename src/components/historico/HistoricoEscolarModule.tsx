@@ -167,7 +167,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
               </p>
               {modelo && (
                 <span className="inline-block mt-2 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
-                  Modelo: {modelo.cursoNome} · {comNota} de {totalDisciplinas} disciplinas com nota
+                  Modelo: {modelo.nomeInterno || modelo.cursoNome} · {comNota} de {totalDisciplinas} disciplinas com nota
                 </span>
               )}
             </div>

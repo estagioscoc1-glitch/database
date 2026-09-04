@@ -270,7 +270,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
               {parcial ? 'Histórico Parcial' : 'Histórico Escolar'} — {dados.alunoNome}
             </span>
             <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase flex-shrink-0">
-              {modelo.cursoNome}
+              {modelo.nomeInterno || modelo.cursoNome}
             </span>
           </div>
           <div className="flex items-center gap-2">
