@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, FileText, AlertTriangle } from 'lucide-react';
 import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO } from '../../lib/imageAssets';
+import { FONTE_DOCUMENTOS } from '../../lib/documentoEstilo';
 import { preencherDeclaracao, dataPorExtenso } from '../../lib/supabaseDeclaracoes';
 import type { DadosDeclaracao } from '../../lib/supabaseDeclaracoes';
 import type { ModeloDeclaracao } from '../../lib/declaracaoTextos';
@@ -84,7 +85,7 @@ export const DeclaracaoPrintView: React.FC<Props> = ({ modelo, dados, onClose })
     <div
       className="decl-folha"
       style={{
-        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontFamily: FONTE_DOCUMENTOS,
         color: '#000',
         display: 'flex',
         flexDirection: 'column',
