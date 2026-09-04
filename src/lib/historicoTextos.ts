@@ -32,6 +32,11 @@ export interface ModeloHistorico {
   cursoNome: string;
   /** Só para a tela, para o atendente saber qual modelo foi escolhido. */
   nomeInterno?: string;
+  /**
+   * Radiologia imprime "Pai:" e "Mãe:" em campos separados; os outros cursos
+   * usam uma linha só, "Filiação:". É como está nas planilhas oficiais.
+   */
+  filiacaoSeparada?: boolean;
   titulo: string;
   resolucao: string;
   /** Termos que o nome do curso do aluno precisa conter para liberar este modelo. */
@@ -216,6 +221,7 @@ export const MODELOS_HISTORICO: ModeloHistorico[] = [
   },
   {
     chave: 'RADIOLOGIA',
+    filiacaoSeparada: true,
     cursoNome: 'Técnico em Radiologia',
     titulo: 'HISTÓRICO ESCOLAR DO CURSO TÉCNICO EM RADIOLOGIA',
     resolucao: 'Resolução CEE/GO nº 041/2022',
