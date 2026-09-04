@@ -50,6 +50,11 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
   const [resultado, setResultado] = useState('APROVADO (A)');
   const [dataEmissao, setDataEmissao] = useState(hoje());
   const [assinantes, setAssinantes] = useState({ ...ASSINANTES_PADRAO });
+  // Ano/semestre em que o aluno cursou cada módulo. Sai girado na coluna
+  // "Mod." do documento, junto do nome do módulo, como na planilha
+  // ("MÓDULO I  2025/1"). Não dá para deduzir do cadastro, porque o aluno
+  // pode ter cursado os módulos em semestres diferentes.
+  const [anoSemestrePorModulo, setAnoSemestrePorModulo] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<any | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -97,6 +102,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     if (!modelo) return [];
     return modelo.modulos.map(mod => ({
       nome: mod.nome,
+      anoSemestre: anoSemestrePorModulo[mod.nome] || '',
       linhas: mod.disciplinas.map((d): LinhaHistorico => {
         const achado = notasPorNome[d.nome.trim().toUpperCase()];
         const temNota = achado && achado.nota !== null;
@@ -113,7 +119,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
         };
       }),
     }));
-  }, [modelo, notasPorNome, tipo]);
+  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo]);
 
   const totalDisciplinas = linhasPorModulo.reduce((s, m) => s + m.linhas.length, 0);
   const comNota = linhasPorModulo.reduce(
@@ -295,6 +301,26 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                 <input className={campo} value={assinantes.nomeDirecao}
                        onChange={e => setAssinantes({ ...assinantes, nomeDirecao: e.target.value })} />
               </div>
+            </div>
+
+            <div>
+              <label className={rotulo}>Ano e semestre de cada módulo</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {modelo.modulos.map(mod => (
+                  <div key={mod.nome}>
+                    <label className="block text-[10px] font-bold text-slate-400 mb-1">{mod.nome}</label>
+                    <input className={campo} placeholder="2025/1"
+                           value={anoSemestrePorModulo[mod.nome] ?? ''}
+                           onChange={e => setAnoSemestrePorModulo({
+                             ...anoSemestrePorModulo, [mod.nome]: e.target.value,
+                           })} />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                Sai girado na coluna "Mod." do documento, junto do nome do módulo, como na planilha.
+                Deixe em branco para imprimir só o nome do módulo.
+              </p>
             </div>
 
             {comNota < totalDisciplinas && (

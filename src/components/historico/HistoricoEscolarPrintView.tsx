@@ -27,7 +27,7 @@ import type { DadosHistorico, LinhaHistorico } from '../../lib/supabaseHistorico
 interface Props {
   modelo: ModeloHistorico;
   dados: DadosHistorico;
-  linhasPorModulo: { nome: string; linhas: LinhaHistorico[] }[];
+  linhasPorModulo: { nome: string; anoSemestre?: string; linhas: LinhaHistorico[] }[];
   onClose: () => void;
 }
 
@@ -62,6 +62,21 @@ const celCab: React.CSSProperties = {
   background: '#e8e8e8', fontSize: '6.5pt', lineHeight: 1.1,
 };
 const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
+
+// Cores da planilha original: laranja nos campos de identificação do aluno,
+// verde nas colunas de aproveitamento/dependência.
+const LARANJA = '#f0a250';
+const VERDE = '#c8e6c9';
+const celIdent: React.CSSProperties = { ...cel, background: LARANJA, fontSize: '8pt' };
+const celDep: React.CSSProperties = { ...celC, background: VERDE };
+
+/** Texto girado 90°, como a coluna "Mod." e o rótulo "DEPENDÊNCIA". */
+const girado: React.CSSProperties = {
+  writingMode: 'vertical-rl',
+  transform: 'rotate(180deg)',
+  whiteSpace: 'nowrap',
+  margin: '0 auto',
+};
 
 export const HistoricoEscolarPrintView: React.FC<Props> = ({
   modelo, dados, linhasPorModulo, onClose,
@@ -107,7 +122,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </p>
       </div>
 
-      <h1 style={{ textAlign: 'center', fontSize: '11pt', fontWeight: 'bold', margin: '9px 0 8px' }}>
+      <h1 style={{ textAlign: 'center', fontSize: '12.5pt', fontWeight: 'bold', margin: '9px 0 8px', letterSpacing: '0.06em' }}>
         {parcial ? modelo.titulo.replace('HISTÓRICO ESCOLAR', 'HISTÓRICO ESCOLAR PARCIAL') : modelo.titulo}
       </h1>
 
@@ -115,21 +130,30 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
         <tbody>
           <tr>
-            <td style={{ ...cel, width: '14%', fontWeight: 'bold' }}>Nome do Aluno:</td>
-            <td style={cel} colSpan={3}>{dados.alunoNome.toUpperCase()}</td>
+            <td style={{ ...celIdent, width: '16%', fontWeight: 'bold' }}>Nome do Aluno:</td>
+            <td style={celIdent} colSpan={3}>{dados.alunoNome.toUpperCase()}</td>
           </tr>
           <tr>
-            <td style={{ ...cel, fontWeight: 'bold' }}>Data Nascimento:</td>
-            <td style={{ ...cel, width: '30%' }}>{dataBr(dados.dataNascimento) || '____________'}</td>
-            <td style={{ ...cel, width: '13%', fontWeight: 'bold' }}>Naturalidade:</td>
-            <td style={cel}>{dados.naturalidade || '____________________'}</td>
+            <td style={{ ...celIdent, fontWeight: 'bold' }}>Data Nascimento:</td>
+            <td style={{ ...celIdent, width: '30%' }}>{dataBr(dados.dataNascimento) || '\u00a0'}</td>
+            <td style={{ ...celIdent, width: '14%', fontWeight: 'bold' }}>Naturalidade:</td>
+            <td style={celIdent}>{dados.naturalidade || '\u00a0'}</td>
           </tr>
-          <tr>
-            <td style={{ ...cel, fontWeight: 'bold' }}>Pai:</td>
-            <td style={cel}>{dados.nomePai || '____________________'}</td>
-            <td style={{ ...cel, fontWeight: 'bold' }}>Mãe:</td>
-            <td style={cel}>{dados.nomeMae || '____________________'}</td>
-          </tr>
+          {modelo.filiacaoSeparada ? (
+            <tr>
+              <td style={{ ...celIdent, fontWeight: 'bold' }}>Pai:</td>
+              <td style={celIdent}>{dados.nomePai || '\u00a0'}</td>
+              <td style={{ ...celIdent, fontWeight: 'bold' }}>Mãe:</td>
+              <td style={celIdent}>{dados.nomeMae || '\u00a0'}</td>
+            </tr>
+          ) : (
+            <tr>
+              <td style={{ ...celIdent, fontWeight: 'bold' }}>Filiação:</td>
+              <td style={celIdent} colSpan={3}>
+                {[dados.nomePai, dados.nomeMae].filter(Boolean).join(' e ') || '\u00a0'}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -142,13 +166,16 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             <th rowSpan={2} style={{ ...celCab, width: '8%' }}>CONCEITO</th>
             <th rowSpan={2} style={{ ...celCab, width: '7%' }}>FALTAS</th>
             <th rowSpan={2} style={{ ...celCab, width: '7%' }}>C.H.</th>
-            <th colSpan={4} style={celCab}>APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA</th>
+            <th rowSpan={2} style={{ ...celCab, width: '3%', padding: '2px 0' }}>
+              <div style={{ ...girado, fontSize: '6pt' }}>DEPENDÊNCIA</div>
+            </th>
+            <th colSpan={4} style={celCab}>APROVEITAMENTO DE ESTUDOS</th>
           </tr>
           <tr>
-            <th style={{ ...celCab, width: '9%' }}>M.F.C.</th>
-            <th style={{ ...celCab, width: '9%' }}>Ano/S.</th>
-            <th style={{ ...celCab, width: '9%' }}>NOTAS</th>
-            <th style={{ ...celCab, width: '9%' }}>FALTAS</th>
+            <th style={{ ...celCab, width: '8%' }}>M.F.C.</th>
+            <th style={{ ...celCab, width: '8%' }}>Ano/S.</th>
+            <th style={{ ...celCab, width: '8%' }}>NOTAS</th>
+            <th style={{ ...celCab, width: '8%' }}>FALTAS</th>
           </tr>
         </thead>
         <tbody>
@@ -157,18 +184,23 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
               <tr key={`${mi}-${li}`}>
                 {li === 0 && (
                   <td rowSpan={mod.linhas.length}
-                      style={{ ...celC, fontWeight: 'bold', fontSize: '6.5pt' }}>
-                    {mod.nome}
+                      style={{ ...celC, fontWeight: 'bold', padding: '2px 0' }}>
+                    {/* Girado, como na planilha: o nome do módulo e, abaixo,
+                        o ano/semestre em que a turma cursou. */}
+                    <div style={{ ...girado, fontSize: '7pt' }}>
+                      {mod.nome}{mod.anoSemestre ? `  ${mod.anoSemestre}` : ''}
+                    </div>
                   </td>
                 )}
                 <td style={cel}>{l.nome}</td>
                 <td style={celC}>{l.conceito}</td>
                 <td style={celC}>{l.faltas}</td>
                 <td style={celC}>{l.ch || '----'}</td>
-                <td style={celC}>{l.apMfc}</td>
-                <td style={celC}>{l.apAnoSemestre}</td>
-                <td style={celC}>{l.apNotas}</td>
-                <td style={celC}>{l.apFaltas}</td>
+                {li === 0 && <td rowSpan={mod.linhas.length} style={{ ...celC, background: VERDE }} />}
+                <td style={celDep}>{l.apMfc}</td>
+                <td style={celDep}>{l.apAnoSemestre}</td>
+                <td style={celDep}>{l.apNotas}</td>
+                <td style={celDep}>{l.apFaltas}</td>
               </tr>
             ))
           )}
@@ -182,25 +214,25 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             <td style={{ ...celC, fontWeight: 'bold' }}>{parcial ? '----' : 'APTO (A)'}</td>
             <td style={celC}>----</td>
             <td style={celC}>{modelo.cargaEstagio}</td>
-            <td colSpan={4} style={celC}>--------------------</td>
+            <td colSpan={5} style={celC}>--------------------</td>
           </tr>
 
           {/* Totais */}
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>CARGA HORÁRIA TOTAL:</td>
             <td colSpan={2} style={{ ...celC, fontWeight: 'bold' }}>{modelo.cargaTotal}</td>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>FREQUÊNCIA OBTIDA:</td>
+            <td colSpan={3} style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>FREQUÊNCIA OBTIDA:</td>
             <td style={celC}>{dados.frequenciaObtida ?? '----'}</td>
             <td style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>% FREQ.:</td>
             <td style={celC}>{percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}</td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>RESULTADO FINAL:</td>
-            <td colSpan={7} style={{ ...cel, fontWeight: 'bold' }}>{dados.resultadoFinal}</td>
+            <td colSpan={8} style={{ ...cel, fontWeight: 'bold' }}>{dados.resultadoFinal}</td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>OBSERVAÇÕES:</td>
-            <td colSpan={7} style={cel}>{modelo.observacoes || '\u00a0'}</td>
+            <td colSpan={8} style={cel}>{modelo.observacoes || '\u00a0'}</td>
           </tr>
         </tbody>
       </table>
