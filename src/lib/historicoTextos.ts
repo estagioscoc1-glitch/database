@@ -62,7 +62,7 @@ export const MODELOS_HISTORICO: ModeloHistorico[] = [
     cargaTotal: 1800,
     observacoes: 'Atividades extra-curriculares: 100 horas',
     modulos: [
-      { nome: 'MÓDULO BÁSICO', disciplinas: [
+      { nome: 'MÓDULO I', disciplinas: [
         { nome: 'Anatomia e Fisiologia Humana', ch: 80 },
         { nome: 'Microbiologia e Parasitologia', ch: 40 },
         { nome: 'Biossegurança nas Ações de Saúde', ch: 40 },
@@ -70,7 +70,7 @@ export const MODELOS_HISTORICO: ModeloHistorico[] = [
         { nome: 'Nutrição', ch: 40 },
         { nome: 'Fundamentos de Enfermagem', ch: 160 },
       ] },
-      { nome: 'MÓDULO INTERMEDIÁRIO', disciplinas: [
+      { nome: 'MÓDULO II', disciplinas: [
         { nome: 'Centro de Material e Esterilização', ch: 20 },
         { nome: 'Ética e Legislação', ch: 20 },
         { nome: 'Psicologia do Trabalho em Saúde', ch: 20 },
@@ -80,7 +80,7 @@ export const MODELOS_HISTORICO: ModeloHistorico[] = [
         { nome: 'Saúde Coletiva II', ch: 40 },
         { nome: 'Assistência de Enfermagem à Criança e à Mulher', ch: 80 },
       ] },
-      { nome: 'MÓDULO AVANÇADO', disciplinas: [
+      { nome: 'MÓDULO III', disciplinas: [
         { nome: 'Assistência de Enfermagem em Urgências e Emergências', ch: 80 },
         { nome: 'Assistência de Enfermagem em Saúde Mental', ch: 40 },
         { nome: 'Assistência de Enfermagem a Pacientes em Estado Grave', ch: 40 },
