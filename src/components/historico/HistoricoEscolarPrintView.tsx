@@ -189,7 +189,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                         lado a lado e viram duas linhas paralelas depois da
                         rotação — exatamente como na planilha, onde "MÓDULO I"
                         e "2025/2" aparecem um ao lado do outro. */}
-                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', gap: '2px' }}>
+                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       <div>{mod.nome}</div>
                       {mod.anoSemestre && <div>{mod.anoSemestre}</div>}
                     </div>
