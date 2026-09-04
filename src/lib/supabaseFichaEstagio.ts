@@ -187,3 +187,106 @@ export async function salvarConfig(cursoId: string, c: ConfigFicha): Promise<{ e
   }
   return {};
 }
+
+// ---------------------------------------------------------------------------
+// ORDEM DOS ESTÁGIOS NA FICHA
+//
+// A ficha sai na ORDEM DA PLANILHA da escola, que é a ordem curricular — a
+// sequência em que o aluno cumpre os campos ao longo do curso. Antes saía em
+// ordem alfabética, que é fácil de programar mas não conta nada: num
+// documento assinado, a sequência mostra a progressão do estagiário.
+//
+// A lista veio da aba RES das planilhas — a aba que é o próprio documento.
+// A primeira versão usei a aba ALUNO da planilha de Enfermagem, que traz uma
+// lista ANTIGA, com componentes que não existem mais (Clínica Médica, Centro
+// Cirúrgico, Pediatria, Obstetrícia) e sem os atuais. A RES é a que vale.
+//
+// Componente que não estiver na lista vai para o FIM, mantendo a ordem em que
+// veio do banco. Assim, um campo de estágio novo aparece na ficha em vez de
+// sumir — e fica visível no fim, sinalizando que a lista precisa ser
+// atualizada aqui.
+// ---------------------------------------------------------------------------
+const ORDEM_POR_CURSO: { termos: string[]; ordem: { rotulo: string; chaves: string[] }[] }[] = [
+  {
+    termos: ['ENFERMAGEM'],
+    ordem: [
+      { rotulo: 'Introdução à Enfermagem',                   chaves: ['INTRODUCAO'] },
+      { rotulo: 'Fundamentos de Enfermagem',                 chaves: ['FUNDAMENTOS'] },
+      { rotulo: 'Asst. à Mulher, Criança e o Adolescente',   chaves: ['CRIANCA', 'ADOLES'] },
+      { rotulo: 'Saúde Coletiva',                            chaves: ['COLETIVA'] },
+      { rotulo: 'Saúde Mental',                              chaves: ['MENTAL'] },
+      { rotulo: 'Urgência e Emergência',                     chaves: ['URGENCIA', 'EMERGENCIA'] },
+      // A planilha escreve "GERAITRIA", com as letras trocadas. As duas
+      // grafias entram, para o componente não cair no fim da ficha.
+      { rotulo: 'Geriatria',                                 chaves: ['GERIATRIA', 'GERAITRIA'] },
+      { rotulo: 'Processo de Trabalho em CME',               chaves: ['CME'] },
+      { rotulo: 'Asst. em Trat. Clínico Cirúrgico',          chaves: ['CIRURGICO'] },
+      { rotulo: 'Asst. de Enf. em Trat. Especializado',      chaves: ['ESPECIALIZADO'] },
+    ],
+  },
+  {
+    termos: ['RADIOLOGIA'],
+    ordem: [
+      { rotulo: 'Ambientação Hospitalar',                    chaves: ['AMBIENTACAO'] },
+      { rotulo: 'Técnicas Radiográficas Convencionais',      chaves: ['CONVENCIONAIS'] },
+      { rotulo: 'Técnicas Radiográficas Especiais I',        chaves: ['ESPECIAIS I'] },
+      { rotulo: 'Técnicas Radiográficas Especiais II',       chaves: ['ESPECIAIS II'] },
+    ],
+  },
+];
+
+/** Tira acentos e pontuação para comparar nomes escritos de formas diferentes. */
+function normalizar(t: string): string {
+  return (t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Coloca os componentes na ordem da planilha do curso.
+ *
+ * O CASAMENTO É POR PALAVRA-CHAVE, não pelo nome inteiro. A planilha abrevia
+ * ("ASST. EM TRAT. CLINICO CIRURGICO") enquanto o portal cadastra por extenso
+ * ("Assistência em Tratamento Clínico Cirúrgico"), e comparar texto completo
+ * não casava nenhum dos dois. Cada posição guarda as palavras que só ela tem
+ * — "CIRURGICO", "CME", "COLETIVA" — e basta uma delas aparecer.
+ *
+ * Quando mais de uma posição casa, ganha a palavra-chave mais longa. É isso
+ * que separa "ESPECIAIS I" de "ESPECIAIS II" em Radiologia, já que a primeira
+ * está contida na segunda.
+ */
+export function ordenarComoPlanilha(
+  componentes: ComponenteEstagio[],
+  nomeCurso?: string
+): ComponenteEstagio[] {
+  const curso = normalizar(nomeCurso);
+  const regra = ORDEM_POR_CURSO.find(r => r.termos.some(t => curso.includes(normalizar(t))));
+  if (!regra) return componentes;
+
+  const posicao = (nome: string): number => {
+    const n = normalizar(nome);
+    let melhor = -1;
+    let tamanho = 0;
+    regra.ordem.forEach((item, i) => {
+      for (const chave of item.chaves) {
+        const c = normalizar(chave);
+        if (n.includes(c) && c.length > tamanho) {
+          melhor = i;
+          tamanho = c.length;
+        }
+      }
+    });
+    return melhor;
+  };
+
+  return [...componentes].sort((a, b) => {
+    const pa = posicao(a.componente);
+    const pb = posicao(b.componente);
+    // Componente desconhecido vai para o FIM, mantendo a ordem do banco —
+    // assim um campo de estágio novo aparece na ficha em vez de sumir.
+    if (pa === -1 && pb === -1) return 0;
+    if (pa === -1) return 1;
+    if (pb === -1) return -1;
+    return pa - pb;
+  });
+}
