@@ -111,8 +111,8 @@ export const DiplomaPrintView: React.FC<Props> = ({
       className="dip-folha"
       style={{
         position: 'relative',
-        width: '100%',
-        aspectRatio: '297 / 210',
+        width: '297mm',
+        height: '210mm',
         backgroundImage: `url(${FUNDO_DIPLOMA_FRENTE})`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
@@ -123,7 +123,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Parágrafo legal */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '22%',
-        fontSize: '1.05em', lineHeight: 1.35, textAlign: 'justify',
+        fontSize: '13pt', lineHeight: 1.35, textAlign: 'justify',
       }}>
         {preencher(dados.textoLegal, dados)}
       </div>
@@ -131,7 +131,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Nome do aluno */}
       <div style={{
         position: 'absolute', left: '8%', right: '8%', top: '38.5%',
-        textAlign: 'center', fontSize: '1.7em', fontWeight: 'bold',
+        textAlign: 'center', fontSize: '21pt', fontWeight: 'bold',
         letterSpacing: '0.02em',
       }}>
         {dados.alunoNome.toUpperCase()}
@@ -140,7 +140,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Filiação */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '46%',
-        textAlign: 'center', fontSize: '1.05em',
+        textAlign: 'center', fontSize: '13pt',
       }}>
         Filho(a) de {dados.filiacao}
       </div>
@@ -148,7 +148,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Naturalidade, nascimento e conclusão */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '51.5%',
-        fontSize: '1.05em', lineHeight: 1.35, textAlign: 'justify',
+        fontSize: '13pt', lineHeight: 1.35, textAlign: 'justify',
       }}>
         {preencher(dados.linhaConclusao, dados)}
       </div>
@@ -156,7 +156,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Curso */}
       <div style={{
         position: 'absolute', left: '8%', right: '8%', top: '60%',
-        textAlign: 'center', fontSize: '1.6em', fontWeight: 'bold',
+        textAlign: 'center', fontSize: '20pt', fontWeight: 'bold',
         letterSpacing: '0.03em',
       }}>
         {dados.cursoNome.toUpperCase()}
@@ -165,7 +165,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Fecho */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '67.5%',
-        fontSize: '1.05em', lineHeight: 1.35, textAlign: 'justify',
+        fontSize: '13pt', lineHeight: 1.35, textAlign: 'justify',
       }}>
         {dados.textoFecho}
       </div>
@@ -173,7 +173,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Cidade e data */}
       <div style={{
         position: 'absolute', right: '10%', top: '75%',
-        fontSize: '1.05em', textAlign: 'right',
+        fontSize: '13pt', textAlign: 'right',
       }}>
         {dados.cidadeData}
       </div>
@@ -181,7 +181,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
       {/* Assinaturas */}
       <div style={{
         position: 'absolute', left: '9%', right: '9%', top: '86%',
-        display: 'flex', justifyContent: 'space-between', fontSize: '0.9em',
+        display: 'flex', justifyContent: 'space-between', fontSize: '11pt',
       }}>
         {[
           { nome: dados.nomeSecretario, cargo: 'Secretário' },
@@ -205,14 +205,14 @@ export const DiplomaPrintView: React.FC<Props> = ({
       className="dip-folha dip-folha-verso"
       style={{
         position: 'relative',
-        width: '100%',
-        aspectRatio: '210 / 297',
+        width: '210mm',
+        height: '297mm',
         backgroundImage: `url(${FUNDO_DIPLOMA_VERSO})`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         fontFamily: serif,
         color: '#000',
-        fontSize: '0.95em',
+        fontSize: '12pt',
       }}
     >
       <div style={{ position: 'absolute', left: '19%', top: '4.3%' }}>{verso.cursoAnterior}</div>
@@ -220,13 +220,13 @@ export const DiplomaPrintView: React.FC<Props> = ({
       <div style={{ position: 'absolute', left: '30%', top: '11.5%' }}>{verso.localDataConclusao}</div>
       <div style={{
         position: 'absolute', left: '6%', right: '6%', top: '19.5%',
-        textAlign: 'justify', lineHeight: 1.4, fontSize: '0.9em',
+        textAlign: 'justify', lineHeight: 1.4, fontSize: '11pt',
       }}>
         {verso.observacoes}
       </div>
       <div style={{
         position: 'absolute', left: '6%', right: '6%', top: '70%',
-        display: 'flex', justifyContent: 'space-around', fontSize: '0.95em',
+        display: 'flex', justifyContent: 'space-around', fontSize: '12pt',
       }}>
         {verso.registro && <span>Registro nº {verso.registro}</span>}
         {verso.livro && <span>Livro {verso.livro}</span>}
@@ -267,10 +267,21 @@ export const DiplomaPrintView: React.FC<Props> = ({
           </p>
         </div>
 
+        {/* PRÉ-VISUALIZAÇÃO
+            A folha é construída no tamanho real (297mm x 210mm) e reduzida
+            aqui por transform: scale. Isso encolhe a folha e o texto juntos,
+            na mesma proporção — por isso a tela mostra exatamente o que sai
+            impresso. Antes o texto era medido em "em", que não acompanha a
+            redução da folha: na tela saía gigante e no PDF saía certo. */}
         <div className="flex-1 overflow-auto p-6 bg-slate-200 space-y-6">
-          <div className="bg-white shadow-lg mx-auto" style={{ maxWidth: '1000px' }}>{Frente}</div>
+          <div className="mx-auto" style={{ width: '297mm', height: '130mm', transform: 'scale(0.62)', transformOrigin: 'top center' }}>
+            <div className="bg-white shadow-lg">{Frente}</div>
+          </div>
+
           {imprimirVerso && (
-            <div className="bg-white shadow-lg mx-auto" style={{ maxWidth: '700px' }}>{Verso}</div>
+            <div className="mx-auto" style={{ width: '210mm', height: '185mm', transform: 'scale(0.62)', transformOrigin: 'top center' }}>
+              <div className="bg-white shadow-lg">{Verso}</div>
+            </div>
           )}
         </div>
       </div>
