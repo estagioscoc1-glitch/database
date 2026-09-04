@@ -199,11 +199,6 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     setAnoSemestrePorModulo(mapa);
   };
 
-  // Ao escolher o aluno, joga a frequência calculada no campo (editável).
-  useEffect(() => {
-    if (frequenciaCalculada) setFrequencia(frequenciaCalculada.presentes);
-  }, [frequenciaCalculada]);
-
   /**
    * FREQUÊNCIA CALCULADA DAS CHAMADAS.
    *
@@ -230,6 +225,15 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     if (ministradas === 0) return null;
     return { ministradas, presentes, percentual: (presentes / ministradas) * 100 };
   }, [aluno, attendance]);
+
+  // Joga a frequência calculada no campo, que continua editável.
+  // ESTE useEffect PRECISA VIR DEPOIS de frequenciaCalculada. Estando antes,
+  // a lista de dependências é avaliada durante a renderização e o JavaScript
+  // recusa ler uma const que ainda não foi criada — era o erro
+  // "Cannot access 'G' before initialization" que derrubava a aba inteira.
+  useEffect(() => {
+    if (frequenciaCalculada) setFrequencia(frequenciaCalculada.presentes);
+  }, [frequenciaCalculada]);
 
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
