@@ -10,11 +10,12 @@ import {
 import {
   FileText, Plus, Search, Inbox, Settings2, AlertTriangle, Trash2,
   CheckCircle2, Clock, CalendarClock, RefreshCw, X, Save, DollarSign,
-  FileSignature, Stamp, ClipboardList,
+  FileSignature, Stamp, ClipboardList, ScrollText,
 } from 'lucide-react';
 import { ContratosModule } from '../contratos/ContratosModule';
 import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
 import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
+import { HistoricoEscolarModule } from '../historico/HistoricoEscolarModule';
 
 // ===========================================================================
 //  MENU REQUERIMENTOS
@@ -50,7 +51,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'historico'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -277,6 +278,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
             { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
+            { id: 'historico', rotulo: 'Histórico Escolar', icone: ScrollText },
           ] as const).map(t => {
             const Icone = t.icone;
             const ativa = aba === t.id;
@@ -739,6 +741,16 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
           Curriculares", que vai assinado pela secretaria, pela coordenação
           de estágio e pela direção. */}
       {aba === 'ficha' && <FichaEstagioModule currentUser={currentUser} />}
+
+      {/* Histórico Escolar — completo ou parcial. O parcial é o que a escola
+          chama de "Modelo de Transferência". Trava por curso: cada curso tem
+          resolução, carga horária e competências próprias. */}
+      {aba === 'historico' && <HistoricoEscolarModule currentUser={currentUser} />}
+
+      {/* Histórico Escolar — completo ou parcial. O parcial é o que a escola
+          chama de "Modelo de Transferência". Cada curso tem o seu modelo,
+          com resolução, carga horária e competências próprias. */}
+      {aba === 'historico' && <HistoricoEscolarModule currentUser={currentUser} />}
     </div>
   );
 };
