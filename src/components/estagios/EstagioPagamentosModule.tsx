@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   listarRecibos, marcarReciboPago, listarSupervisores, formatarDinheiro,
-  type ReciboEstagio, type Supervisor,
+  carregarModeloEstagio, salvarModeloEstagio, MODELOS_ESTAGIO_PADRAO,
+  type ReciboEstagio, type Supervisor, type ModeloEstagio,
 } from '../../lib/supabaseEstagioModulo';
 import {
   Receipt, AlertTriangle, CheckCircle2, RefreshCw, Filter, Wallet,
+  Pencil, Save, Plus, Trash2, RotateCcw, Info,
 } from 'lucide-react';
 
 // ===========================================================================
@@ -36,6 +38,43 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
   const [fMes, setFMes] = useState('');
   const [fAno, setFAno] = useState('');
   const [fSituacao, setFSituacao] = useState<'TODOS' | 'PENDENTE' | 'PAGO'>('TODOS');
+
+  // Edição dos textos de recibo e declaração.
+  const [aba, setAba] = useState<'recibos' | 'modelos'>('recibos');
+  const [tipoModelo, setTipoModelo] = useState<'RECIBO' | 'DECLARACAO'>('RECIBO');
+  const [modelo, setModelo] = useState<ModeloEstagio | null>(null);
+  const [salvandoModelo, setSalvandoModelo] = useState(false);
+
+  useEffect(() => {
+    if (aba !== 'modelos') return;
+    let ativo = true;
+    void carregarModeloEstagio(tipoModelo).then(m => { if (ativo) setModelo(m); });
+    return () => { ativo = false; };
+  }, [aba, tipoModelo]);
+
+  const gravarModelo = async () => {
+    if (!modelo) return;
+    setSalvandoModelo(true);
+    const { erro: e } = await salvarModeloEstagio(modelo);
+    setSalvandoModelo(false);
+    if (e) { setErro(e); return; }
+    setAviso('Modelo salvo. Vale para os documentos gerados daqui em diante.');
+    window.setTimeout(() => setAviso(null), 5000);
+  };
+
+  /** Campos que o sistema troca sozinho ao gerar o documento. */
+  const CAMPOS_MODELO = [
+    { campo: '{{SUPERVISOR}}', explica: 'Nome do supervisor' },
+    { campo: '{{CONSELHO}}', explica: 'Conselho — COREN, CRTR' },
+    { campo: '{{REGISTRO}}', explica: 'Número do registro' },
+    { campo: '{{COMPONENTE}}', explica: 'Componente do estágio' },
+    { campo: '{{LOCAL}}', explica: 'Local onde foi realizado' },
+    { campo: '{{PERIODO}}', explica: 'Período do estágio' },
+    { campo: '{{QTD_ALUNOS}}', explica: 'Quantidade de alunos' },
+    { campo: '{{VALOR_ALUNO}}', explica: 'Valor por aluno' },
+    { campo: '{{VALOR_TOTAL}}', explica: 'Valor total' },
+    { campo: '{{VALOR_EXTENSO}}', explica: 'Valor total por extenso' },
+  ];
 
   const recarregar = async () => {
     setCarregando(true);
@@ -98,11 +137,29 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
             <Wallet className="h-5 w-5" />
             <h3 className="font-black text-sm">Pagamento aos Supervisores</h3>
           </div>
-          <button type="button" onClick={() => void recarregar()}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-[11px]">
-            <RefreshCw className={`h-3.5 w-3.5 ${carregando ? 'animate-spin' : ''}`} /> Atualizar
-          </button>
+          <div className="flex items-center gap-2">
+            {([
+              { id: 'recibos', rotulo: 'Recibos', icone: Receipt },
+              { id: 'modelos', rotulo: 'Editar Textos', icone: Pencil },
+            ] as const).map(t => {
+              const Icone = t.icone; const ativa = aba === t.id;
+              return (
+                <button key={t.id} type="button" onClick={() => setAba(t.id)}
+                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-black text-[11px] ${
+                          ativa ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  <Icone className="h-3.5 w-3.5" /> {t.rotulo}
+                </button>
+              );
+            })}
+            <button type="button" onClick={() => void recarregar()}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-[11px]">
+              <RefreshCw className={`h-3.5 w-3.5 ${carregando ? 'animate-spin' : ''}`} /> Atualizar
+            </button>
+          </div>
         </div>
+
+        {aba === 'recibos' && (
+        <>
 
         <div className="flex items-center gap-2 text-[11px] font-black text-slate-500 uppercase mb-2">
           <Filter className="h-3.5 w-3.5" /> Filtros
@@ -139,9 +196,107 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
             </select>
           </div>
         </div>
+        </>
+        )}
       </div>
 
+      {/* ------------------------------------------- EDITOR DOS TEXTOS */}
+      {aba === 'modelos' && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div className="flex gap-2 mb-4">
+              {([
+                { id: 'RECIBO', rotulo: 'Recibo de Pagamento' },
+                { id: 'DECLARACAO', rotulo: 'Declaração de Supervisão' },
+              ] as const).map(t => (
+                <button key={t.id} type="button" onClick={() => setTipoModelo(t.id)}
+                        className={`px-4 py-2 rounded-xl text-xs font-black border ${
+                          tipoModelo === t.id ? 'bg-blue-50 border-blue-400 text-blue-800'
+                                              : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                  {t.rotulo}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] font-semibold text-blue-800 leading-relaxed">
+                O texto é seu. Os campos entre chaves são trocados pelos dados reais na hora de
+                gerar o documento — escreva à vontade em volta deles.
+              </p>
+            </div>
+          </div>
+
+          <details className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+            <summary className="px-4 py-3 cursor-pointer text-xs font-black text-slate-700 dark:text-slate-200">
+              Campos que se preenchem sozinhos — clique para ver
+            </summary>
+            <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+              {CAMPOS_MODELO.map(c => (
+                <div key={c.campo} className="flex gap-2 text-[11px] py-0.5">
+                  <code className="font-mono font-bold text-blue-700 flex-shrink-0">{c.campo}</code>
+                  <span className="text-slate-600">{c.explica}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          {modelo && (
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+              <div>
+                <label className={rotulo}>Título impresso</label>
+                <input className={campo} value={modelo.titulo}
+                       onChange={e => setModelo({ ...modelo, titulo: e.target.value })} />
+              </div>
+
+              <div>
+                <label className={rotulo}>Texto</label>
+                <div className="space-y-2">
+                  {modelo.paragrafos.map((par, i) => (
+                    <div key={i} className="flex gap-2">
+                      <textarea rows={Math.max(3, Math.ceil(par.length / 90))}
+                                className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-[13px] leading-relaxed resize-y"
+                                value={par}
+                                onChange={e => {
+                                  const p = [...modelo.paragrafos]; p[i] = e.target.value;
+                                  setModelo({ ...modelo, paragrafos: p });
+                                }} />
+                      <button type="button"
+                              onClick={() => setModelo({ ...modelo, paragrafos: modelo.paragrafos.filter((_, j) => j !== i) })}
+                              className="p-2 text-slate-300 hover:text-rose-600 self-start">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button"
+                        onClick={() => setModelo({ ...modelo, paragrafos: [...modelo.paragrafos, ''] })}
+                        className="mt-2 flex items-center gap-1 text-[11px] font-bold text-blue-600">
+                  <Plus className="h-3 w-3" /> Novo parágrafo
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onClick={() => void gravarModelo()} disabled={salvandoModelo}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-xl text-xs">
+                  <Save className="h-4 w-4" /> {salvandoModelo ? 'Salvando…' : 'Salvar Texto'}
+                </button>
+                <button type="button"
+                        onClick={() => {
+                          if (!window.confirm('Descartar suas alterações e voltar ao texto original?')) return;
+                          setModelo(MODELOS_ESTAGIO_PADRAO.find(m => m.tipo === tipoModelo)!);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2.5 text-slate-500 font-bold text-[11px] hover:text-slate-800">
+                  <RotateCcw className="h-3.5 w-3.5" /> Voltar ao original
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Totais */}
+      {aba === 'recibos' && (
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
           { r: 'Recibos', v: String(filtrados.length), cor: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -155,9 +310,10 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
           </div>
         ))}
       </div>
+      )}
 
       {/* Resumo por supervisor */}
-      {porSupervisor.length > 0 && (
+      {aba === 'recibos' && porSupervisor.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <div className="px-5 py-3 bg-slate-50 dark:bg-slate-800/60 font-black text-xs text-slate-600 uppercase tracking-wider">
             Resumo por supervisor
@@ -188,6 +344,7 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
       )}
 
       {/* Recibos */}
+      {aba === 'recibos' && (
       <div className="space-y-2.5">
         {filtrados.map(r => (
           <div key={r.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 flex-wrap">
@@ -240,6 +397,7 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

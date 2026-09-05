@@ -14,6 +14,7 @@ import {
   RefreshCw, Search, Users, Link2, Lock, Copy, Printer, Receipt,
 } from 'lucide-react';
 import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
+import { ListaVagaPrintView } from './ListaVagaPrintView';
 import { emitirRecibo } from '../../lib/supabaseEstagioModulo';
 
 // ===========================================================================
@@ -51,6 +52,7 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
   const [buscaAluno, setBuscaAluno] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState<'TODAS' | SituacaoVaga>('TODAS');
   const [fichaImprimir, setFichaImprimir] = useState<AlunoNaVaga | null>(null);
+  const [listaImprimir, setListaImprimir] = useState(false);
 
   const mostrar = (tipo: 'ok' | 'erro', texto: string) => {
     setAviso({ tipo, texto });
@@ -359,7 +361,11 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                   {' '}{alunosDaVaga.length} de {vagaAberta.vagasTotal} lugares
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" onClick={() => setListaImprimir(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-black rounded-xl text-xs">
+                  <Printer className="h-4 w-4" /> Relação de Alunos
+                </button>
                 {vagaAberta.situacao !== 'FECHADA' ? (
                   <button type="button" onClick={() => void fechar(vagaAberta)}
                           className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs">
@@ -506,6 +512,18 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
           </div>
         </div>
       )}
+      {listaImprimir && vagaAberta && (
+        <ListaVagaPrintView
+          vaga={vagaAberta}
+          alunos={alunosDaVaga}
+          supervisorRegistro={(() => {
+            const s = supervisores.find(x => x.id === vagaAberta.supervisorId);
+            return s?.conselho && s?.registro ? `${s.conselho} ${s.registro}` : undefined;
+          })()}
+          onClose={() => setListaImprimir(false)}
+        />
+      )}
+
       {fichaImprimir && vagaAberta && (
         <FichaAvaliacaoPrintView
           vaga={vagaAberta}
