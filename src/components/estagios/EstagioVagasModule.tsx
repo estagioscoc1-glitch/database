@@ -11,8 +11,10 @@ import {
 } from '../../lib/supabaseEstagioModulo';
 import {
   Briefcase, Plus, Trash2, Save, X, AlertTriangle, CheckCircle2,
-  RefreshCw, Search, Users, Link2, Lock, Copy,
+  RefreshCw, Search, Users, Link2, Lock, Copy, Printer, Receipt,
 } from 'lucide-react';
+import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
+import { emitirRecibo } from '../../lib/supabaseEstagioModulo';
 
 // ===========================================================================
 //  VAGAS DE ESTÁGIO
@@ -48,6 +50,7 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
   const [alunosDaVaga, setAlunosDaVaga] = useState<AlunoNaVaga[]>([]);
   const [buscaAluno, setBuscaAluno] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState<'TODAS' | SituacaoVaga>('TODAS');
+  const [fichaImprimir, setFichaImprimir] = useState<AlunoNaVaga | null>(null);
 
   const mostrar = (tipo: 'ok' | 'erro', texto: string) => {
     setAviso({ tipo, texto });
@@ -363,9 +366,20 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                     <Lock className="h-4 w-4" /> Fechar Vaga
                   </button>
                 ) : (
-                  <span className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-black">
-                    Vaga fechada
-                  </span>
+                  <>
+                    <span className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-black">
+                      Vaga fechada
+                    </span>
+                    <button type="button"
+                            onClick={async () => {
+                              const { erro: e } = await emitirRecibo(vagaAberta, alunosDaVaga.length, currentUser);
+                              if (e) { mostrar('erro', e); return; }
+                              mostrar('ok', 'Recibo emitido. Veja em Estágio — Pagamentos.');
+                            }}
+                            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl text-xs">
+                      <Receipt className="h-4 w-4" /> Emitir Recibo
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -453,7 +467,12 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                             {a.resultado}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right">
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <button type="button" onClick={() => setFichaImprimir(a)}
+                                  title="Imprimir a ficha de avaliação"
+                                  className="p-2 text-slate-400 hover:text-blue-600">
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
                           {vagaAberta.situacao !== 'FECHADA' && (
                             <button type="button"
                                     onClick={async () => {
@@ -486,6 +505,18 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
             )}
           </div>
         </div>
+      )}
+      {fichaImprimir && vagaAberta && (
+        <FichaAvaliacaoPrintView
+          vaga={vagaAberta}
+          aluno={fichaImprimir}
+          catalogo={catalogo.find(c => c.componente === vagaAberta.componente)}
+          supervisorRegistro={(() => {
+            const s = supervisores.find(x => x.id === vagaAberta.supervisorId);
+            return s?.conselho && s?.registro ? `${s.conselho} ${s.registro}` : undefined;
+          })()}
+          onClose={() => setFichaImprimir(null)}
+        />
       )}
     </div>
   );
