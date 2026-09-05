@@ -103,6 +103,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
   }, [imprimindo]);
 
   const parcial = dados.tipo === 'PARCIAL';
+  const totalLinhas = linhasPorModulo.reduce((t, m) => t + m.linhas.length, 0);
   const cargaDisc = cargaDasDisciplinas(modelo);
   const dataBr = (iso?: string) =>
     iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : '';
@@ -162,19 +163,14 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            <th rowSpan={2} style={{ ...celCab, width: '7%' }}>Mod.</th>
-            <th rowSpan={2} style={{ ...celCab, width: '33%' }}>COMPONENTES CURRICULARES</th>
-            <th rowSpan={2} style={{ ...celCab, width: '8%' }}>CONCEITO</th>
-            <th rowSpan={2} style={{ ...celCab, width: '7%' }}>FALTAS</th>
-            <th rowSpan={2} style={{ ...celCab, width: '7%' }}>C.H.</th>
-            <th rowSpan={2} style={{ ...celCab, width: '3%', padding: '2px 0' }}>
-              <div style={{ ...girado, fontSize: '6pt' }}>DEPENDÊNCIA</div>
-            </th>
-            <th colSpan={2} style={celCab}>APROVEITAMENTO DE ESTUDOS</th>
-          </tr>
-          <tr>
-            <th style={{ ...celCab, width: '11%' }}>M.F.C.</th>
-            <th style={{ ...celCab, width: '11%' }}>Ano/S.</th>
+            <th style={{ ...celCab, width: '7%' }}>Mod.</th>
+            <th style={{ ...celCab, width: '35%' }}>COMPONENTES CURRICULARES</th>
+            <th style={{ ...celCab, width: '9%' }}>CONCEITO</th>
+            <th style={{ ...celCab, width: '8%' }}>FALTAS</th>
+            <th style={{ ...celCab, width: '8%' }}>C.H.</th>
+            <th style={{ ...celCab, width: '4%' }} />
+            <th style={{ ...celCab, width: '10%' }}>M.F.C.</th>
+            <th style={{ ...celCab, width: '10%' }}>Ano/S.</th>
           </tr>
         </thead>
         <tbody>
@@ -200,7 +196,17 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                 <td style={celC}>{l.conceito}</td>
                 <td style={celC}>{l.faltas}</td>
                 <td style={celC}>{l.ch || '----'}</td>
-                {li === 0 && <td rowSpan={mod.linhas.length} style={{ ...celC, background: VERDE }} />}
+                {/* Coluna estreita com o texto girado. Só a PRIMEIRA linha da
+                    tabela inteira abre a célula, que se estende por todas as
+                    demais — é assim que o texto atravessa o corpo, como no
+                    modelo impresso da escola. */}
+                {mi === 0 && li === 0 && (
+                  <td rowSpan={totalLinhas} style={{ ...celC, background: VERDE, padding: '2px 0' }}>
+                    <div style={{ ...girado, fontSize: '7.5pt', fontWeight: 'bold' }}>
+                      APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA&nbsp;&nbsp;M.F.C
+                    </div>
+                  </td>
+                )}
                 <td style={celDep}>{l.apMfc}</td>
                 <td style={celDep}>{l.apAnoSemestre}</td>
               </tr>
@@ -209,9 +215,11 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
 
           {/* Estágio supervisionado */}
           <tr>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>
+            <td style={{ ...cel, fontWeight: 'bold' }}>
               Estágio Supervisionado {parcial ? 'à cursar' : 'Concluído em:'}
-              {!parcial && dados.estagioConcluidoEm && ` ${dataBr(dados.estagioConcluidoEm)}`}
+            </td>
+            <td style={{ ...celC, fontWeight: 'bold' }}>
+              {parcial ? '' : dataBr(dados.estagioConcluidoEm)}
             </td>
             <td style={{ ...celC, fontWeight: 'bold' }}>{parcial ? '----' : 'APTO (A)'}</td>
             <td style={celC}>----</td>
@@ -223,15 +231,18 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>CARGA HORÁRIA TOTAL:</td>
             <td colSpan={2} style={{ ...celC, fontWeight: 'bold' }}>{modelo.cargaTotal}</td>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '6.5pt' }}>FREQUÊNCIA OBTIDA:</td>
-            <td style={celC}>{dados.frequenciaObtida ?? '----'}</td>
-            <td colSpan={2} style={{ ...celC, fontSize: '6.5pt' }}>
-              <strong>% FREQ.:</strong> {percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '7pt' }}>FREQUENCIA OBTIDA:</td>
+            <td style={{ ...celC, fontWeight: 'bold' }}>{dados.frequenciaObtida ?? '----'}</td>
+            <td colSpan={2} style={{ ...celC, fontSize: '7pt' }}>
+              <strong>% DE FREQUENCIA:</strong>{' '}
+              {percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}
             </td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>RESULTADO FINAL:</td>
-            <td colSpan={6} style={{ ...cel, fontWeight: 'bold' }}>{dados.resultadoFinal}</td>
+            <td colSpan={6} style={{ ...cel, fontWeight: 'bold', textAlign: 'right' }}>
+              {dados.resultadoFinal}
+            </td>
           </tr>
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>OBSERVAÇÕES:</td>
