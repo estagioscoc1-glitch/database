@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { CronogramaDoAluno } from './estagios/EstagioCronogramaModule';
+import { InscricaoEstagioAluno } from './estagios/InscricaoEstagioAluno';
 import { enviarArquivoDeDocumento, linkDoDocumento } from '../lib/repositorios';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
@@ -402,6 +403,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 {/* Cronograma de estágio. Só aparece quando a coordenação
                     publica um — sem cronograma publicado, nada é mostrado. */}
                 <CronogramaDoAluno />
+
+                {/* Vagas abertas para inscrição. Some quando não há nenhuma. */}
+                {activeStudent && (
+                  <InscricaoEstagioAluno
+                    alunoId={activeStudent.id}
+                    alunoNome={activeStudent.name}
+                    alunoMatricula={(activeStudent as any).enrollment}
+                  />
+                )}
 
                 <div>
                   <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Minhas Declarações</h3>
