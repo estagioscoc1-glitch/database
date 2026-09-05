@@ -7,12 +7,12 @@ import { DependencyManagerModule } from './DependencyManagerModule';
 import { RequirementsManager } from './RequirementsManager';
 import { OfficialTemplatesManager } from './OfficialTemplatesManager';
 import { EventsManager } from './EventsManager';
+import { EstagioCadastrosModule } from '../estagios/EstagioCadastrosModule';
 import { EstagiosManager } from './EstagiosManager';
 import { SpreadsheetImporter } from '../SpreadsheetImporter';
 import { 
   BookOpen, UserCheck, ArrowLeftRight, XCircle, Repeat, 
-  FileText, FileUp, Sparkles, Briefcase, FileSpreadsheet 
-} from 'lucide-react';
+  FileText, FileUp, Sparkles, Briefcase, FileSpreadsheet, ListChecks } from 'lucide-react';
 
 interface MovimentacaoModuleProps {
   currentUser?: string;
@@ -29,7 +29,8 @@ export type MovimentacaoSubTab =
   | 'requerimentos' 
   | 'upload_documentos' 
   | 'minicursos' 
-  | 'estagios';
+  | 'estagios'
+  | 'estagio_cadastros';
 
 export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({ 
   currentUser = 'Administração Movimentação',
@@ -46,6 +47,9 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
   // futuro menu "Gerar e Requerer Documentos".
   const submenus = [
     { id: 'estagios', label: 'Estágios', icon: Briefcase },
+    // Módulo novo, ligado ao banco. O 'estagios' acima é a tela antiga, que
+    // grava no navegador — as duas convivem até a migração terminar.
+    { id: 'estagio_cadastros', label: 'Estágio — Cadastros', icon: ListChecks },
     { id: 'minicursos', label: 'Minicursos e Eventos', icon: Sparkles },
   ] as const;
 
@@ -116,6 +120,13 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
 
         {activeSubTab === 'estagios' && (
           <EstagiosManager currentUser={currentUser} />
+        )}
+
+        {/* Cadastros do módulo novo de estágio: supervisores, locais
+            conveniados e o catálogo dos 16 estágios com preço. Grava no
+            banco, diferente da tela acima. */}
+        {activeSubTab === 'estagio_cadastros' && (
+          <EstagioCadastrosModule currentUser={currentUser} />
         )}
       </div>
 
