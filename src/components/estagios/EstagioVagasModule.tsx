@@ -15,7 +15,11 @@ import {
 } from 'lucide-react';
 import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import { ListaVagaPrintView } from './ListaVagaPrintView';
-import { emitirRecibo, copiarNotasParaHistorico } from '../../lib/supabaseEstagioModulo';
+import {
+  emitirRecibo, copiarNotasParaHistorico, listarInscricoesDaVaga,
+  aprovarInscricao, recusarInscricao, abrirInscricoes,
+  type InscricaoEstagio,
+} from '../../lib/supabaseEstagioModulo';
 
 // ===========================================================================
 //  VAGAS DE ESTÁGIO
@@ -53,6 +57,7 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
   const [filtroSituacao, setFiltroSituacao] = useState<'TODAS' | SituacaoVaga>('TODAS');
   const [fichaImprimir, setFichaImprimir] = useState<AlunoNaVaga | null>(null);
   const [listaImprimir, setListaImprimir] = useState(false);
+  const [inscricoes, setInscricoes] = useState<InscricaoEstagio[]>([]);
 
   const mostrar = (tipo: 'ok' | 'erro', texto: string) => {
     setAviso({ tipo, texto });
@@ -72,9 +77,10 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
 
   const abrirVaga = async (v: VagaEstagio) => {
     setVagaAberta(v);
-    const { lista, erro: e } = await listarAlunosDaVaga(v.id!);
-    setAlunosDaVaga(lista);
-    if (e) mostrar('erro', e);
+    const [al, ins] = await Promise.all([listarAlunosDaVaga(v.id!), listarInscricoesDaVaga(v.id!)]);
+    setAlunosDaVaga(al.lista);
+    setInscricoes(ins.lista);
+    if (al.erro) mostrar('erro', al.erro);
   };
 
   const alunos = useMemo(() => users.filter(u => u.role === UserRole.STUDENT), [users]);
@@ -427,6 +433,79 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                 <button type="button"
                         onClick={() => { void navigator.clipboard.writeText(vagaAberta.tokenAcesso!); mostrar('ok', 'Chave copiada.'); }}
                         className="p-2 text-slate-400 hover:text-blue-600"><Copy className="h-4 w-4" /></button>
+              </div>
+            )}
+          </div>
+
+          {/* Inscrições — controle de quem pediu vaga pelo painel do aluno */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+              <label className={rotulo}>Inscrição pelo painel do aluno</label>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!vagaAberta.inscricoesAbertas}
+                         onChange={async e => {
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, e.target.checked, vagaAberta.inscricoesAte);
+                           if (err) { mostrar('erro', err); return; }
+                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: e.target.checked });
+                           mostrar('ok', e.target.checked
+                             ? 'Vaga aberta. Os alunos já veem no painel deles.'
+                             : 'Inscrições fechadas. A vaga sumiu do painel do aluno.');
+                         }} />
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Abrir para inscrição</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Até</span>
+                  <input type="date"
+                         className="px-2 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px]"
+                         value={vagaAberta.inscricoesAte ?? ''}
+                         onChange={async e => {
+                           await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, e.target.value);
+                           setVagaAberta({ ...vagaAberta, inscricoesAte: e.target.value });
+                         }} />
+                </div>
+              </div>
+            </div>
+
+            {inscricoes.filter(i => i.situacao === 'PENDENTE').length === 0 ? (
+              <p className="text-[11px] text-slate-400">
+                {vagaAberta.inscricoesAbertas
+                  ? 'Nenhuma inscrição aguardando análise.'
+                  : 'A vaga não está aberta para inscrição.'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {inscricoes.filter(i => i.situacao === 'PENDENTE').map(i => (
+                  <div key={i.id} className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-slate-800">{i.alunoNome}</p>
+                      <p className="text-[11px] text-slate-500">{i.alunoMatricula || 'Sem matrícula'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button"
+                              onClick={async () => {
+                                const { erro: err } = await aprovarInscricao(i, currentUser);
+                                if (err) { mostrar('erro', err); return; }
+                                mostrar('ok', `${i.alunoNome} foi incluído na vaga.`);
+                                await abrirVaga(vagaAberta);
+                              }}
+                              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-[11px]">
+                        Aprovar
+                      </button>
+                      <button type="button"
+                              onClick={async () => {
+                                const motivo = window.prompt('Motivo da recusa (o aluno vai ver):') ?? '';
+                                if (motivo === null) return;
+                                const { erro: err } = await recusarInscricao(i.id!, motivo, currentUser);
+                                if (err) { mostrar('erro', err); return; }
+                                await abrirVaga(vagaAberta);
+                              }}
+                              className="px-3 py-2 text-[11px] font-bold text-slate-500 hover:text-rose-600">
+                        Recusar
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
