@@ -415,3 +415,173 @@ export async function vincularUsuario(supervisorId: string, usuarioId: string): 
     .from('supervisores').update({ usuario_id: usuarioId }).eq('id', supervisorId);
   return error ? { erro: explicar(error) } : {};
 }
+
+// ================================================ RECIBOS E PAGAMENTO
+
+export interface ReciboEstagio {
+  id?: string;
+  numero?: string;
+  vagaId?: string;
+  supervisorId?: string;
+  supervisorNome: string;
+  componente?: string;
+  localNome?: string;
+  qtdAlunos: number;
+  valorPorAluno: number;
+  valorTotal: number;
+  competencia?: string;
+  situacao: 'PENDENTE' | 'PAGO';
+  pagoEm?: string;
+  criadoEm?: string;
+}
+
+const reciboDoBanco = (r: any): ReciboEstagio => ({
+  id: r.id, numero: r.numero, vagaId: r.vaga_id ?? undefined,
+  supervisorId: r.supervisor_id ?? undefined, supervisorNome: r.supervisor_nome,
+  componente: r.componente ?? '', localNome: r.local_nome ?? '',
+  qtdAlunos: r.qtd_alunos ?? 0,
+  valorPorAluno: Number(r.valor_por_aluno ?? 0),
+  valorTotal: Number(r.valor_total ?? 0),
+  competencia: r.competencia ?? '', situacao: r.situacao ?? 'PENDENTE',
+  pagoEm: r.pago_em ?? undefined, criadoEm: r.criado_em,
+});
+
+export async function listarRecibos(): Promise<{ lista: ReciboEstagio[]; erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_recibos').select('*').order('criado_em', { ascending: false });
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(reciboDoBanco) };
+}
+
+/** Número do recibo: REC-2026-0001. A coluna é única, então não duplica. */
+export async function gerarNumeroRecibo(): Promise<string> {
+  const ano = new Date().getFullYear();
+  const { count } = await supabase
+    .from('estagio_recibos').select('id', { count: 'exact', head: true })
+    .like('numero', `REC-${ano}-%`);
+  return `REC-${ano}-${String((count ?? 0) + 1).padStart(4, '0')}`;
+}
+
+/**
+ * Emite o recibo de uma vaga fechada.
+ *
+ * SÓ VAGA FECHADA GERA RECIBO. Enquanto a vaga está aberta o número de alunos
+ * ainda pode mudar, e um recibo assinado com valor errado é problema.
+ */
+export async function emitirRecibo(v: VagaEstagio, qtdAlunos: number, quem?: string): Promise<{ erro?: string }> {
+  if (v.situacao !== 'FECHADA') {
+    return { erro: 'Só é possível emitir recibo de vaga fechada. Feche a vaga primeiro.' };
+  }
+  const numero = await gerarNumeroRecibo();
+  const hoje = new Date();
+  const { error } = await supabase.from('estagio_recibos').insert({
+    numero, vaga_id: v.id, supervisor_id: v.supervisorId,
+    supervisor_nome: v.supervisorNome || '', componente: v.componente,
+    local_nome: v.localNome, qtd_alunos: qtdAlunos,
+    valor_por_aluno: v.valorPorAluno, valor_total: qtdAlunos * v.valorPorAluno,
+    competencia: `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`,
+    emitido_por: quem ?? null,
+  });
+  if (error) {
+    if (error.code === '23505') return { erro: 'Esta vaga já tem recibo emitido.' };
+    return { erro: explicar(error) };
+  }
+  return {};
+}
+
+export async function marcarReciboPago(id: string, pago: boolean): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_recibos').update({
+    situacao: pago ? 'PAGO' : 'PENDENTE',
+    pago_em: pago ? new Date().toISOString().split('T')[0] : null,
+  }).eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+// ================================================ MODELOS E CRONOGRAMA
+
+export interface ModeloEstagio {
+  tipo: 'RECIBO' | 'DECLARACAO';
+  titulo: string;
+  paragrafos: string[];
+}
+
+export const MODELOS_ESTAGIO_PADRAO: ModeloEstagio[] = [
+  {
+    tipo: 'RECIBO',
+    titulo: 'RECIBO DE PAGAMENTO — SUPERVISÃO DE ESTÁGIO',
+    paragrafos: [
+      'Recebi do COLÉGIO OSWALDO CRUZ LTDA, inscrito no CNPJ sob o nº 37.653.128/0001-64, a importância de {{VALOR_TOTAL}} ({{VALOR_EXTENSO}}), referente à supervisão de estágio curricular do componente {{COMPONENTE}}, realizado em {{LOCAL}}, com {{QTD_ALUNOS}} aluno(s), ao valor de {{VALOR_ALUNO}} por aluno.',
+      'Para clareza firmo o presente recibo, dando plena e geral quitação do valor acima.',
+    ],
+  },
+  {
+    tipo: 'DECLARACAO',
+    titulo: 'DECLARAÇÃO DE SUPERVISÃO DE ESTÁGIO',
+    paragrafos: [
+      'Declaramos para os devidos fins que {{SUPERVISOR}}, inscrito(a) no {{CONSELHO}} sob o nº {{REGISTRO}}, atuou como supervisor(a) de estágio curricular do componente {{COMPONENTE}}, realizado em {{LOCAL}}, no período de {{PERIODO}}, acompanhando {{QTD_ALUNOS}} aluno(s) desta instituição de ensino.',
+    ],
+  },
+];
+
+export async function carregarModeloEstagio(tipo: 'RECIBO' | 'DECLARACAO'): Promise<ModeloEstagio> {
+  const padrao = MODELOS_ESTAGIO_PADRAO.find(m => m.tipo === tipo)!;
+  const { data, error } = await supabase
+    .from('estagio_modelos').select('*').eq('tipo', tipo).maybeSingle();
+  if (error || !data || !Array.isArray(data.paragrafos) || data.paragrafos.length === 0) return padrao;
+  return { tipo, titulo: data.titulo || padrao.titulo, paragrafos: data.paragrafos as string[] };
+}
+
+export async function salvarModeloEstagio(m: ModeloEstagio, quem?: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_modelos').upsert({
+    tipo: m.tipo, titulo: m.titulo, paragrafos: m.paragrafos,
+    editado_por: quem ?? null, atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'tipo' });
+  return error ? { erro: explicar(error) } : {};
+}
+
+export interface Cronograma {
+  id?: string;
+  periodo: string;
+  titulo: string;
+  conteudo: { titulo: string; texto: string }[];
+  observacoes?: string;
+  publicado: boolean;
+}
+
+const cronoDoBanco = (c: any): Cronograma => ({
+  id: c.id, periodo: c.periodo, titulo: c.titulo,
+  conteudo: Array.isArray(c.conteudo) ? c.conteudo : [],
+  observacoes: c.observacoes ?? '', publicado: !!c.publicado,
+});
+
+export async function listarCronogramas(): Promise<{ lista: Cronograma[]; erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_cronograma').select('*').order('periodo', { ascending: false });
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(cronoDoBanco) };
+}
+
+/** O que o aluno vê: só o publicado, e só o mais recente. */
+export async function cronogramaPublicado(): Promise<Cronograma | null> {
+  const { data, error } = await supabase
+    .from('estagio_cronograma').select('*')
+    .eq('publicado', true).order('periodo', { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) return null;
+  return cronoDoBanco(data);
+}
+
+export async function salvarCronograma(c: Cronograma, quem?: string): Promise<{ erro?: string }> {
+  const linha: any = {
+    periodo: c.periodo, titulo: c.titulo, conteudo: c.conteudo,
+    observacoes: c.observacoes || null, publicado: c.publicado,
+    criado_por: quem ?? null, atualizado_em: new Date().toISOString(),
+  };
+  if (c.id) linha.id = c.id;
+  const { error } = await supabase.from('estagio_cronograma').upsert(linha, { onConflict: 'id' });
+  return error ? { erro: explicar(error) } : {};
+}
+
+export async function apagarCronograma(id: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_cronograma').delete().eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
