@@ -339,16 +339,11 @@ export const DiplomaPrintView: React.FC<Props> = ({
 
       {/* Caixa do pé, dividida em REGISTRO e OBS. */}
       <div style={{ display: 'flex', height: '52mm' }}>
+        {/* REGISTRO em branco, como no arquivo original da Instrumentação.
+            Aqui a caixa é preenchida à mão ou carimbada — o carimbo montado
+            só entra no verso dos diplomas dos cursos técnicos. */}
         <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', flex: 1 }}>
-          <div style={{ marginBottom: '2mm' }}>REGISTRO:</div>
-          <CarimboRegistro
-            registro={verso.registro}
-            livro={verso.livro}
-            folha={verso.folha}
-            localData={dados.cidadeData}
-            nomeSecretario={dados.nomeSecretario}
-            largura="100%"
-          />
+          <div>REGISTRO:</div>
         </div>
         <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', borderLeft: 'none', flex: 1 }}>
           <div>OBS.:</div>

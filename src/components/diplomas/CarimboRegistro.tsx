@@ -81,8 +81,11 @@ export const CarimboRegistro: React.FC<Props> = ({
       </div>
     </div>
 
-    {/* Assinatura do secretário */}
-    <div style={{ textAlign: 'center', marginTop: '9mm' }}>
+    {/* Assinatura do secretário.
+        O espaço acima é generoso de propósito: no primeiro teste o nome do
+        Yan ficou colado na linha de "Local e Data" logo acima, e o conjunto
+        ficou apertado. */}
+    <div style={{ textAlign: 'center', marginTop: '16mm' }}>
       <div style={{ fontSize: '12pt', fontStyle: 'italic' }}>{nomeSecretario}</div>
       <div style={{ fontSize: '9.5pt' }}>Secretário</div>
     </div>
