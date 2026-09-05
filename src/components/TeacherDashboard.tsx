@@ -19,6 +19,8 @@ import { AcessosPresencaModule } from './AcessosPresencaModule';
 import { ContentRegistry } from './ContentRegistry';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
+import { SupervisorEstagioModule } from './estagios/SupervisorEstagioModule';
+import { meuCadastroSupervisor } from '../lib/supabaseEstagioModulo';
 
 export const TeacherDashboard: React.FC = () => {
   const { 
@@ -27,6 +29,21 @@ export const TeacherDashboard: React.FC = () => {
     currentPeriod, simulatedDate,
     avisosVistos, marcarAvisoVisto
   } = useApp();
+
+  /* SUPERVISOR DE ESTÁGIO.
+     A aba só aparece para quem tem cadastro de supervisor vinculado ao
+     login. Professor comum nem vê que ela existe. */
+  const [ehSupervisor, setEhSupervisor] = useState(false);
+  const [abaEstagio, setAbaEstagio] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let ativo = true;
+    void meuCadastroSupervisor(currentUser.id).then(s => {
+      if (ativo) setEhSupervisor(!!s);
+    });
+    return () => { ativo = false; };
+  }, [currentUser?.id]);
 
   const [journalView, setJournalView] = useState<'grades' | 'attendance' | 'content'>('grades');
   const [gradeWindowState, setGradeWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
@@ -238,8 +255,39 @@ export const TeacherDashboard: React.FC = () => {
   const avisoAtual = teacherMessages.find(m => !avisosVistos.includes(m.id));
   const avisosNaoLidos = teacherMessages.filter(m => !avisosVistos.includes(m.id)).length;
 
+  /* Quando o supervisor escolhe "Meus Estágios", devolvemos uma tela própria
+     em vez de embrulhar o painel inteiro. O JSX do diário é longo e cheio de
+     janelas aninhadas; mexer nele para envolver tudo num condicional já
+     quebrou o arquivo uma vez. */
+  const SeletorEstagio = ehSupervisor ? (
+    <div className="flex gap-2 mb-6">
+      {([
+        { id: false, rotulo: 'Meu Diário' },
+        { id: true, rotulo: 'Meus Estágios' },
+      ] as const).map(t => (
+        <button key={String(t.id)} type="button" onClick={() => setAbaEstagio(t.id)}
+                className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all ${
+                  abaEstagio === t.id
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 hover:bg-slate-100'}`}>
+          {t.rotulo}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (ehSupervisor && abaEstagio && currentUser?.id) {
+    return (
+      <div className="space-y-6">
+        {SeletorEstagio}
+        <SupervisorEstagioModule usuarioId={currentUser.id} nome={currentUser.name} />
+      </div>
+    );
+  }
+
   return (
     <div id="teacher-dashboard-container" className="space-y-6">
+      {SeletorEstagio}
 
       {/* Warning Popup Modal */}
       {prazosAssentados && !avisoJaDispensado && hasApproachingDeadline && activeAlerts.length > 0 && (
