@@ -376,3 +376,42 @@ export async function atualizarPreRequisitos(
   }).eq('id', id);
   return error ? { erro: explicar(error) } : {};
 }
+
+// ================================================ ÁREA DO SUPERVISOR
+
+/**
+ * Descobre o cadastro de supervisor ligado ao usuário logado.
+ * Devolve null quando a pessoa logada não é supervisor de estágio — nesse
+ * caso a aba nem aparece no painel do professor.
+ */
+export async function meuCadastroSupervisor(usuarioId: string): Promise<Supervisor | null> {
+  const { data, error } = await supabase
+    .from('supervisores').select('*').eq('usuario_id', usuarioId).maybeSingle();
+  if (error || !data) return null;
+  return supDoBanco(data);
+}
+
+/**
+ * As vagas do supervisor. Só as que ele PODE mexer.
+ *
+ * Vaga fechada NÃO aparece: o trabalho dele ali acabou, e mostrar uma lista
+ * que só cresce a cada semestre atrapalharia achar a vaga do momento. O
+ * histórico continua no banco e a secretaria vê tudo.
+ */
+export async function minhasVagas(supervisorId: string): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_vagas')
+    .select('*')
+    .eq('supervisor_id', supervisorId)
+    .in('situacao', ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO_NOTAS'])
+    .order('data_inicio', { ascending: false });
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(vagaDoBanco) };
+}
+
+/** Vincula um login existente ao cadastro do supervisor. */
+export async function vincularUsuario(supervisorId: string, usuarioId: string): Promise<{ erro?: string }> {
+  const { error } = await supabase
+    .from('supervisores').update({ usuario_id: usuarioId }).eq('id', supervisorId);
+  return error ? { erro: explicar(error) } : {};
+}
