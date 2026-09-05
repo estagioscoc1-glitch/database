@@ -213,6 +213,9 @@ export interface VagaEstagio {
   tokenAcesso?: string;
   valorPorAluno: number;
   fechadaEm?: string;
+  /** Quando verdadeiro, a vaga aparece no painel do aluno para inscrição. */
+  inscricoesAbertas?: boolean;
+  inscricoesAte?: string;
 }
 
 export interface AlunoNaVaga {
@@ -261,6 +264,8 @@ const vagaDoBanco = (v: any): VagaEstagio => ({
   tokenAcesso: v.token_acesso ?? undefined,
   valorPorAluno: Number(v.valor_por_aluno ?? 0),
   fechadaEm: v.fechada_em ?? undefined,
+  inscricoesAbertas: !!v.inscricoes_abertas,
+  inscricoesAte: v.inscricoes_ate ?? undefined,
 });
 
 export async function listarVagas(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
@@ -652,4 +657,108 @@ export async function copiarNotasParaHistorico(
 
   if (error) return { copiados: 0, semNota, jaExistiam, erro: explicar(error) };
   return { copiados: linhas.length, semNota, jaExistiam };
+}
+
+// ============================================== INSCRIÇÃO DO ALUNO
+
+export interface InscricaoEstagio {
+  id?: string;
+  vagaId: string;
+  alunoId: string;
+  alunoNome: string;
+  alunoMatricula?: string;
+  situacao: 'PENDENTE' | 'APROVADA' | 'RECUSADA';
+  motivoRecusa?: string;
+  criadoEm?: string;
+}
+
+const inscDoBanco = (i: any): InscricaoEstagio => ({
+  id: i.id, vagaId: i.vaga_id, alunoId: i.aluno_id, alunoNome: i.aluno_nome,
+  alunoMatricula: i.aluno_matricula ?? '', situacao: i.situacao ?? 'PENDENTE',
+  motivoRecusa: i.motivo_recusa ?? '', criadoEm: i.criado_em,
+});
+
+/** Vagas que o aluno pode ver e se inscrever. */
+export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+  const hoje = new Date().toISOString().split('T')[0];
+  const { data, error } = await supabase
+    .from('estagio_vagas').select('*')
+    .eq('inscricoes_abertas', true)
+    .neq('situacao', 'FECHADA')
+    .or(`inscricoes_ate.is.null,inscricoes_ate.gte.${hoje}`)
+    .order('data_inicio', { ascending: true });
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(vagaDoBanco) };
+}
+
+export async function minhasInscricoes(alunoId: string): Promise<{ lista: InscricaoEstagio[]; erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_inscricoes').select('*').eq('aluno_id', alunoId);
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(inscDoBanco) };
+}
+
+export async function inscreverSe(i: InscricaoEstagio): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_inscricoes').insert({
+    vaga_id: i.vagaId, aluno_id: i.alunoId, aluno_nome: i.alunoNome,
+    aluno_matricula: i.alunoMatricula || null,
+  });
+  if (error) {
+    if (error.code === '23505') return { erro: 'Você já se inscreveu nesta vaga.' };
+    if (error.code === '42501') return { erro: 'As inscrições desta vaga não estão abertas ou o prazo terminou.' };
+    return { erro: explicar(error) };
+  }
+  return {};
+}
+
+export async function cancelarInscricao(id: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_inscricoes').delete().eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+export async function listarInscricoesDaVaga(vagaId: string): Promise<{ lista: InscricaoEstagio[]; erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_inscricoes').select('*').eq('vaga_id', vagaId).order('criado_em');
+  if (error) return { lista: [], erro: explicar(error) };
+  return { lista: (data ?? []).map(inscDoBanco) };
+}
+
+/**
+ * Aprovar a inscrição inclui o aluno na vaga de verdade.
+ *
+ * As duas coisas andam juntas de propósito: aprovar sem incluir deixaria o
+ * aluno achando que está no estágio sem estar na lista do supervisor.
+ */
+export async function aprovarInscricao(i: InscricaoEstagio, quem?: string): Promise<{ erro?: string }> {
+  const r = await incluirAlunoNaVaga({
+    vagaId: i.vagaId, alunoId: i.alunoId, alunoNome: i.alunoNome,
+    alunoMatricula: i.alunoMatricula,
+    notaConhecimento: null, notaHabilidade: null, notaAtitudes: null, notaValores: null,
+    resultado: 'PENDENTE',
+  });
+  // "Já está na vaga" não é erro aqui: significa que a inclusão já aconteceu.
+  if (r.erro && !r.erro.includes('já está')) return { erro: r.erro };
+
+  const { error } = await supabase.from('estagio_inscricoes').update({
+    situacao: 'APROVADA', analisado_por: quem ?? null,
+    analisado_em: new Date().toISOString(),
+  }).eq('id', i.id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+export async function recusarInscricao(id: string, motivo: string, quem?: string): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_inscricoes').update({
+    situacao: 'RECUSADA', motivo_recusa: motivo || null,
+    analisado_por: quem ?? null, analisado_em: new Date().toISOString(),
+  }).eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+export async function abrirInscricoes(
+  vagaId: string, abertas: boolean, ate?: string
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_vagas').update({
+    inscricoes_abertas: abertas, inscricoes_ate: ate || null,
+  }).eq('id', vagaId);
+  return error ? { erro: explicar(error) } : {};
 }
