@@ -9,11 +9,13 @@ import { OfficialTemplatesManager } from './OfficialTemplatesManager';
 import { EventsManager } from './EventsManager';
 import { EstagioCadastrosModule } from '../estagios/EstagioCadastrosModule';
 import { EstagioVagasModule } from '../estagios/EstagioVagasModule';
+import { EstagioPagamentosModule } from '../estagios/EstagioPagamentosModule';
+import { EstagioCronogramaModule } from '../estagios/EstagioCronogramaModule';
 import { EstagiosManager } from './EstagiosManager';
 import { SpreadsheetImporter } from '../SpreadsheetImporter';
 import { 
   BookOpen, UserCheck, ArrowLeftRight, XCircle, Repeat, 
-  FileText, FileUp, Sparkles, Briefcase, FileSpreadsheet, ListChecks } from 'lucide-react';
+  FileText, FileUp, Sparkles, Briefcase, FileSpreadsheet, ListChecks, Wallet, CalendarRange } from 'lucide-react';
 
 interface MovimentacaoModuleProps {
   currentUser?: string;
@@ -32,7 +34,9 @@ export type MovimentacaoSubTab =
   | 'minicursos' 
   | 'estagios'
   | 'estagio_cadastros'
-  | 'estagio_vagas';
+  | 'estagio_vagas'
+  | 'estagio_pagamentos'
+  | 'estagio_cronograma';
 
 export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({ 
   currentUser = 'Administração Movimentação',
@@ -53,6 +57,8 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
     // grava no navegador — as duas convivem até a migração terminar.
     { id: 'estagio_cadastros', label: 'Estágio — Cadastros', icon: ListChecks },
     { id: 'estagio_vagas', label: 'Estágio — Vagas', icon: Briefcase },
+    { id: 'estagio_pagamentos', label: 'Estágio — Pagamentos', icon: Wallet },
+    { id: 'estagio_cronograma', label: 'Estágio — Cronograma', icon: CalendarRange },
     { id: 'minicursos', label: 'Minicursos e Eventos', icon: Sparkles },
   ] as const;
 
@@ -135,6 +141,16 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
         {/* Vagas: a turma de estágio, com os alunos dentro. */}
         {activeSubTab === 'estagio_vagas' && (
           <EstagioVagasModule currentUser={currentUser} />
+        )}
+
+        {/* Recibos e o relatório do que cada supervisor tem a receber. */}
+        {activeSubTab === 'estagio_pagamentos' && (
+          <EstagioPagamentosModule currentUser={currentUser} />
+        )}
+
+        {/* Cronograma do semestre. Publicado, aparece no painel do aluno. */}
+        {activeSubTab === 'estagio_cronograma' && (
+          <EstagioCronogramaModule currentUser={currentUser} />
         )}
       </div>
 
