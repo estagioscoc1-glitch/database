@@ -257,9 +257,41 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     return filteredStudents.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
   }, [filteredStudents]);
 
+  /**
+   * DESISTENTES — de onde o número sai.
+   *
+   * A desistência NÃO fica num campo "status" do aluno. Quando a secretaria
+   * marca um aluno como desistente (função marcarDesistenteNaTurma), o que
+   * muda é o campo "result" das NOTAS dele naquela turma, que passa a valer
+   * DESISTENTE.
+   *
+   * Este contador procurava por u.status === 'DESISTENTE', que nunca é
+   * preenchido — por isso o painel mostrava zero mesmo com alunos marcados.
+   *
+   * Agora contamos ALUNOS DISTINTOS que tenham pelo menos uma nota marcada
+   * como DESISTENTE. Usar Set é importante: sem ele, um aluno com dez
+   * disciplinas contaria como dez desistentes.
+   */
   const dropoutsCount = useMemo(() => {
-    return filteredStudents.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length;
-  }, [filteredStudents]);
+    const idsFiltrados = new Set(filteredStudents.map((u: any) => u.id));
+    const desistentes = new Set<string>();
+
+    for (const g of (grades ?? [])) {
+      if ((g as any).result !== 'DESISTENTE') continue;
+      const id = (g as any).studentId;
+      if (idsFiltrados.has(id)) desistentes.add(id);
+    }
+
+    // Continua valendo também o campo status, para o caso de a escola vir a
+    // marcar desistência por ali no futuro.
+    for (const u of filteredStudents) {
+      if ((u as any).status === 'DESISTENTE' || (u as any).status === 'CANCELADO') {
+        desistentes.add((u as any).id);
+      }
+    }
+
+    return desistentes.size;
+  }, [filteredStudents, grades]);
 
   const abandonedCount = useMemo(() => {
     return filteredStudents.filter(u => u.status === 'ABANDONO' || u.status === 'EVADIDO').length;
