@@ -585,3 +585,71 @@ export async function apagarCronograma(id: string): Promise<{ erro?: string }> {
   const { error } = await supabase.from('estagio_cronograma').delete().eq('id', id);
   return error ? { erro: explicar(error) } : {};
 }
+
+// ============================ LIGAÇÃO COM O HISTÓRICO DO ALUNO
+
+export interface ResultadoTransferencia {
+  copiados: number;
+  semNota: number;
+  jaExistiam: string[];
+  erro?: string;
+}
+
+/**
+ * COPIA AS NOTAS DA VAGA PARA O HISTÓRICO DO ALUNO.
+ *
+ * POR QUE ISTO EXISTE:
+ * A vaga guarda as notas em estagio_vaga_alunos. Mas a Ficha Geral de Estágio
+ * e o Histórico Escolar leem de OUTRA tabela, "estagios". Sem esta cópia, o
+ * supervisor lançava a nota e a ficha do aluno continuava vazia — duas
+ * verdades sobre o mesmo estágio.
+ *
+ * QUANDO ACONTECE: só ao FECHAR a vaga. É o momento em que a nota vira
+ * definitiva. Antes disso ela ainda pode mudar, e o histórico não pode ficar
+ * balançando junto.
+ *
+ * SEGURANÇA — três travas:
+ *  1) Aluno SEM NOTA não é copiado. Copiar vazio apagaria um lançamento
+ *     anterior feito à mão pela secretaria.
+ *  2) A chave da tabela de destino é aluno + componente, então fechar a vaga
+ *     duas vezes não duplica nada: a segunda vez apenas regrava o mesmo valor.
+ *  3) Devolve a lista de quem JÁ TINHA nota lançada antes, para a coordenação
+ *     saber o que foi sobrescrito em vez de descobrir depois.
+ */
+export async function copiarNotasParaHistorico(
+  vaga: VagaEstagio,
+  alunos: AlunoNaVaga[]
+): Promise<ResultadoTransferencia> {
+  const comNota = alunos.filter(a => mediaDoAluno(a) !== null);
+  const semNota = alunos.length - comNota.length;
+  if (comNota.length === 0) return { copiados: 0, semNota, jaExistiam: [] };
+
+  // Quem já tinha lançamento neste componente, para avisar a coordenação.
+  const { data: existentes } = await supabase
+    .from('estagios')
+    .select('aluno_id, nota')
+    .eq('componente', vaga.componente)
+    .in('aluno_id', comNota.map(a => a.alunoId));
+
+  const jaExistiam = (existentes ?? [])
+    .filter((e: any) => e.nota !== null && e.nota !== undefined)
+    .map((e: any) => comNota.find(a => a.alunoId === e.aluno_id)?.alunoNome || e.aluno_id);
+
+  const linhas = comNota.map(a => ({
+    // Mesmo formato de id que o repositório usa, para não criar linha paralela.
+    id: `est_${a.alunoId}_${vaga.componente}`.replace(/[^\w-]/g, '_'),
+    aluno_id: a.alunoId,
+    componente: vaga.componente,
+    carga_horaria: 0,
+    local_realizado: vaga.localNome || null,
+    professor_nome: vaga.supervisorNome || null,
+    nota: mediaDoAluno(a),
+    atualizado_em: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('estagios').upsert(linhas, { onConflict: 'aluno_id,componente' });
+
+  if (error) return { copiados: 0, semNota, jaExistiam, erro: explicar(error) };
+  return { copiados: linhas.length, semNota, jaExistiam };
+}
