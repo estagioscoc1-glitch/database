@@ -81,11 +81,11 @@ export const CarimboRegistro: React.FC<Props> = ({
       </div>
     </div>
 
-    {/* Assinatura do secretário.
-        O espaço acima é generoso de propósito: no primeiro teste o nome do
-        Yan ficou colado na linha de "Local e Data" logo acima, e o conjunto
-        ficou apertado. */}
-    <div style={{ textAlign: 'center', marginTop: '16mm' }}>
+    {/* Assinatura do secretário, logo abaixo de "Local e Data".
+        Já errei os dois lados aqui: com 9mm ficava colada na linha de cima,
+        com 16mm o bloco crescia e a assinatura vazava para fora da moldura
+        do verso. 6mm mantém tudo dentro e com respiro. */}
+    <div style={{ textAlign: 'center', marginTop: '6mm' }}>
       <div style={{ fontSize: '12pt', fontStyle: 'italic' }}>{nomeSecretario}</div>
       <div style={{ fontSize: '9.5pt' }}>Secretário</div>
     </div>
