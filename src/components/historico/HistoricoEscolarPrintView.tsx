@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, ScrollText, AlertTriangle } from 'lucide-react';
-import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../../lib/imageAssets';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES } from '../../lib/imageAssets';
 import { FONTE_DOCUMENTOS } from '../../lib/documentoEstilo';
 import { LEGENDA_CONCEITOS } from '../../lib/historicoTextos';
 import type { ModeloHistorico } from '../../lib/historicoTextos';
@@ -251,7 +251,50 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         <p style={{ margin: 0 }}><strong>CONCEITOS</strong> &nbsp; {LEGENDA_CONCEITOS}</p>
       </div>
 
-      {/* Competências — página nova, porque a lista é longa */}
+      {/* VERSO — DEPENDE DO TIPO.
+          No histórico COMPLETO, o verso traz as competências adquiridas.
+          No PARCIAL, que é o da transferência, não: ele leva a folha de
+          entrega, com a data e a assinatura de quem recebeu. São documentos
+          com finalidades diferentes — um atesta o que o aluno concluiu, o
+          outro comprova que o documento foi entregue em mãos. */}
+      {parcial ? (
+        <div className="hist-quebra" style={{
+          position: 'relative', height: '25.5cm',
+          border: '0.4mm solid #000', boxSizing: 'border-box',
+          padding: '1.5cm', marginTop: '12px',
+        }}>
+          {/* Timbre em cinza claro, como no modelo */}
+          <div style={{ textAlign: 'center' }}>
+            <img
+              src={LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES}
+              alt="Colégio Oswaldo Cruz"
+              referrerPolicy="no-referrer"
+              style={{
+                height: '2cm', width: 'auto', objectFit: 'contain',
+                filter: 'grayscale(100%)', opacity: 0.55,
+              }}
+            />
+          </div>
+
+          {/* Data de entrega, em branco para preencher à mão */}
+          <div style={{
+            marginTop: '9cm', textAlign: 'center',
+            fontSize: '15pt', fontWeight: 'bold', letterSpacing: '0.03em',
+          }}>
+            ENTREGUE EM: &nbsp;____/____/________
+          </div>
+
+          {/* Linha de assinatura de quem recebeu */}
+          <div style={{ marginTop: '3.2cm', textAlign: 'center' }}>
+            <div style={{
+              borderTop: '0.3mm solid #000', width: '78%', margin: '0 auto',
+              paddingTop: '2mm', fontSize: '10.5pt',
+            }}>
+              ASSINATURA
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="hist-quebra" style={{ marginTop: '12px' }}>
         <h2 style={{ textAlign: 'center', fontSize: '10pt', fontWeight: 'bold', margin: '0 0 10px' }}>
           COMPETÊNCIAS ADQUIRIDAS
@@ -291,6 +334,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 
@@ -322,7 +366,8 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         <div className="px-5 py-2 bg-amber-50 border-b border-amber-200 flex items-start gap-2">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
           <p className="text-[11px] font-semibold text-amber-800 leading-relaxed">
-            Sai em duas folhas: notas na primeira, competências na segunda.
+            Sai em duas folhas: notas na primeira, e na segunda
+            {parcial ? ' a folha de entrega, para assinatura de quem receber' : ' as competências adquiridas'}.
             Desmarque <strong>Cabeçalhos e rodapés</strong> e marque <strong>Gráficos de fundo</strong>.
             {cargaDisc !== modelo.cargaTotal - modelo.cargaEstagio && (
               <> &nbsp;· A soma das disciplinas ({cargaDisc}h) mais o estágio ({modelo.cargaEstagio}h)
