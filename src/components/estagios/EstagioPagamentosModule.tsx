@@ -4,6 +4,7 @@ import {
   carregarModeloEstagio, salvarModeloEstagio, MODELOS_ESTAGIO_PADRAO,
   type ReciboEstagio, type Supervisor, type ModeloEstagio,
 } from '../../lib/supabaseEstagioModulo';
+import { ReciboEstagioPrintView } from './ReciboEstagioPrintView';
 import {
   Receipt, AlertTriangle, CheckCircle2, RefreshCw, Filter, Wallet,
   Pencil, Save, Plus, Trash2, RotateCcw, Info,
@@ -44,6 +45,13 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
   const [tipoModelo, setTipoModelo] = useState<'RECIBO' | 'DECLARACAO'>('RECIBO');
   const [modelo, setModelo] = useState<ModeloEstagio | null>(null);
   const [salvandoModelo, setSalvandoModelo] = useState(false);
+  const [imprimir, setImprimir] = useState<{ tipo: 'RECIBO' | 'DECLARACAO'; recibo: ReciboEstagio; modelo: ModeloEstagio } | null>(null);
+
+  /** Abre o documento com o texto que a coordenação salvou. */
+  const abrirDocumento = async (tipo: 'RECIBO' | 'DECLARACAO', r: ReciboEstagio) => {
+    const m = await carregarModeloEstagio(tipo);
+    setImprimir({ tipo, recibo: r, modelo: m });
+  };
 
   useEffect(() => {
     if (aba !== 'modelos') return;
@@ -370,6 +378,12 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
               <span className="font-mono font-black text-base text-slate-700 dark:text-slate-200">
                 {formatarDinheiro(r.valorTotal)}
               </span>
+              <button type="button" onClick={() => void abrirDocumento('RECIBO', r)}
+                      title="Imprimir o recibo"
+                      className="p-2 text-slate-400 hover:text-blue-600"><Receipt className="h-4 w-4" /></button>
+              <button type="button" onClick={() => void abrirDocumento('DECLARACAO', r)}
+                      title="Imprimir a declaração de supervisão"
+                      className="px-2 py-2 text-[11px] font-bold text-slate-500 hover:text-blue-600">Declaração</button>
               <button type="button"
                       onClick={async () => {
                         const { erro: e } = await marcarReciboPago(r.id!, r.situacao !== 'PAGO');
@@ -397,6 +411,16 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
           </div>
         )}
       </div>
+      )}
+
+      {imprimir && (
+        <ReciboEstagioPrintView
+          tipo={imprimir.tipo}
+          modelo={imprimir.modelo}
+          recibo={imprimir.recibo}
+          supervisor={supervisores.find(s => s.id === imprimir.recibo.supervisorId)}
+          onClose={() => setImprimir(null)}
+        />
       )}
     </div>
   );
