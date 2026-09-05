@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import { ListaVagaPrintView } from './ListaVagaPrintView';
-import { emitirRecibo } from '../../lib/supabaseEstagioModulo';
+import { emitirRecibo, copiarNotasParaHistorico } from '../../lib/supabaseEstagioModulo';
 
 // ===========================================================================
 //  VAGAS DE ESTÁGIO
@@ -118,15 +118,39 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
     await abrirVaga(vagaAberta);
   };
 
+  /**
+   * Fechar a vaga faz DUAS coisas: trava o lançamento e copia as notas para o
+   * histórico do aluno. A cópia é o que faz a nota aparecer na Ficha Geral de
+   * Estágio — sem ela, o supervisor lançava e a ficha continuava vazia.
+   */
   const fechar = async (v: VagaEstagio) => {
     const semNota = alunosDaVaga.filter(a => mediaDoAluno(a) === null).length;
     if (semNota > 0 && !window.confirm(
       `${semNota} aluno(s) ainda estão sem nota. Fechar a vaga trava o lançamento — ` +
-      `nem o supervisor nem você conseguirão lançar depois. Fechar mesmo assim?`
+      `nem o supervisor nem você conseguirão lançar depois, e esses alunos ficarão ` +
+      `sem nota no histórico. Fechar mesmo assim?`
     )) return;
+
+    // A cópia vem ANTES de fechar. Se ela falhar, a vaga continua aberta e dá
+    // para tentar de novo — melhor do que fechar e a nota não chegar ao aluno.
+    const r = await copiarNotasParaHistorico(v, alunosDaVaga);
+    if (r.erro) {
+      mostrar('erro', `A vaga NÃO foi fechada. Não deu para copiar as notas para o histórico: ${r.erro}`);
+      return;
+    }
+
+    if (r.jaExistiam.length > 0 && !window.confirm(
+      `Estes alunos já tinham nota lançada neste componente e serão substituídos ` +
+      `pela nota desta vaga:\n\n${r.jaExistiam.join('\n')}\n\nContinuar?`
+    )) return;
+
     const { erro: e } = await mudarSituacaoVaga(v.id!, 'FECHADA', currentUser);
     if (e) { mostrar('erro', e); return; }
-    mostrar('ok', 'Vaga fechada. Já dá para gerar o recibo do supervisor.');
+
+    mostrar('ok',
+      `Vaga fechada. ${r.copiados} nota(s) foram para o histórico dos alunos` +
+      (r.semNota > 0 ? `, e ${r.semNota} ficaram sem nota` : '') +
+      '. Já dá para gerar o recibo do supervisor.');
     void recarregar();
     setVagaAberta({ ...v, situacao: 'FECHADA' });
   };
