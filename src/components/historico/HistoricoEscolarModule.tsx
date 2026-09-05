@@ -39,7 +39,7 @@ interface Props {
 }
 
 export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
-  const { users, classes, courses, subjects, grades, dependencies, attendance } = useApp();
+  const { users, classes, courses, subjects, grades, dependencies, attendance, directAbsences } = useApp();
 
   const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState<any | null>(null);
@@ -98,13 +98,20 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
       const id = (g as any).subjectId;
       if (!id) continue;
       const nota = (g as any).finalGrade ?? (g as any).pf ?? (g as any).average ?? null;
+      // AS FALTAS NÃO FICAM NA NOTA.
+      // Elas vivem em directAbsences, indexadas por turma_disciplina_aluno —
+      // a mesma chave que o diário de classe usa. A primeira versão procurava
+      // um campo "absences" dentro do registro de nota, que nunca existiu, e
+      // por isso a coluna FALTAS saía sempre com traço.
+      const chaveFalta = `${(g as any).classId}_${id}_${aluno.id}`;
+      const faltas = (directAbsences ?? {})[chaveFalta];
       mapa[id] = {
         nota: nota === null || nota === undefined ? null : Number(nota),
-        faltas: (g as any).absences ?? null,
+        faltas: faltas === undefined || faltas === null ? null : Number(faltas),
       };
     }
     return mapa;
-  }, [aluno, grades]);
+  }, [aluno, grades, directAbsences]);
 
   const notasPorNome = useMemo(() => {
     const mapa: Record<string, { nota: number | null; faltas: number | null }> = {};
@@ -115,13 +122,15 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
       const nome = (disc?.name || '').trim().toUpperCase();
       if (!nome) continue;
       const nota = (g as any).finalGrade ?? (g as any).pf ?? (g as any).average ?? null;
+      const chaveFalta = `${(g as any).classId}_${(g as any).subjectId}_${aluno.id}`;
+      const faltas = (directAbsences ?? {})[chaveFalta];
       mapa[nome] = {
         nota: nota === null || nota === undefined ? null : Number(nota),
-        faltas: (g as any).absences ?? null,
+        faltas: faltas === undefined || faltas === null ? null : Number(faltas),
       };
     }
     return mapa;
-  }, [aluno, grades, subjects]);
+  }, [aluno, grades, subjects, directAbsences]);
 
   /**
    * DEPENDÊNCIAS DO ALUNO, indexadas pelo nome da disciplina.
@@ -328,7 +337,9 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
           nome: d.nome,
           ch: d.ch,
           conceito,
-          faltas: achado && achado.faltas !== null ? String(achado.faltas) : '----',
+          // Zero falta sai com traço, como no modelo impresso da escola —
+          // lá só aparece número quando houve falta de verdade.
+          faltas: achado && achado.faltas ? String(achado.faltas).padStart(2, '0') : '----',
           apMfc,
           apAnoSemestre: apAno,
         };
