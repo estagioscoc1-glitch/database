@@ -8,6 +8,7 @@ import { RequirementsManager } from './RequirementsManager';
 import { OfficialTemplatesManager } from './OfficialTemplatesManager';
 import { EventsManager } from './EventsManager';
 import { EstagioCadastrosModule } from '../estagios/EstagioCadastrosModule';
+import { EstagioVagasModule } from '../estagios/EstagioVagasModule';
 import { EstagiosManager } from './EstagiosManager';
 import { SpreadsheetImporter } from '../SpreadsheetImporter';
 import { 
@@ -30,7 +31,8 @@ export type MovimentacaoSubTab =
   | 'upload_documentos' 
   | 'minicursos' 
   | 'estagios'
-  | 'estagio_cadastros';
+  | 'estagio_cadastros'
+  | 'estagio_vagas';
 
 export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({ 
   currentUser = 'Administração Movimentação',
@@ -50,6 +52,7 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
     // Módulo novo, ligado ao banco. O 'estagios' acima é a tela antiga, que
     // grava no navegador — as duas convivem até a migração terminar.
     { id: 'estagio_cadastros', label: 'Estágio — Cadastros', icon: ListChecks },
+    { id: 'estagio_vagas', label: 'Estágio — Vagas', icon: Briefcase },
     { id: 'minicursos', label: 'Minicursos e Eventos', icon: Sparkles },
   ] as const;
 
@@ -127,6 +130,11 @@ export const MovimentacaoModule: React.FC<MovimentacaoModuleProps> = ({
             banco, diferente da tela acima. */}
         {activeSubTab === 'estagio_cadastros' && (
           <EstagioCadastrosModule currentUser={currentUser} />
+        )}
+
+        {/* Vagas: a turma de estágio, com os alunos dentro. */}
+        {activeSubTab === 'estagio_vagas' && (
+          <EstagioVagasModule currentUser={currentUser} />
         )}
       </div>
 
