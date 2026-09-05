@@ -89,6 +89,23 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
    * foi lançado no portal, já que a mesma disciplina pode ter ids
    * diferentes em turmas diferentes.
    */
+  /** Notas indexadas pelo ID da disciplina. É o casamento exato. */
+  const notasPorId = useMemo(() => {
+    const mapa: Record<string, { nota: number | null; faltas: number | null }> = {};
+    if (!aluno) return mapa;
+    for (const g of (grades ?? [])) {
+      if ((g as any).studentId !== aluno.id) continue;
+      const id = (g as any).subjectId;
+      if (!id) continue;
+      const nota = (g as any).finalGrade ?? (g as any).pf ?? (g as any).average ?? null;
+      mapa[id] = {
+        nota: nota === null || nota === undefined ? null : Number(nota),
+        faltas: (g as any).absences ?? null,
+      };
+    }
+    return mapa;
+  }, [aluno, grades]);
+
   const notasPorNome = useMemo(() => {
     const mapa: Record<string, { nota: number | null; faltas: number | null }> = {};
     if (!aluno) return mapa;
@@ -235,32 +252,66 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     if (frequenciaCalculada) setFrequencia(frequenciaCalculada.presentes);
   }, [frequenciaCalculada]);
 
+  /**
+   * AS DISCIPLINAS VÊM DO CADASTRO DO CURSO, NÃO DE UMA LISTA FIXA.
+   *
+   * A primeira versão usava a grade que extraí das planilhas e casava com as
+   * notas PELO NOME. Isso gerava dois defeitos:
+   *  - disciplina cujo nome no portal diferisse um pouco do da planilha saía
+   *    sem nota, mesmo tendo nota lançada;
+   *  - disciplina que existe na planilha e não no portal (o caso de "Saúde
+   *    Coletiva" e "Saúde Coletiva I", em Enfermagem) aparecia duplicada,
+   *    com uma delas sempre vazia.
+   *
+   * Agora a lista sai da tabela de disciplinas do curso — a mesma que o
+   * professor usa para lançar nota — e o casamento é pelo ID. Não existe
+   * mais como errar por diferença de escrita: o histórico passa a ser o
+   * retrato do que está no sistema.
+   *
+   * O modelo do curso continua valendo para o resto: título, resolução,
+   * carga horária total, estágio e competências.
+   */
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
-    return modelo.modulos.map(mod => ({
+
+    const doCurso = (subjects ?? []).filter(
+      (d: any) => d.courseId === cursoAluno?.id
+    );
+
+    // Sem disciplinas cadastradas para o curso, volta para a grade do modelo.
+    // Melhor um histórico montado da lista antiga do que uma folha em branco.
+    const grupos: { nome: string; disciplinas: { id?: string; nome: string; ch: number }[] }[] =
+      doCurso.length > 0
+        ? Array.from(new Set(doCurso.map((d: any) => d.module)))
+            .sort((a: any, b: any) => Number(a) - Number(b))
+            .map((mod: any) => ({
+              nome: `MÓDULO ${['I', 'II', 'III', 'IV', 'V'][Number(mod) - 1] ?? mod}`,
+              disciplinas: doCurso
+                .filter((d: any) => d.module === mod)
+                .map((d: any) => ({ id: d.id, nome: d.name, ch: d.workload ?? 0 })),
+            }))
+        : modelo.modulos.map(m => ({
+            nome: m.nome,
+            disciplinas: m.disciplinas.map(d => ({ nome: d.nome, ch: d.ch })),
+          }));
+
+    return grupos.map(mod => ({
       nome: mod.nome,
       anoSemestre: anoSemestrePorModulo[mod.nome] || '',
       linhas: mod.disciplinas.map((d): LinhaHistorico => {
         const chave = d.nome.trim().toUpperCase();
-        const achado = notasPorNome[chave];
+        // Casa pelo ID quando existe; só cai no nome no modo de reserva.
+        const achado = d.id ? notasPorId[d.id] : notasPorNome[chave];
         const temNota = achado && achado.nota !== null;
         const dep = dependenciasPorNome[chave];
         const dispensado = dispensas[chave];
 
-        // Ordem de prioridade na coluna CONCEITO:
-        //   1) dispensado por aproveitamento de estudos -> "Ap. Est."
-        //   2) cursou em dependência -> "DEP", e o conceito real vai pro
-        //      bloco de aproveitamento, com o ano/semestre da dependência
-        //   3) nota lançada -> letra
-        //   4) sem nota -> "À Cursar" no parcial, traço no completo
         let conceito: string;
         let apMfc = '----';
         let apAno = '----';
 
         if (dispensado) {
           conceito = 'Ap. Est';
-          // A planilha da escola deixa M.F.C. e Ano/S. em branco na dispensa.
-          // Se a secretaria preencher, sai preenchido.
           apMfc = (depConceito[chave] || '').trim().toUpperCase() || '----';
           apAno = depAnoSemestre[chave] || '----';
         } else if (dep) {
@@ -283,9 +334,11 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
         };
       }),
     }));
-  }, [modelo, notasPorNome, tipo, anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre, depConceito]);
+  }, [modelo, subjects, cursoAluno, notasPorId, notasPorNome, tipo,
+      anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre, depConceito]);
 
   const totalDisciplinas = linhasPorModulo.reduce((s, m) => s + m.linhas.length, 0);
+  const usandoCadastro = (subjects ?? []).some((d: any) => d.courseId === cursoAluno?.id);
   const comNota = linhasPorModulo.reduce(
     (s, m) => s + m.linhas.filter(l => l.conceito !== '----' && l.conceito !== 'À Cursar').length, 0);
 
@@ -567,6 +620,18 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                 </div>
               </div>
             </details>
+
+            {!usandoCadastro && (
+              <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-rose-200 bg-rose-50">
+                <AlertTriangle className="h-4 w-4 text-rose-600 mt-0.5 flex-shrink-0" />
+                <p className="text-[11px] font-bold text-rose-800 leading-relaxed">
+                  Não há disciplinas cadastradas para {cursoAluno?.name || 'este curso'} em
+                  Cadastros Acadêmicos. O histórico está sendo montado por uma lista de reserva,
+                  que pode não bater com o que foi lançado. Cadastre as disciplinas do curso para
+                  o documento sair fiel ao sistema.
+                </p>
+              </div>
+            )}
 
             {comNota < totalDisciplinas && (
               <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
