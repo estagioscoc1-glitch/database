@@ -49,7 +49,7 @@ const ABAS_VISIVEIS = {
 import { 
   Users, UserCheck, GraduationCap, School, BookOpen, FileCheck, CheckCircle2, 
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
-  Search, Printer, AlertTriangle, ChevronRight, HelpCircle,
+  Search, Printer, AlertTriangle, ChevronRight, HelpCircle, CalendarDays,
   Database, Shield, ShieldCheck, UploadCloud, Lock, Unlock, Server, RefreshCw, Download, Upload, Key,
   Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles, IdCard, Layers,
   Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
@@ -1372,6 +1372,18 @@ export const AdminDashboard: React.FC = () => {
               <span>Ajuda</span>
             </button>
           )}
+          {/* Eventos — site externo da escola. Fora do bloco do Admin de
+              propósito: fica visível para todos os perfis. */}
+          <a
+            href="https://eventos.colegiooswaldocruz.com.br/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer bg-white hover:bg-slate-50 text-rose-700 border border-rose-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-rose-400 dark:border-rose-900/40"
+          >
+            <CalendarDays className="h-4.5 w-4.5 text-rose-500" />
+            <span>Eventos</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
 
       </div>
