@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useApp } from '../../context/AppContext';
+import { UserRole } from '../../types';
 import {
-  listarSupervisores, salvarSupervisor, apagarSupervisor,
+  listarSupervisores, salvarSupervisor, apagarSupervisor, vincularUsuario,
   listarLocais, salvarLocal, apagarLocal,
   listarCatalogo, salvarCatalogo, formatarDinheiro,
   TIPOS_LOCAL, CURSOS_ESTAGIO,
@@ -8,7 +10,7 @@ import {
 } from '../../lib/supabaseEstagioModulo';
 import {
   UserCog, Building2, ListChecks, Plus, Trash2, Save, X,
-  AlertTriangle, CheckCircle2, RefreshCw, Search, Info,
+  AlertTriangle, CheckCircle2, RefreshCw, Search, Info, KeyRound,
 } from 'lucide-react';
 
 // ===========================================================================
@@ -30,6 +32,10 @@ const campo = 'w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slat
 const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1';
 
 export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => {
+  const { users } = useApp();
+  // Contas de professor disponíveis para vincular ao supervisor.
+  const contasProfessor = users.filter(u => u.role === UserRole.TEACHER);
+  const [vinculando, setVinculando] = useState<Supervisor | null>(null);
   const [aba, setAba] = useState<'supervisores' | 'locais' | 'catalogo'>('supervisores');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -223,13 +229,48 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
                   {s.telefone ? ` · ${s.telefone}` : ''}
                   {s.email ? ` · ${s.email}` : ''}
                 </p>
-                {!s.usuarioId && (
-                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black">
-                    Sem login criado
+                {s.usuarioId ? (
+                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
+                    Login vinculado
                   </span>
+                ) : (
+                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black">
+                    Sem login — não consegue lançar notas
+                  </span>
+                )}
+
+                {vinculando?.id === s.id && (
+                  <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200">
+                    <label className={rotulo}>Escolha a conta de professor deste supervisor</label>
+                    <select className={campo}
+                            onChange={async e => {
+                              if (!e.target.value) return;
+                              const { erro: err } = await vincularUsuario(s.id!, e.target.value);
+                              if (err) { mostrar('erro', err); return; }
+                              mostrar('ok', `${s.nome} agora consegue entrar e lançar notas.`);
+                              setVinculando(null);
+                              void recarregar();
+                            }}>
+                      <option value="">Escolha…</option>
+                      {contasProfessor.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} — {u.username}</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+                      O supervisor precisa ter uma conta de professor cadastrada em
+                      Funcionários do Sistema. Vinculada aqui, aparece para ele a aba
+                      "Meus Estágios" no painel dele.
+                    </p>
+                    <button type="button" onClick={() => setVinculando(null)}
+                            className="mt-2 text-[11px] font-bold text-slate-500">Cancelar</button>
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setVinculando(vinculando?.id === s.id ? null : s)}
+                        className="flex items-center gap-1 px-3 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 rounded-xl">
+                  <KeyRound className="h-3.5 w-3.5" /> {s.usuarioId ? 'Trocar login' : 'Vincular login'}
+                </button>
                 <button type="button" onClick={() => setSupEdit(s)}
                         className="px-3 py-2 text-[11px] font-bold text-blue-600 hover:bg-blue-50 rounded-xl">Editar</button>
                 <button type="button"
