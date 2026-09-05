@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
+import { CronogramaDoAluno } from './estagios/EstagioCronogramaModule';
 import { enviarArquivoDeDocumento, linkDoDocumento } from '../lib/repositorios';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
@@ -398,6 +399,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
             return (
               <div className="space-y-5 animate-fade-in">
+                {/* Cronograma de estágio. Só aparece quando a coordenação
+                    publica um — sem cronograma publicado, nada é mostrado. */}
+                <CronogramaDoAluno />
+
                 <div>
                   <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Minhas Declarações</h3>
                   <p className="text-xs text-slate-400">Emita declarações institucionais oficiais com validação digital para impressão ou download.</p>
