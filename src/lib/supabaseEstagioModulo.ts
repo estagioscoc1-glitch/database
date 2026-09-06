@@ -798,3 +798,23 @@ export async function criarFichaDeProfessor(
   if (error) return { erro: explicar(error) };
   return {};
 }
+
+/**
+ * Acha o identificador REAL do login recém-criado.
+ *
+ * POR QUE ISTO EXISTE:
+ * A primeira versão vinculava o supervisor ao id da FICHA de professor
+ * (`sup_xxx`). Só que a regra de segurança compara com o id do LOGIN, que é
+ * outro número — um uuid gerado pelo Supabase. Como nunca batiam, o banco
+ * devolvia vazio ao supervisor consultar o próprio cadastro, e o portal
+ * concluía que ele era professor comum, mostrando o diário inteiro.
+ *
+ * Busca pelo login porque é o único dado que conhecemos com certeza logo
+ * após a criação da conta.
+ */
+export async function idDoLogin(login: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('usuarios').select('id').eq('login', login).maybeSingle();
+  if (error || !data) return null;
+  return (data as any).id as string;
+}
