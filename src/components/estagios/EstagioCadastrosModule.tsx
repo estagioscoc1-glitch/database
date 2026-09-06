@@ -6,7 +6,7 @@ import { criarAcesso } from '../../lib/supabase';
 import {
   listarSupervisores, salvarSupervisor, apagarSupervisor, vincularUsuario,
   listarLocais, salvarLocal, apagarLocal,
-  listarCatalogo, salvarCatalogo, formatarDinheiro, criarFichaDeProfessor,
+  listarCatalogo, salvarCatalogo, formatarDinheiro, criarFichaDeProfessor, idDoLogin,
   TIPOS_LOCAL, CURSOS_ESTAGIO,
   type Supervisor, type LocalEstagio, type EstagioCatalogo,
 } from '../../lib/supabaseEstagioModulo';
@@ -89,8 +89,16 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
         return;
       }
 
-      // 3) Vincula ao cadastro de supervisor.
-      const { erro: e } = await vincularUsuario(s.id, idFicha);
+      // 3) Vincula ao cadastro de supervisor — com o id do LOGIN, não o da
+      //    ficha. A regra de segurança do banco compara com o id do login;
+      //    usar o da ficha fazia o supervisor nunca ser reconhecido.
+      const loginReal = res.loginUsado || login;
+      const idUsuario = await idDoLogin(loginReal);
+      if (!idUsuario) {
+        mostrar('erro', 'A conta foi criada, mas não deu para vincular ao cadastro. Use "Usar conta existente" para ligar manualmente.');
+        return;
+      }
+      const { erro: e } = await vincularUsuario(s.id, idUsuario);
       if (e) { mostrar('erro', e); return; }
 
       setSenhaGerada({
@@ -334,7 +342,16 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
                     <select className={campo}
                             onChange={async e => {
                               if (!e.target.value) return;
-                              const { erro: err } = await vincularUsuario(s.id!, e.target.value);
+                              // A lista traz o id da FICHA. A regra de segurança
+                              // compara com o id do LOGIN, então convertemos
+                              // pelo nome de usuário antes de gravar.
+                              const conta = contasProfessor.find(u => u.id === e.target.value);
+                              const idUsuario = conta?.username ? await idDoLogin(conta.username) : null;
+                              if (!idUsuario) {
+                                mostrar('erro', 'Essa pessoa ainda não tem conta de acesso criada. Use o botão "Criar acesso".');
+                                return;
+                              }
+                              const { erro: err } = await vincularUsuario(s.id!, idUsuario);
                               if (err) { mostrar('erro', err); return; }
                               mostrar('ok', `${s.nome} agora consegue entrar e lançar notas.`);
                               setVinculando(null);
