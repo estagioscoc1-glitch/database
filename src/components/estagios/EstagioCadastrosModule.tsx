@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
+import { criarAcessoDeUmDocente } from '../../lib/repositorios';
+import { criarAcesso } from '../../lib/supabase';
 import {
   listarSupervisores, salvarSupervisor, apagarSupervisor, vincularUsuario,
   listarLocais, salvarLocal, apagarLocal,
@@ -36,6 +38,67 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
   // Contas de professor disponíveis para vincular ao supervisor.
   const contasProfessor = users.filter(u => u.role === UserRole.TEACHER);
   const [vinculando, setVinculando] = useState<Supervisor | null>(null);
+  const { addUser } = useApp();
+  const [criandoAcesso, setCriandoAcesso] = useState<string | null>(null);
+  const [senhaGerada, setSenhaGerada] = useState<{ nome: string; login: string; senha: string } | null>(null);
+
+  /**
+   * CRIA A CONTA DE ACESSO DO SUPERVISOR, ali mesmo.
+   *
+   * O gerente de estágio não tem acesso a Funcionários do Sistema, e os
+   * supervisores de estágio normalmente não são os professores de sala. Sem
+   * isto, ele dependeria da secretaria para cada supervisor novo.
+   *
+   * Por baixo usa o MESMO mecanismo do cadastro de professores: a ficha vai
+   * para a tabela de professores e o servidor cria a conta com senha forte,
+   * exigindo troca no primeiro acesso. Não existe um segundo jeito de criar
+   * conta no portal — só um atalho para chegar nele.
+   */
+  const criarLogin = async (s: Supervisor) => {
+    if (!s.id) return;
+    if (!s.email?.trim()) {
+      mostrar('erro', 'Preencha o e-mail do supervisor antes de criar o acesso.');
+      return;
+    }
+    setCriandoAcesso(s.id);
+    try {
+      const idFicha = `sup_${s.id}`;
+      const login = s.nome.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 24);
+
+      // 1) A ficha da pessoa, para a conta ter onde se amarrar.
+      addUser({
+        id: idFicha, name: s.nome, username: login,
+        email: s.email, role: UserRole.TEACHER, active: true,
+      } as any);
+
+      // 2) A conta, criada no servidor.
+      const res = await criarAcessoDeUmDocente(criarAcesso, {
+        fichaId: idFicha, nome: s.nome, login, email: s.email, papel: 'PROFESSOR',
+      });
+
+      if (!res.ok) {
+        mostrar('erro', `A conta não foi criada: ${res.erro}`);
+        return;
+      }
+
+      // 3) Vincula ao cadastro de supervisor.
+      const { erro: e } = await vincularUsuario(s.id, idFicha);
+      if (e) { mostrar('erro', e); return; }
+
+      setSenhaGerada({
+        nome: s.nome,
+        login: res.loginUsado || login,
+        senha: res.senhaInicial || '',
+      });
+      void recarregar();
+    } catch (err: any) {
+      mostrar('erro', `Não deu para criar a conta: ${err?.message || err}`);
+    } finally {
+      setCriandoAcesso(null);
+    }
+  };
   const [aba, setAba] = useState<'supervisores' | 'locais' | 'catalogo'>('supervisores');
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -107,6 +170,26 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
         <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
           <span className="text-xs font-bold text-amber-800 leading-relaxed">{erro}</span>
+        </div>
+      )}
+
+      {senhaGerada && (
+        <div className="p-5 rounded-3xl border-2 border-emerald-300 bg-emerald-50">
+          <p className="font-black text-sm text-emerald-800 mb-2">
+            Conta criada para {senhaGerada.nome}
+          </p>
+          <p className="text-xs font-bold text-emerald-800 leading-relaxed">
+            Usuário: <span className="font-mono text-base">{senhaGerada.login}</span><br />
+            Senha inicial: <span className="font-mono text-base">{senhaGerada.senha}</span>
+          </p>
+          <p className="text-[11px] text-emerald-700 mt-2 leading-relaxed">
+            Anote agora e entregue ao supervisor. Esta senha aparece uma vez só e não fica guardada
+            em lugar nenhum. Ele terá de trocá-la no primeiro acesso.
+          </p>
+          <button type="button" onClick={() => setSenhaGerada(null)}
+                  className="mt-3 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs">
+            Já anotei
+          </button>
         </div>
       )}
 
@@ -235,7 +318,7 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
                   </span>
                 ) : (
                   <span className="inline-block mt-1.5 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black">
-                    Sem login — não consegue lançar notas
+                    Sem acesso — clique em "Criar acesso" 
                   </span>
                 )}
 
@@ -267,9 +350,17 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {!s.usuarioId && (
+                  <button type="button" onClick={() => void criarLogin(s)}
+                          disabled={criandoAcesso === s.id}
+                          className="flex items-center gap-1 px-3 py-2 text-[11px] font-black text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 rounded-xl">
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {criandoAcesso === s.id ? 'Criando…' : 'Criar acesso'}
+                  </button>
+                )}
                 <button type="button" onClick={() => setVinculando(vinculando?.id === s.id ? null : s)}
-                        className="flex items-center gap-1 px-3 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50 rounded-xl">
-                  <KeyRound className="h-3.5 w-3.5" /> {s.usuarioId ? 'Trocar login' : 'Vincular login'}
+                        className="px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 rounded-xl">
+                  {s.usuarioId ? 'Trocar login' : 'Usar conta existente'}
                 </button>
                 <button type="button" onClick={() => setSupEdit(s)}
                         className="px-3 py-2 text-[11px] font-bold text-blue-600 hover:bg-blue-50 rounded-xl">Editar</button>
