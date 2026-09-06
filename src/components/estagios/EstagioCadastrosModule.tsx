@@ -6,7 +6,7 @@ import { criarAcesso } from '../../lib/supabase';
 import {
   listarSupervisores, salvarSupervisor, apagarSupervisor, vincularUsuario,
   listarLocais, salvarLocal, apagarLocal,
-  listarCatalogo, salvarCatalogo, formatarDinheiro,
+  listarCatalogo, salvarCatalogo, formatarDinheiro, criarFichaDeProfessor,
   TIPOS_LOCAL, CURSOS_ESTAGIO,
   type Supervisor, type LocalEstagio, type EstagioCatalogo,
 } from '../../lib/supabaseEstagioModulo';
@@ -67,7 +67,13 @@ export const EstagioCadastrosModule: React.FC<{ currentUser?: string }> = () => 
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '').slice(0, 24);
 
-      // 1) A ficha da pessoa, para a conta ter onde se amarrar.
+      // 1) A ficha vai DIRETO para o banco. Antes eu usava só o addUser, que
+      //    apenas põe a pessoa na lista em memória — a conta era pedida antes
+      //    da ficha existir e falhava com "a ficha ainda não chegou ao banco".
+      const f = await criarFichaDeProfessor(idFicha, s);
+      if (f.erro) { mostrar('erro', `A ficha não foi gravada: ${f.erro}`); return; }
+
+      // Também na lista em memória, para a tela mostrar sem recarregar.
       addUser({
         id: idFicha, name: s.nome, username: login,
         email: s.email, role: UserRole.TEACHER, active: true,
