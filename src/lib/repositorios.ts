@@ -260,12 +260,47 @@ export async function carregarContasDeGestao(): Promise<
  * Registra a ENTRADA de um professor ou aluno — chamado uma vez, no login.
  * Devolve o id do registro, pra depois atualizar "última atividade" e "saiu em".
  */
+/**
+ * Descobre o dispositivo a partir do que o navegador informa.
+ *
+ * NÃO capturamos IP aqui: o navegador não consegue saber o próprio IP
+ * público. Quem enxerga isso é o servidor que recebe a conexão.
+ */
+export function identificarDispositivo(): { dispositivo: string; navegador: string; sistema: string } {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+
+  const dispositivo = /iPad|Tablet/i.test(ua) ? 'Tablet'
+    : /Mobi|Android|iPhone/i.test(ua) ? 'Celular'
+    : 'Computador';
+
+  // A ordem importa: Edge e Opera também dizem "Chrome" no texto, e o Chrome
+  // diz "Safari". Testando do mais específico para o mais genérico, acerta.
+  const navegador = /Edg\//i.test(ua) ? 'Edge'
+    : /OPR\/|Opera/i.test(ua) ? 'Opera'
+    : /SamsungBrowser/i.test(ua) ? 'Samsung Internet'
+    : /Chrome\//i.test(ua) ? 'Chrome'
+    : /Firefox\//i.test(ua) ? 'Firefox'
+    : /Safari\//i.test(ua) ? 'Safari'
+    : 'Outro';
+
+  const sistema = /Windows/i.test(ua) ? 'Windows'
+    : /Android/i.test(ua) ? 'Android'
+    : /iPhone|iPad|iOS/i.test(ua) ? 'iOS'
+    : /Mac OS X/i.test(ua) ? 'macOS'
+    : /Linux/i.test(ua) ? 'Linux'
+    : 'Outro';
+
+  return { dispositivo, navegador, sistema };
+}
+
 export async function registrarEntrada(usuarioId: string): Promise<{ ok: boolean; id?: string; erro?: string }> {
   if (!supabaseConfigurado) return { ok: false, erro: 'Banco não configurado.' };
   const id = `acesso_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   const agora = new Date().toISOString();
+  const d = identificarDispositivo();
   const { error } = await supabase.from('acessos').insert({
     id, usuario_id: usuarioId, entrou_em: agora, ultima_atividade: agora,
+    dispositivo: d.dispositivo, navegador: d.navegador, sistema: d.sistema,
   });
   if (error) return { ok: false, erro: error.message };
   return { ok: true, id };
@@ -307,6 +342,9 @@ export interface RegistroDeAcesso {
   entrouEm: string;
   ultimaAtividade: string;
   saiuEm: string | null;
+  dispositivo?: string | null;
+  navegador?: string | null;
+  sistema?: string | null;
 }
 
 /**
@@ -318,7 +356,7 @@ export async function carregarAcessos(): Promise<RegistroDeAcesso[] | null> {
   if (!supabaseConfigurado) return null;
   const { data, error } = await supabase
     .from('acessos')
-    .select('id, usuario_id, entrou_em, ultima_atividade, saiu_em, usuarios ( nome, papel )')
+    .select('id, usuario_id, entrou_em, ultima_atividade, saiu_em, dispositivo, navegador, sistema, usuarios ( nome, papel )')
     .order('entrou_em', { ascending: false })
     .limit(2000);
 
@@ -334,6 +372,9 @@ export async function carregarAcessos(): Promise<RegistroDeAcesso[] | null> {
     entrouEm: a.entrou_em,
     ultimaAtividade: a.ultima_atividade,
     saiuEm: a.saiu_em,
+    dispositivo: a.dispositivo ?? null,
+    navegador: a.navegador ?? null,
+    sistema: a.sistema ?? null,
   }));
 }
 
