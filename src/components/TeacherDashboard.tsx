@@ -255,10 +255,29 @@ export const TeacherDashboard: React.FC = () => {
   const avisoAtual = teacherMessages.find(m => !avisosVistos.includes(m.id));
   const avisosNaoLidos = teacherMessages.filter(m => !avisosVistos.includes(m.id)).length;
 
-  /* Quando o supervisor escolhe "Meus Estágios", devolvemos uma tela própria
-     em vez de embrulhar o painel inteiro. O JSX do diário é longo e cheio de
-     janelas aninhadas; mexer nele para envolver tudo num condicional já
-     quebrou o arquivo uma vez. */
+  /* SUPERVISOR PURO NÃO VÊ O DIÁRIO.
+     Supervisor de estágio normalmente não é professor de sala: ele não tem
+     diário atribuído, não lança nota de disciplina, não faz chamada. Mostrar
+     o painel do professor para ele exporia turmas e alunos que não são dele.
+
+     A regra é ter ou não diário atribuído no período. Sem nenhum, o painel
+     inteiro vira a área de estágio, sem seletor — não há o que alternar.
+     Quem for as duas coisas continua com o seletor e acessa os dois lados. */
+  const temDiario = (currentUser?.assignedJournals?.length ?? 0) > 0;
+  const supervisorPuro = ehSupervisor && !temDiario;
+
+  if (supervisorPuro && currentUser?.id) {
+    return (
+      <div className="space-y-6">
+        <SupervisorEstagioModule usuarioId={currentUser.id} nome={currentUser.name} />
+      </div>
+    );
+  }
+
+  /* Quando o supervisor QUE TAMBÉM É PROFESSOR escolhe "Meus Estágios",
+     devolvemos uma tela própria em vez de embrulhar o painel inteiro. O JSX
+     do diário é longo e cheio de janelas aninhadas; mexer nele para envolver
+     tudo num condicional já quebrou o arquivo uma vez. */
   const SeletorEstagio = ehSupervisor ? (
     <div className="flex gap-2 mb-6">
       {([
