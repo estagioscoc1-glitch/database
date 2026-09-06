@@ -762,3 +762,39 @@ export async function abrirInscricoes(
   }).eq('id', vagaId);
   return error ? { erro: explicar(error) } : {};
 }
+
+/**
+ * Grava a ficha do supervisor na tabela de professores, DIRETO no banco.
+ *
+ * POR QUE ISTO EXISTE:
+ * A primeira versão usava addUser, que só põe a pessoa na lista em memória e
+ * espera uma sincronização em segundo plano levar ao banco. A criação da
+ * conta, porém, exige a ficha JÁ gravada — ela procura por até 20 segundos e
+ * desiste. Na prática dava sempre "a ficha do professor ainda não chegou ao
+ * banco de dados".
+ *
+ * Gravando direto, a ficha existe antes de a conta ser pedida. Sem espera,
+ * sem corrida entre as duas coisas.
+ */
+export async function criarFichaDeProfessor(
+  fichaId: string,
+  s: Supervisor
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('professores').upsert({
+    id: fichaId,
+    nome: s.nome,
+    cpf: s.cpf || null,
+    rg: s.rg || null,
+    email: s.email || null,
+    telefone: s.telefone || null,
+    conselho: s.conselho || null,
+    conselho_numero: s.registro || null,
+    // Marca de onde veio, para a secretaria saber que não é professor de sala.
+    tipo_professor: 'SUPERVISOR DE ESTAGIO',
+    situacao: 'ATIVO',
+    atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'id' });
+
+  if (error) return { erro: explicar(error) };
+  return {};
+}
