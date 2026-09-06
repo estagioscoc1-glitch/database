@@ -174,6 +174,7 @@ export const AcessosPresencaModule: React.FC = () => {
                       <th className="text-left font-bold py-2 px-4">Entrou</th>
                       <th className="text-left font-bold py-2 px-4">Saiu</th>
                       <th className="text-left font-bold py-2 px-4">Duração</th>
+                      <th className="text-left font-bold py-2 px-4">Dispositivo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -189,11 +190,38 @@ export const AcessosPresencaModule: React.FC = () => {
                             {aindaOnline ? (
                               <span className="text-emerald-600 dark:text-emerald-400 font-bold">online agora</span>
                             ) : saida ? saida.hora : (
-                              <span className="text-slate-400">— (não registrada)</span>
+                              /* SEM SAÍDA REGISTRADA.
+                                 Acontece quando a pessoa fecha a aba, perde a
+                                 internet ou desliga o computador. Em vez de
+                                 deixar em branco, mostramos a última vez que
+                                 o sistema teve sinal dela — que é, na
+                                 prática, quando ela saiu. Fica marcado como
+                                 aproximado para ninguém confundir com a hora
+                                 exata. */
+                              <span className="text-slate-500" title="A pessoa não clicou em Sair. Esta é a última vez que o sistema teve sinal dela.">
+                                ~{formatarDataHora(s.ultimaAtividade).hora}
+                                <span className="text-[10px] text-slate-400 ml-1">aprox.</span>
+                              </span>
                             )}
                           </td>
                           <td className="py-2 px-4 font-mono text-slate-500">
-                            {formatarDuracao(s.entrouEm, s.saiuEm)}
+                            {/* Sem saída registrada, a duração vai até a
+                                última atividade — senão apareceria em branco
+                                ou como se a pessoa ainda estivesse dentro. */}
+                            {formatarDuracao(s.entrouEm, s.saiuEm || s.ultimaAtividade)}
+                          </td>
+                          <td className="py-2 px-4 text-slate-500">
+                            {s.dispositivo ? (
+                              <span className="text-[11px]">
+                                {s.dispositivo}
+                                {s.sistema ? ` · ${s.sistema}` : ''}
+                                {s.navegador ? ` · ${s.navegador}` : ''}
+                              </span>
+                            ) : (
+                              /* Acessos anteriores a esta versão não têm o
+                                 dado gravado. Não há como recuperar. */
+                              <span className="text-[11px] text-slate-300">—</span>
+                            )}
                           </td>
                         </tr>
                       );
