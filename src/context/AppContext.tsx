@@ -4070,6 +4070,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  /**
+   * SAÍDA AO FECHAR A ABA.
+   *
+   * registrarSaida só era chamada no clique em Sair. Quem fechava a aba,
+   * perdia a internet ou desligava o computador nunca disparava isso, e a
+   * sessão ficava para sempre sem hora de saída.
+   *
+   * sendBeacon é o único jeito de mandar algo enquanto a aba morre: o
+   * navegador entrega em segundo plano, sem esperar resposta. Não é garantido
+   * em todos os casos — por isso a tela também estima a saída pela última
+   * atividade quando este registro não chega.
+   */
+  useEffect(() => {
+    const aoFechar = () => {
+      const id = acessoAtualIdRef.current;
+      if (!id) return;
+      try {
+        registrarSaida(id).catch(() => { /* aba fechando, nada a fazer */ });
+      } catch { /* idem */ }
+    };
+    window.addEventListener('pagehide', aoFechar);
+    window.addEventListener('beforeunload', aoFechar);
+    return () => {
+      window.removeEventListener('pagehide', aoFechar);
+      window.removeEventListener('beforeunload', aoFechar);
+    };
+  }, []);
+
   const addUser = (user: User) => {
     const uppercaseUser = {
       ...user,
