@@ -67,6 +67,10 @@ export const MODELOS_DIPLOMA: ModeloDiploma[] = [
     tipo: 'CERTIFICADO_ESPECIALIZACAO',
     nome: 'Certificado de Especialização Técnica',
     explica: 'Especialização de quem já é técnico. É o caso da Instrumentação Cirúrgica.',
+    /* Faltava a trava aqui. Sem ela, este certificado aparecia liberado para
+       aluno de qualquer curso — inclusive de Segurança do Trabalho, que não
+       tem especialização nenhuma. */
+    termosCurso: ['INSTRUMENTAÇÃO', 'INSTRUMENTACAO'],
     textoLegal:
       'Nos termos da Lei nº 9.394 de 20 de dezembro de 1.996, Decreto Federal nº 5.154 de 23 de julho de 2.004, Parecer CNE/CEB nº 16 de 08 de outubro de 1.999, Resolução CNE/CEB nº 04 de 08 de outubro de 1.999, Lei complementar Estadual nº 26 de 28 de dezembro de 1.998, e de acordo com a {{RESOLUCAO}} do Conselho Estadual de Educação, a direção do Colégio Oswaldo Cruz confere a:',
     linhaConclusao:
