@@ -688,7 +688,9 @@ const inscDoBanco = (i: any): InscricaoEstagio => ({
 });
 
 /** Vagas que o aluno pode ver e se inscrever. */
-export async function vagasAbertasParaInscricao(turmaId?: string): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+export async function vagasAbertasParaInscricao(
+  turmaId?: string, cursoAluno?: string
+): Promise<{ lista: VagaEstagio[]; erro?: string }> {
   const hoje = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('estagio_vagas').select('*')
@@ -698,7 +700,7 @@ export async function vagasAbertasParaInscricao(turmaId?: string): Promise<{ lis
     .order('data_inicio', { ascending: true });
   if (error) return { lista: [], erro: explicar(error) };
 
-  /* FILTRO POR TURMA.
+  /* FILTRO POR CURSO E POR TURMA.
      Vaga sem turmas marcadas continua aparecendo para todo mundo — é como o
      sistema sempre funcionou, e as vagas antigas não precisam ser revisadas.
      Vaga com turmas marcadas só aparece para quem está numa delas.
@@ -706,11 +708,37 @@ export async function vagasAbertasParaInscricao(turmaId?: string): Promise<{ lis
      Aluno sem turma no cadastro vê apenas as vagas abertas a todos: melhor
      não mostrar do que mostrar a vaga errada e ele se inscrever à toa. */
   const lista = (data ?? []).map(vagaDoBanco).filter(v => {
+    // 1) Curso. Vaga de Enfermagem não aparece para aluno de Segurança.
+    if (v.curso && !mesmoCurso(v.curso, cursoAluno)) return false;
+
+    // 2) Turma, quando a coordenação restringiu.
     if (!v.turmasIds || v.turmasIds.length === 0) return true;
     return !!turmaId && v.turmasIds.includes(turmaId);
   });
 
   return { lista };
+}
+
+/**
+ * O curso da vaga vem do catálogo em forma curta e sem acento ("ENFERMAGEM",
+ * "SEGURANCA", "INSTRUMENTACAO"). O curso do aluno é o nome completo do
+ * cadastro ("Técnico em Enfermagem"). Comparar os dois direto nunca daria
+ * certo, então tiramos acento e pontuação dos dois lados e checamos se um
+ * contém o outro.
+ *
+ * Aluno sem curso não vê vaga de curso nenhum: melhor não mostrar do que
+ * mostrar a vaga errada e ele se inscrever à toa.
+ */
+function mesmoCurso(cursoVaga: string, cursoAluno?: string): boolean {
+  const limpar = (t: string) => (t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const vaga = limpar(cursoVaga);
+  const aluno = limpar(cursoAluno || '');
+  if (!vaga) return true;      // vaga sem curso vale para todos
+  if (!aluno) return false;    // aluno sem curso não vê vaga de curso definido
+  return aluno.includes(vaga) || vaga.includes(aluno);
 }
 
 /** Define quais turmas enxergam a vaga. Lista vazia = todas as turmas. */
