@@ -21,6 +21,7 @@ const DashboardLoadingFallback = () => (
   </div>
 );
 import { Logo } from './components/Logo';
+import { SinoDeAlertas } from './components/SinoDeAlertas';
 import { PrintModal } from './components/PrintModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
@@ -205,6 +206,14 @@ function MainAppLayout() {
               </span>
             )}
           </button>
+          )}
+
+          {/* SINO DE ALERTAS.
+              Avisos do site de matrículas, do chatbot e do site institucional.
+              Só para quem administra: aluno e professor não têm o que fazer
+              com um alerta de matrícula nova. */}
+          {(activeDisplayRole === UserRole.ADMIN || activeDisplayRole === UserRole.STAFF) && (
+            <SinoDeAlertas />
           )}
 
           {/* Theme Mode Button */}
