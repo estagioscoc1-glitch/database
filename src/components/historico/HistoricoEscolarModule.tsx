@@ -258,33 +258,6 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     return { ministradas, presentes, percentual: (presentes / ministradas) * 100 };
   }, [aluno, attendance]);
 
-  /* FREQUÊNCIA PELA REGRA DO DOCUMENTO: carga total menos as faltas.
-     É a conta do modelo digitado pela secretaria — 1440 de carga, 46 faltas
-     somadas, 1394 de frequência, 96%.
-
-     Antes o campo era preenchido pelo cálculo das chamadas, que conta aulas
-     ministradas e presenças lançadas. São duas contas diferentes, e enquanto
-     a chamada não estiver lançada o ano inteiro a primeira dá um número
-     pequeno: num histórico real saiu "3", e o documento imprimiu 0% de
-     frequência. Um número errado é pior que um campo vazio, porque ninguém
-     desconfia dele.
-
-     A conta das chamadas continua aparecendo embaixo do campo, como
-     conferência. O campo segue editável para abono e transferência. */
-  const frequenciaPorFaltas = useMemo(() => {
-    if (!modelo) return null;
-    const soma = linhasPorModulo.reduce(
-      (t, m) => t + m.linhas.reduce((s, l) => s + (parseInt(l.faltas, 10) || 0), 0), 0);
-    return Math.max(0, modelo.cargaTotal - soma);
-  }, [modelo, linhasPorModulo]);
-
-  // ESTE useEffect PRECISA VIR DEPOIS dos cálculos acima. Estando antes, a
-  // lista de dependências é avaliada durante a renderização e o JavaScript
-  // recusa ler uma const que ainda não foi criada — era o erro
-  // "Cannot access 'G' before initialization" que derrubava a aba inteira.
-  useEffect(() => {
-    if (frequenciaPorFaltas !== null) setFrequencia(frequenciaPorFaltas);
-  }, [frequenciaPorFaltas]);
 
   /**
    * AS DISCIPLINAS VÊM DO CADASTRO DO CURSO, NÃO DE UMA LISTA FIXA.
@@ -372,6 +345,34 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     }));
   }, [modelo, subjects, cursoAluno, notasPorId, notasPorNome, tipo,
       anoSemestrePorModulo, dependenciasPorNome, dispensas, depAnoSemestre, depConceito]);
+
+  /* FREQUÊNCIA PELA REGRA DO DOCUMENTO: carga total menos as faltas.
+     É a conta do modelo digitado pela secretaria — 1440 de carga, 46 faltas
+     somadas, 1394 de frequência, 96%.
+
+     Antes o campo era preenchido pelo cálculo das chamadas, que conta aulas
+     ministradas e presenças lançadas. São duas contas diferentes, e enquanto
+     a chamada não estiver lançada o ano inteiro a primeira dá um número
+     pequeno: num histórico real saiu "3", e o documento imprimiu 0% de
+     frequência. Um número errado é pior que um campo vazio, porque ninguém
+     desconfia dele.
+
+     A conta das chamadas continua aparecendo embaixo do campo, como
+     conferência. O campo segue editável para abono e transferência. */
+  const frequenciaPorFaltas = useMemo(() => {
+    if (!modelo) return null;
+    const soma = linhasPorModulo.reduce(
+      (t, m) => t + m.linhas.reduce((s, l) => s + (parseInt(l.faltas, 10) || 0), 0), 0);
+    return Math.max(0, modelo.cargaTotal - soma);
+  }, [modelo, linhasPorModulo]);
+
+  // ESTE useEffect PRECISA VIR DEPOIS dos cálculos acima. Estando antes, a
+  // lista de dependências é avaliada durante a renderização e o JavaScript
+  // recusa ler uma const que ainda não foi criada — era o erro
+  // "Cannot access 'G' before initialization" que derrubava a aba inteira.
+  useEffect(() => {
+    if (frequenciaPorFaltas !== null) setFrequencia(frequenciaPorFaltas);
+  }, [frequenciaPorFaltas]);
 
   const totalDisciplinas = linhasPorModulo.reduce((s, m) => s + m.linhas.length, 0);
   const usandoCadastro = (subjects ?? []).some((d: any) => d.courseId === cursoAluno?.id);
