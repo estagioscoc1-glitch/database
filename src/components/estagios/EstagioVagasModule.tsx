@@ -17,7 +17,7 @@ import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import { ListaVagaPrintView } from './ListaVagaPrintView';
 import {
   emitirRecibo, copiarNotasParaHistorico, listarInscricoesDaVaga,
-  aprovarInscricao, recusarInscricao, abrirInscricoes,
+  aprovarInscricao, recusarInscricao, abrirInscricoes, definirTurmasDaVaga,
   type InscricaoEstagio,
 } from '../../lib/supabaseEstagioModulo';
 
@@ -40,7 +40,7 @@ const campo = 'w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slat
 const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1';
 
 export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ currentUser = 'Administração' }) => {
-  const { users } = useApp();
+  const { users, classes } = useApp();
 
   const [vagas, setVagas] = useState<VagaEstagio[]>([]);
   const [supervisores, setSupervisores] = useState<Supervisor[]>([]);
@@ -476,6 +476,61 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                            setVagaAberta({ ...vagaAberta, inscricoesAte: ate });
                          }} />
                 </div>
+              </div>
+            </div>
+
+            {/* QUEM ENXERGA ESTA VAGA.
+                Nenhuma turma marcada = todos os alunos da escola veem, que é
+                como o sistema funcionava antes desta tela existir. Marcando
+                turmas, a vaga passa a aparecer só para elas. */}
+            <div className="mb-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <label className={rotulo}>Turmas que enxergam esta vaga</label>
+                {(vagaAberta.turmasIds?.length ?? 0) > 0 && (
+                  <button type="button"
+                          onClick={async () => {
+                            const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, []);
+                            if (err) { mostrar('erro', err); return; }
+                            setVagaAberta({ ...vagaAberta, turmasIds: [] });
+                            mostrar('ok', 'Vaga liberada para todas as turmas.');
+                          }}
+                          className="text-[11px] font-bold text-slate-500 hover:text-blue-600">
+                    Liberar para todas
+                  </button>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
+                {(vagaAberta.turmasIds?.length ?? 0) === 0
+                  ? 'Nenhuma turma marcada: todos os alunos da escola veem esta vaga.'
+                  : `Só os alunos de ${vagaAberta.turmasIds!.length} turma(s) veem esta vaga.`}
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {classes.map(t => {
+                  const marcada = (vagaAberta.turmasIds ?? []).includes(t.id);
+                  return (
+                    <button key={t.id} type="button"
+                            onClick={async () => {
+                              const atuais = vagaAberta.turmasIds ?? [];
+                              const novas = marcada
+                                ? atuais.filter(x => x !== t.id)
+                                : [...atuais, t.id];
+                              const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, novas);
+                              if (err) { mostrar('erro', err); return; }
+                              setVagaAberta({ ...vagaAberta, turmasIds: novas });
+                            }}
+                            className={`px-3 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                              marcada
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-750 hover:border-blue-300'}`}>
+                      {t.code || t.name}
+                    </button>
+                  );
+                })}
+                {classes.length === 0 && (
+                  <p className="text-[11px] text-slate-400">Nenhuma turma cadastrada.</p>
+                )}
               </div>
             </div>
 
