@@ -45,6 +45,12 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
   const [aluno, setAluno] = useState<any | null>(null);
   const [tipo, setTipo] = useState<TipoHistorico>('COMPLETO');
   const [resolucao, setResolucao] = useState('');
+
+  /* OBSERVAÇÃO DO PÉ DA PRIMEIRA FOLHA.
+     Em branco não imprime nada — nem a linha, nem a moldura. Serve para
+     "SEGUNDA VIA" e para qualquer anotação que a secretaria precise deixar
+     no documento. */
+  const [observacaoRodape, setObservacaoRodape] = useState('');
   const [estagioEm, setEstagioEm] = useState('');
   const [frequencia, setFrequencia] = useState<number | ''>('');
   const [resultado, setResultado] = useState('APROVADO (A)');
@@ -368,6 +374,7 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
       resultadoFinal: resultado,
       dataEmissao,
       resolucaoImpressa: resolucao || modelo.resolucao,
+      observacaoRodape,
       ...assinantes,
     };
     setPreview({ modelo, dados, linhasPorModulo });
@@ -512,6 +519,15 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
                   {frequenciaCalculada
                     ? `Calculado das chamadas: ${frequenciaCalculada.presentes} de ${frequenciaCalculada.ministradas} aulas (${frequenciaCalculada.percentual.toFixed(1).replace('.', ',')}%). Confira e corrija se precisar.`
                     : 'Nenhuma chamada lançada para este aluno — preencha à mão.'}
+                </p>
+              </div>
+              <div className="sm:col-span-2">
+                <label className={rotulo}>Observação no pé da 1ª folha</label>
+                <input className={campo} value={observacaoRodape}
+                       placeholder="Ex.: SEGUNDA VIA — deixe em branco para não imprimir nada"
+                       onChange={e => setObservacaoRodape(e.target.value)} />
+                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                  Sai dentro do quadro, embaixo das legendas, na primeira folha. Vazio não imprime linha nenhuma.
                 </p>
               </div>
               <div>

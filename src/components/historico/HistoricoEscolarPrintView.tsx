@@ -52,24 +52,37 @@ const CSS_IMPRESSAO = `
   }
 `;
 
+/* ACABAMENTO IGUAL AO MODELO DIGITADO PELA SECRETARIA.
+   Três diferenças foram acertadas aqui:
+
+   SEM COR. A tela vinha da planilha de origem, que tinha laranja nos campos
+   do aluno e verde nas colunas de aproveitamento. O documento oficial é preto
+   sobre branco — em impressora comum aquelas tarjas saíam como manchas
+   cinzentas por trás do texto.
+
+   FONTE MAIOR. Estava em 7,5pt no corpo e 6,5pt no cabeçalho, tamanho de
+   rodapé. O modelo digitado usa um corpo legível a olho nu.
+
+   NEGRITO ONDE O MODELO TEM. Conceito, faltas e carga horária saem em
+   negrito; o nome do componente, não. É o contraste que faz a coluna de
+   conceitos ser lida de relance. */
 const cel: React.CSSProperties = {
   border: '0.5pt solid #000',
   padding: '1.5px 4px',
-  fontSize: '7.5pt',
+  fontSize: '9pt',
   verticalAlign: 'middle',
 };
 const celCab: React.CSSProperties = {
   ...cel, fontWeight: 'bold', textAlign: 'center',
-  background: '#e8e8e8', fontSize: '6.5pt', lineHeight: 1.1,
+  fontSize: '9pt', lineHeight: 1.1,
 };
 const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
-
-// Cores da planilha original: laranja nos campos de identificação do aluno,
-// verde nas colunas de aproveitamento/dependência.
-const LARANJA = '#f0a250';
-const VERDE = '#c8e6c9';
-const celIdent: React.CSSProperties = { ...cel, background: LARANJA, fontSize: '8pt' };
-const celDep: React.CSSProperties = { ...celC, background: VERDE };
+/** Conceito, faltas e C.H. — os números que a secretaria confere primeiro. */
+const celNum: React.CSSProperties = { ...celC, fontWeight: 'bold' };
+const celIdent: React.CSSProperties = { ...cel, fontSize: '9.5pt' };
+/** Valor preenchido na faixa de identificação: nome, nascimento, filiação. */
+const celIdentValor: React.CSSProperties = { ...celIdent, fontWeight: 'bold' };
+const celDep: React.CSSProperties = { ...celC };
 
 /** Texto girado 90°, como a coluna "Mod." e o rótulo "DEPENDÊNCIA". */
 const girado: React.CSSProperties = {
@@ -104,6 +117,24 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
 
   const parcial = dados.tipo === 'PARCIAL';
   const totalLinhas = linhasPorModulo.reduce((t, m) => t + m.linhas.length, 0);
+
+  /* FREQUÊNCIA OBTIDA — CALCULADA, NÃO DIGITADA.
+     No modelo da secretaria ela é a carga horária total menos a soma das
+     faltas de todas as disciplinas. No exemplo: 1800 de carga, 33 faltas
+     somadas, 1767 de frequência, 98%.
+
+     Antes esse número vinha de um campo digitado à mão, que ficava em branco
+     quando ninguém lembrava de preencher — e o documento saía sem a
+     frequência, que é justamente o que o conselho confere.
+
+     O digitado continua valendo quando existe: às vezes a secretaria precisa
+     ajustar por abono ou por transferência, e nenhum cálculo prevê isso. */
+  const somaFaltas = linhasPorModulo.reduce(
+    (t, m) => t + m.linhas.reduce((s, l) => s + (parseInt(l.faltas, 10) || 0), 0), 0);
+  const frequenciaCalculada = modelo.cargaTotal
+    ? Math.max(0, modelo.cargaTotal - somaFaltas)
+    : undefined;
+  const frequenciaFinal = dados.frequenciaObtida ?? frequenciaCalculada;
   const cargaDisc = cargaDasDisciplinas(modelo);
   const dataBr = (iso?: string) =>
     iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : '';
@@ -133,25 +164,25 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         <tbody>
           <tr>
             <td style={{ ...celIdent, width: '16%', fontWeight: 'bold' }}>Nome do Aluno:</td>
-            <td style={celIdent} colSpan={3}>{dados.alunoNome.toUpperCase()}</td>
+            <td style={celIdentValor} colSpan={3}>{dados.alunoNome.toUpperCase()}</td>
           </tr>
           <tr>
             <td style={{ ...celIdent, fontWeight: 'bold' }}>Data Nascimento:</td>
-            <td style={{ ...celIdent, width: '30%' }}>{dataBr(dados.dataNascimento) || '\u00a0'}</td>
+            <td style={{ ...celIdentValor, width: '30%' }}>{dataBr(dados.dataNascimento) || '\u00a0'}</td>
             <td style={{ ...celIdent, width: '14%', fontWeight: 'bold' }}>Naturalidade:</td>
-            <td style={celIdent}>{dados.naturalidade || '\u00a0'}</td>
+            <td style={celIdentValor}>{dados.naturalidade || '\u00a0'}</td>
           </tr>
           {modelo.filiacaoSeparada ? (
             <tr>
               <td style={{ ...celIdent, fontWeight: 'bold' }}>Pai:</td>
-              <td style={celIdent}>{dados.nomePai || '\u00a0'}</td>
+              <td style={celIdentValor}>{dados.nomePai || '\u00a0'}</td>
               <td style={{ ...celIdent, fontWeight: 'bold' }}>Mãe:</td>
-              <td style={celIdent}>{dados.nomeMae || '\u00a0'}</td>
+              <td style={celIdentValor}>{dados.nomeMae || '\u00a0'}</td>
             </tr>
           ) : (
             <tr>
               <td style={{ ...celIdent, fontWeight: 'bold' }}>Filiação:</td>
-              <td style={celIdent} colSpan={3}>
+              <td style={celIdentValor} colSpan={3}>
                 {[dados.nomePai, dados.nomeMae].filter(Boolean).join(' e ') || '\u00a0'}
               </td>
             </tr>
@@ -193,15 +224,15 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                   </td>
                 )}
                 <td style={cel}>{l.nome}</td>
-                <td style={celC}>{l.conceito}</td>
-                <td style={celC}>{l.faltas}</td>
-                <td style={celC}>{l.ch || '----'}</td>
+                <td style={celNum}>{l.conceito}</td>
+                <td style={celNum}>{l.faltas}</td>
+                <td style={celNum}>{l.ch || '----'}</td>
                 {/* Coluna estreita com o texto girado. Só a PRIMEIRA linha da
                     tabela inteira abre a célula, que se estende por todas as
                     demais — é assim que o texto atravessa o corpo, como no
                     modelo impresso da escola. */}
                 {mi === 0 && li === 0 && (
-                  <td rowSpan={totalLinhas} style={{ ...celC, background: VERDE, padding: '2px 0' }}>
+                  <td rowSpan={totalLinhas} style={{ ...celC, padding: '2px 0' }}>
                     <div style={{ ...girado, fontSize: '7.5pt', fontWeight: 'bold' }}>
                       APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA&nbsp;&nbsp;M.F.C
                     </div>
@@ -231,11 +262,11 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           <tr>
             <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>CARGA HORÁRIA TOTAL:</td>
             <td colSpan={2} style={{ ...celC, fontWeight: 'bold' }}>{modelo.cargaTotal}</td>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '7pt' }}>FREQUENCIA OBTIDA:</td>
-            <td style={{ ...celC, fontWeight: 'bold' }}>{dados.frequenciaObtida ?? '----'}</td>
-            <td colSpan={2} style={{ ...celC, fontSize: '7pt' }}>
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '8.5pt' }}>FREQUENCIA OBTIDA:</td>
+            <td style={{ ...celC, fontWeight: 'bold' }}>{frequenciaFinal ?? '----'}</td>
+            <td colSpan={2} style={{ ...celC, fontSize: '8.5pt' }}>
               <strong>% DE FREQUENCIA:</strong>{' '}
-              {percentualFrequencia(dados.frequenciaObtida, modelo.cargaTotal)}
+              {percentualFrequencia(frequenciaFinal, modelo.cargaTotal)}
             </td>
           </tr>
           <tr>
@@ -251,16 +282,55 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </tbody>
       </table>
 
-      {/* Legendas */}
-      <div style={{ fontSize: '7pt', marginTop: '5px', lineHeight: 1.35 }}>
-        <p style={{ margin: 0 }}>
-          <strong>LEGENDA</strong> &nbsp; CH - Carga Horária &nbsp;·&nbsp; Dep - Dependência
-          &nbsp;·&nbsp; Ret - Retido(a) &nbsp;·&nbsp; Ano/S - Ano e Semestre
-          &nbsp;·&nbsp; Ap. Est. - Aproveitamento de Estudos
-          &nbsp;·&nbsp; M.F.C. - Média Final do Componente Curricular
-        </p>
-        <p style={{ margin: 0 }}><strong>CONCEITOS</strong> &nbsp; {LEGENDA_CONCEITOS}</p>
-      </div>
+      {/* LEGENDAS DENTRO DO QUADRO.
+          No modelo digitado elas são linhas da própria tabela, com moldura,
+          e os quatro conceitos ficam em colunas separadas. Solto embaixo, em
+          7pt, parecia rodapé de página — e não é: faz parte do documento. */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
+        <tbody>
+          <tr>
+            <td style={{ ...cel, width: '14%', fontWeight: 'bold' }}>LEGENDA</td>
+            <td style={cel}>CH - Carga Horária</td>
+            <td style={cel}>Dep - Dependência</td>
+            <td style={cel}>Ret – Retido (a)</td>
+          </tr>
+          <tr>
+            <td style={cel} />
+            <td style={cel}>Ano/S - Ano e Semestre</td>
+            <td style={cel} colSpan={2}>Ap. Est. - Aproveitamento de Estudos.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
+        <tbody>
+          <tr>
+            <td style={{ ...cel, width: '14%', fontWeight: 'bold', textAlign: 'center' }}>CONCEITOS</td>
+            {/* A legenda vem numa linha só, com as faixas separadas por
+                espaços largos. Aqui ela é repartida nas quatro colunas do
+                modelo. */}
+            {LEGENDA_CONCEITOS.split(/\s{2,}/).filter(Boolean).map((faixa, i) => (
+              <td key={i} style={{ ...celC, fontWeight: 'bold' }}>{faixa.trim()}</td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+
+      {/* OBSERVAÇÃO DA SECRETARIA — pé da primeira folha.
+          Só aparece quando alguém escreve alguma coisa. É onde entra
+          "SEGUNDA VIA" e afins. Em branco, nem a moldura é desenhada: quem
+          não usa não vê diferença no documento. */}
+      {dados.observacaoRodape?.trim() && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
+          <tbody>
+            <tr>
+              <td style={{ ...celC, fontWeight: 'bold', letterSpacing: '0.04em', padding: '3px 4px' }}>
+                {dados.observacaoRodape.trim().toUpperCase()}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       {/* VERSO — DEPENDE DO TIPO.
           No histórico COMPLETO, o verso traz as competências adquiridas.
