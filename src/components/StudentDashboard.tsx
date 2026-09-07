@@ -816,6 +816,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                       alunoId={activeStudent.id}
                       alunoNome={activeStudent.name}
                       alunoMatricula={(activeStudent as any).enrollment}
+                      turmaId={(activeStudent as any).classId}
                     />
 
                     {/* O quadro acima some sozinho quando não há vaga aberta
