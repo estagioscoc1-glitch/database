@@ -153,21 +153,35 @@ export const DiplomaPrintView: React.FC<Props> = ({
         {preencher(dados.textoLegal, dados)}
       </div>
 
-      {/* Nome do aluno */}
+      {/* NOME DO ALUNO.
+          A faixa entre o nome (38,5%) e a filiação (46%) tem só 15mm. Uma
+          linha de 21pt ocupa uns 7,5mm; nome que quebra em duas encosta na
+          filiação e imprime um por cima do outro. Passando de 42 letras o
+          corpo diminui, e o nome volta a caber numa linha só. */}
       <div style={{
         position: 'absolute', left: '8%', right: '8%', top: '38.5%',
-        textAlign: 'center', fontSize: '21pt', fontWeight: 'bold',
-        letterSpacing: '0.02em',
+        textAlign: 'center', fontWeight: 'bold',
+        letterSpacing: '0.02em', lineHeight: 1.1,
+        fontSize: dados.alunoNome.length > 42 ? '17pt' : '21pt',
       }}>
         {dados.alunoNome.toUpperCase()}
       </div>
 
-      {/* Filiação */}
+      {/* FILIAÇÃO.
+          Sem pai e mãe no cadastro, saía "Filho(a) de" e mais nada, como se
+          o documento estivesse defeituoso. Agora sai uma linha para preencher
+          à mão, igual aos outros campos em branco desta folha. */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '46%',
         textAlign: 'center', fontSize: '13pt',
       }}>
-        Filho(a) de {dados.filiacao}
+        Filho(a) de{' '}
+        {dados.filiacao || (
+          <span style={{
+            display: 'inline-block', borderBottom: '0.3mm solid #000',
+            width: '55%', verticalAlign: 'baseline',
+          }} />
+        )}
       </div>
 
       {/* Naturalidade, nascimento e conclusão */}
