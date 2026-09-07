@@ -642,18 +642,22 @@ export async function copiarNotasParaHistorico(
   const { data: existentes } = await supabase
     .from('estagios')
     .select('aluno_id, nota')
-    .eq('componente', vaga.componente)
+    .eq('componente', nomeOficialDoComponente(vaga.curso, vaga.componente))
     .in('aluno_id', comNota.map(a => a.alunoId));
 
   const jaExistiam = (existentes ?? [])
     .filter((e: any) => e.nota !== null && e.nota !== undefined)
     .map((e: any) => comNota.find(a => a.alunoId === e.aluno_id)?.alunoNome || e.aluno_id);
 
+  // O nome oficial, não o do catálogo: é ele que o histórico e o progresso
+  // do aluno procuram.
+  const nomeOficial = nomeOficialDoComponente(vaga.curso, vaga.componente);
+
   const linhas = comNota.map(a => ({
     // Mesmo formato de id que o repositório usa, para não criar linha paralela.
-    id: `est_${a.alunoId}_${vaga.componente}`.replace(/[^\w-]/g, '_'),
+    id: `est_${a.alunoId}_${nomeOficial}`.replace(/[^\w-]/g, '_'),
     aluno_id: a.alunoId,
-    componente: vaga.componente,
+    componente: nomeOficial,
     carga_horaria: 0,
     local_realizado: vaga.localNome || null,
     professor_nome: vaga.supervisorNome || null,
@@ -666,6 +670,78 @@ export async function copiarNotasParaHistorico(
 
   if (error) return { copiados: 0, semNota, jaExistiam, erro: explicar(error) };
   return { copiados: linhas.length, semNota, jaExistiam };
+}
+
+
+// ------------------------------------------- NOME OFICIAL DO COMPONENTE
+/*
+ * POR QUE ISTO EXISTE.
+ *
+ * O mesmo estágio tem dois nomes no sistema. No catálogo ele é "Introdução à
+ * Enfermagem"; na lista que monta o histórico e o progresso do aluno ele é
+ * "INTRODUÇÃO À ENFERMAGEM". A comparação é letra por letra, então a nota
+ * chegava ao histórico e o progresso continuava em 0%, sem erro nenhum.
+ *
+ * Aqui a nota é gravada sempre com o nome oficial. Assim ela cai na mesma
+ * linha do lançamento feito à mão pela secretaria, em vez de criar uma
+ * segunda linha para o mesmo aluno e o mesmo componente.
+ *
+ * A lista abaixo é cópia da que está em AdminInternships.tsx. Mudou lá,
+ * muda aqui.
+ */
+const COMPONENTES_OFICIAIS: Record<string, string[]> = {
+  ENFERMAGEM: [
+    'INTRODUÇÃO À ENFERMAGEM',
+    'FUNDAMENTOS DE ENFERMAGEM',
+    'ASST. À MULHER, CRIANÇA E O ADOLESCENTE',
+    'SAÚDE COLETIVA',
+    'SAÚDE MENTAL',
+    'URGÊNCIA E EMERGÊNCIA',
+    'GERIATRIA',
+    'PROCESSO DE TRABALHO EM CME',
+    'ASST. EM TRAT. CLINICO CIRURGICO',
+    'ASST. DE ENF. EM TRAT. ESPECIALIZADO',
+  ],
+  RADIOLOGIA: [
+    'AMBIENTAÇÃO HOSPITALAR',
+    'TÉCNICAS RADIOGRÁFICAS CONVENCIONAIS',
+    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS I',
+    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS II',
+  ],
+  SEGURANCA: ['ESTÁGIO'],
+  INSTRUMENTACAO: ['ESTÁGIO'],
+};
+
+/** Tira acento, pontuação e maiúscula, para comparar dois nomes. */
+export function chaveComponente(t: string): string {
+  return (t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Devolve o nome oficial correspondente ao componente da vaga.
+ *
+ * Primeiro tenta o nome igual ignorando acento e maiúscula — resolve
+ * "Asst. em Trat. Clínico Cirúrgico" x "ASST. EM TRAT. CLINICO CIRURGICO".
+ * Se não achar, aceita um nome que contenha o outro, mas SÓ quando houver
+ * exatamente um candidato: é o caso de "Estágio Supervisionado" x "ESTÁGIO",
+ * em Segurança e Instrumentação, onde o curso tem um componente só.
+ * Não achando nada, devolve o nome como está — melhor gravar do que perder.
+ */
+export function nomeOficialDoComponente(curso: string | undefined, componente: string): string {
+  const oficiais = COMPONENTES_OFICIAIS[chaveComponente(curso || '')];
+  if (!oficiais) return componente;
+
+  const alvo = chaveComponente(componente);
+  const igual = oficiais.find(o => chaveComponente(o) === alvo);
+  if (igual) return igual;
+
+  const parecidos = oficiais.filter(o => {
+    const k = chaveComponente(o);
+    return k.includes(alvo) || alvo.includes(k);
+  });
+  return parecidos.length === 1 ? parecidos[0] : componente;
 }
 
 // ============================================== INSCRIÇÃO DO ALUNO
