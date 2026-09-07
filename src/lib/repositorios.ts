@@ -2724,6 +2724,43 @@ export async function carregarEstrutura(): Promise<{
     // preservada de propósito (notas, frequência, histórico), mas a
     // lista de contas de login precisa saber que o login sumiu.
     contaId: a.usuario_id ?? undefined,
+
+    /* ===================================================================
+       O QUE O CADASTRO COMPLETO GRAVA E ESTA CARGA JOGAVA FORA.
+       ===================================================================
+       Filiação, naturalidade, nascimento, documento e endereço são
+       gravados no banco pelo cadastro completo (ver MAPA_CAMPOS_COMUNS,
+       mais abaixo neste arquivo). Só que aqui, na volta, nenhum deles era
+       lido — a lista de alunos chegava à tela sem esses campos.
+
+       O efeito aparecia longe da causa: o diploma e os certificados
+       imprimiam "Filho(a) de" vazio e tracinhos em Natural de, Estado e
+       nascido(a) em, mesmo com a ficha do aluno preenchida. Não era o
+       documento que estava errado; era o dado que nunca chegava nele.
+
+       A leitura abaixo espelha o mapa de gravação, campo a campo. Onde a
+       secretaria preencheu, o documento sai completo. */
+    motherName: a.nome_mae ?? undefined,
+    fatherName: a.nome_pai ?? undefined,
+    maritalStatus: a.estado_civil ?? undefined,
+    nationality: a.nacionalidade ?? undefined,
+    birthDate: a.data_nascimento ?? undefined,
+    birthCity: a.cidade_nascimento ?? undefined,
+    birthState: a.uf_nascimento ?? undefined,
+    rg: a.rg ?? undefined,
+    rgIssuer: a.rg_orgao ?? undefined,
+    rgUf: a.rg_uf ?? undefined,
+    profession: a.profissao ?? undefined,
+    observations: a.observacoes ?? undefined,
+    zipCode: a.cep ?? undefined,
+    address: a.logradouro ?? undefined,
+    addressNumber: a.numero ?? undefined,
+    complement: a.complemento ?? undefined,
+    neighborhood: a.bairro ?? undefined,
+    city: a.cidade ?? undefined,
+    state: a.uf ?? undefined,
+    country: a.pais ?? undefined,
+    whatsapp: a.whatsapp ?? undefined,
   })) as User[];
 
   return { courses, subjects, classes, users: [...professores, ...alunos] };
