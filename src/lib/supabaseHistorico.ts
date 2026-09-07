@@ -59,6 +59,19 @@ export interface DadosHistorico {
    * que ele cursou, e não a de hoje. Vazio usa a do modelo do curso.
    */
   resolucaoImpressa?: string;
+
+  /**
+   * Observação impressa no pé da PRIMEIRA folha, dentro do quadro.
+   *
+   * Nasceu da segunda via: quando o aluno perde o histórico e pede outro, o
+   * documento precisa dizer isso, e não havia onde escrever. Serve para
+   * qualquer anotação da secretaria — segunda via, via substitutiva, número
+   * de protocolo.
+   *
+   * VAZIO NÃO IMPRIME NADA. Nem a linha, nem o quadro: quem não usar não vê
+   * diferença nenhuma no documento.
+   */
+  observacaoRodape?: string;
 }
 
 export const ASSINANTES_PADRAO = {
