@@ -741,15 +741,38 @@ export async function salvarPermissoesDoFuncionario(
   return error ? { erro: error.message } : {};
 }
 
-/** Lê as permissões já gravadas, por login. Devolve um mapa login -> permissões. */
-export async function carregarPermissoesDosFuncionarios(): Promise<Record<string, any>> {
-  if (!supabaseConfigurado) return {};
+/**
+ * Lista as contas de secretaria que existem NO BANCO, com o que já estiver
+ * gravado de permissões.
+ *
+ * POR QUE PELO BANCO E NÃO PELA LISTA DA TELA:
+ * a tela de Funcionários mostrava apenas as pessoas cadastradas por ela
+ * mesma, e essa lista mora no navegador. Quem foi criado pelo cadastro
+ * rápido de "Docente ou Administração" — que é como a secretaria foi criada
+ * de verdade — nunca aparecia ali. Resultado: a tela vinha vazia e não havia
+ * onde marcar as permissões de ninguém.
+ *
+ * O banco é a única lista que sabe quem realmente consegue entrar.
+ */
+export async function carregarFuncionariosDoBanco(): Promise<
+  { id: string; login: string; nome: string; email: string; ativo: boolean; permissoes?: any }[]
+> {
+  if (!supabaseConfigurado) return [];
   const { data, error } = await supabase
     .from('usuarios')
-    .select('login, permissoes')
-    .eq('papel', 'SECRETARIA');
-  if (error || !data) return {};
-  const mapa: Record<string, any> = {};
-  data.forEach((u: any) => { if (u.permissoes) mapa[u.login] = u.permissoes; });
-  return mapa;
+    .select('id, login, nome, email, ativo, permissoes')
+    .eq('papel', 'SECRETARIA')
+    .order('nome');
+  if (error || !data) {
+    if (error) console.warn('[Banco] carregar funcionários:', error.message);
+    return [];
+  }
+  return data.map((u: any) => ({
+    id: u.id,
+    login: u.login,
+    nome: u.nome || u.login,
+    email: u.email || '',
+    ativo: u.ativo !== false,
+    permissoes: u.permissoes ?? undefined,
+  }));
 }
