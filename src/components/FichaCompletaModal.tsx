@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../context/AppContext';
 import type { User } from '../types';
 import { X, Save, MapPin, Users2, FileText, GraduationCap } from 'lucide-react';
+import { ObservacoesAluno } from './ObservacoesAluno';
 
 interface FichaCompletaModalProps {
   pessoa: User;
@@ -19,7 +20,7 @@ const rotulo = 'block text-[9px] font-bold text-slate-500 dark:text-slate-400 up
 // gigante, e pra não arriscar quebrar nada que já funciona. Grava direto no
 // banco através da mesma `updateUser` de sempre.
 export const FichaCompletaModal: React.FC<FichaCompletaModalProps> = ({ pessoa, papel, onClose }) => {
-  const { updateUser, mostrarAviso } = useApp();
+  const { updateUser, mostrarAviso, currentUser } = useApp();
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -192,6 +193,17 @@ export const FichaCompletaModal: React.FC<FichaCompletaModalProps> = ({ pessoa, 
             <label className={rotulo}>Observações</label>
             <textarea className={campo} rows={2} value={dados.observations} onChange={set('observations')} />
           </div>
+
+          {/* OBSERVAÇÕES DATADAS DOS SETORES.
+              Diferente do campo acima, que é uma anotação livre da ficha e
+              some quando alguém reescreve. Estas ficam em lista, com data,
+              setor e autor, e uma delas pode barrar o aluno no estágio.
+              Só para aluno: professor não entra em vaga. */}
+          {papel === 'ALUNO' && (
+            <div className="sm:col-span-2 md:col-span-3">
+              <ObservacoesAluno alunoId={pessoa.id} autorNome={currentUser?.name} />
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-150 dark:border-slate-800">
