@@ -13,6 +13,7 @@ import {
   Briefcase, Plus, Trash2, Save, X, AlertTriangle, CheckCircle2,
   RefreshCw, Search, Users, Link2, Lock, Copy, Printer, Receipt,
 } from 'lucide-react';
+import { bloqueiosDeEstagio, resumoDasObservacoes } from '../../lib/supabaseObservacoes';
 import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import { ListaVagaPrintView } from './ListaVagaPrintView';
 import {
@@ -41,6 +42,11 @@ const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-w
 
 export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ currentUser = 'Administração' }) => {
   const { users, classes } = useApp();
+
+  /* Quem tem observação e quem está bloqueado — uma consulta só, para a
+     busca poder avisar antes do clique em vez de recusar depois. */
+  const [obsPorAluno, setObsPorAluno] = useState<Record<string, { total: number; bloqueado: boolean }>>({});
+  useEffect(() => { void resumoDasObservacoes().then(setObsPorAluno); }, []);
 
   const [vagas, setVagas] = useState<VagaEstagio[]>([]);
   const [supervisores, setSupervisores] = useState<Supervisor[]>([]);
@@ -113,6 +119,16 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
       mostrar('erro', `A vaga tem ${vagaAberta.vagasTotal} lugares e já está cheia. Aumente o total antes de incluir mais.`);
       return;
     }
+    /* PENDÊNCIA REGISTRADA BARRA A INCLUSÃO.
+       A tesouraria, a coordenação ou o estágio marcam "bloquear estágio"
+       numa observação da ficha do aluno; aqui o sistema recusa e diz o
+       motivo. Antes disso, conferir pendência dependia de alguém lembrar. */
+    const bloqueios = await bloqueiosDeEstagio(a.id);
+    if (bloqueios.length > 0) {
+      mostrar('erro', `${a.name} tem pendência registrada e não pode entrar em estágio — ${bloqueios.join(' | ')}`);
+      return;
+    }
+
     const { erro: e } = await incluirAlunoNaVaga({
       vagaId: vagaAberta.id, alunoId: a.id, alunoNome: a.name,
       alunoMatricula: a.enrollment ?? '',
@@ -591,7 +607,19 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                   {candidatos.map(a => (
                     <button key={a.id} type="button" onClick={() => void incluir(a)}
                             className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                      <p className="font-bold text-sm text-slate-800 dark:text-white">{a.name}</p>
+                      <p className="font-bold text-sm text-slate-800 dark:text-white">
+                        {a.name}
+                        {obsPorAluno[a.id]?.bloqueado && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded-md bg-red-600 text-white text-[9px] font-black align-middle">
+                            BLOQUEADO
+                          </span>
+                        )}
+                        {obsPorAluno[a.id] && !obsPorAluno[a.id].bloqueado && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 text-[9px] font-black align-middle">
+                            {obsPorAluno[a.id].total} OBS.
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[11px] text-slate-500">{a.enrollment || 'sem matrícula'}</p>
                     </button>
                   ))}
