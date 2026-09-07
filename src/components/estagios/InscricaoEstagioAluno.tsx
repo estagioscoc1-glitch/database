@@ -27,19 +27,21 @@ interface Props {
   alunoMatricula?: string;
   /** Turma do aluno. Decide quais vagas ele enxerga. */
   turmaId?: string;
+  /** Nome do curso do aluno. Vaga de outro curso não aparece para ele. */
+  cursoNome?: string;
 }
 
-export const InscricaoEstagioAluno: React.FC<Props> = ({ alunoId, alunoNome, alunoMatricula, turmaId }) => {
+export const InscricaoEstagioAluno: React.FC<Props> = ({ alunoId, alunoNome, alunoMatricula, turmaId, cursoNome }) => {
   const [vagas, setVagas] = useState<VagaEstagio[]>([]);
   const [inscricoes, setInscricoes] = useState<InscricaoEstagio[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
 
   const recarregar = async () => {
-    const [v, i] = await Promise.all([vagasAbertasParaInscricao(turmaId), minhasInscricoes(alunoId)]);
+    const [v, i] = await Promise.all([vagasAbertasParaInscricao(turmaId, cursoNome), minhasInscricoes(alunoId)]);
     setVagas(v.lista); setInscricoes(i.lista); setCarregando(false);
   };
-  useEffect(() => { void recarregar(); }, [alunoId, turmaId]);
+  useEffect(() => { void recarregar(); }, [alunoId, turmaId, cursoNome]);
 
   const mostrar = (tipo: 'ok' | 'erro', texto: string) => {
     setAviso({ tipo, texto });
