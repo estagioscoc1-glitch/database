@@ -277,13 +277,17 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
               espremido numa coluna estreita, o que fazia "FREQUENCIA OBTIDA"
               e "% DE FREQUENCIA" quebrarem no meio. */}
           <tr>
-            <td colSpan={3} style={{ ...cel, fontWeight: 'bold' }}>
+            {/* As colunas acompanham a linha do estágio: a frequência começa
+                onde começa o APTO (A), e a porcentagem onde começa o M.F.C.
+                Com 3/3/2 a carga horária invadia a coluna do conceito e
+                empurrava tudo uma coluna para a direita. */}
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>
               CARGA HORÁRIA TOTAL: {modelo.cargaTotal}
             </td>
             <td colSpan={3} style={{ ...cel, fontWeight: 'bold' }}>
               FREQUENCIA OBTIDA: {frequenciaFinal ?? '----'}
             </td>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>
+            <td colSpan={3} style={{ ...cel, fontWeight: 'bold' }}>
               % DE FREQUENCIA: {percentualFrequencia(frequenciaFinal, modelo.cargaTotal)}
             </td>
           </tr>
