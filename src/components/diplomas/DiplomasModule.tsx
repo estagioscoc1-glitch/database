@@ -68,7 +68,18 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
 
   const contexto = (a: any) => {
     const turma = classes.find(c => c.id === a?.classId);
-    const curso = courses.find(c => c.id === (turma as any)?.courseId || c.id === (a as any)?.courseId);
+
+    /* O CURSO DA TURMA MANDA, E SÓ DEPOIS O DA FICHA.
+       O aluno guarda um curso na ficha dele e outro na turma em que está
+       matriculado. Quando os dois discordam — aluno que trocou de curso, ou
+       ficha antiga —, a busca anterior aceitava qualquer um dos dois e ficava
+       com o que aparecesse primeiro na lista de cursos. Bastava a ficha ainda
+       apontar Enfermagem para o sistema liberar o Certificado de Auxiliar a
+       um aluno de Segurança do Trabalho.
+
+       A turma é a fonte confiável: é nela que o aluno está cursando. */
+    const curso = courses.find(c => c.id === (turma as any)?.courseId)
+               ?? courses.find(c => c.id === (a as any)?.courseId);
     return { turma, curso };
   };
   const { turma: turmaAluno, curso: cursoAluno } = aluno ? contexto(aluno) : { turma: null, curso: null };
