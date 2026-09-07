@@ -226,6 +226,8 @@ export interface PerfilUsuario {
   papel: string;
   ativo: boolean;
   trocar_senha: boolean;
+  /** O que este funcionário pode ver. Só a SECRETARIA usa; admin vê tudo. */
+  permissoes?: any;
 }
 
 export interface ResultadoLogin {
@@ -342,7 +344,7 @@ export async function carregarPerfil(): Promise<PerfilUsuario | null> {
 
   const { data, error } = await supabase
     .from('usuarios')
-    .select('id, nome, email, login, papel, ativo, trocar_senha')
+    .select('id, nome, email, login, papel, ativo, trocar_senha, permissoes')
     .eq('id', sessao.user.id)
     .maybeSingle();
 
@@ -383,6 +385,12 @@ export async function montarUsuario(perfil: PerfilUsuario): Promise<User> {
     email: perfil.email,
     role: paraUserRole(perfil.papel),
     active: perfil.ativo,
+
+    /* PERMISSÕES DO FUNCIONÁRIO.
+       Vêm da conta, não do navegador: o que o administrador marcar vale em
+       qualquer computador. Vazio significa "nada liberado ainda", e o menu
+       trata isso mostrando só o Dashboard — nunca o sistema inteiro. */
+    staffPermissions: perfil.permissoes ?? undefined,
 
     // GUARDA O ID DA CONTA DE LOGIN ANTES QUE ELE SE PERCA.
     //
@@ -709,4 +717,39 @@ export async function removerDocumento(caminho: string, balde = BALDE_DOCUMENTOS
     return false;
   }
   return true;
+}
+
+/**
+ * Grava as permissões de um funcionário na conta de login dele.
+ *
+ * A gravação é pelo LOGIN (`usuarios.login`), que é o que a tela de
+ * funcionários tem em mãos — o id da conta ela não guarda. Só o administrador
+ * consegue executar: a regra de segurança da tabela `usuarios` recusa a
+ * gravação para qualquer outro papel, então não adianta um funcionário tentar
+ * se autopromover pelo navegador.
+ */
+export async function salvarPermissoesDoFuncionario(
+  login: string, permissoes: unknown
+): Promise<{ erro?: string }> {
+  if (!supabaseConfigurado) {
+    return { erro: 'O portal não está conectado ao banco de dados.' };
+  }
+  const { error } = await supabase
+    .from('usuarios')
+    .update({ permissoes })
+    .eq('login', login);
+  return error ? { erro: error.message } : {};
+}
+
+/** Lê as permissões já gravadas, por login. Devolve um mapa login -> permissões. */
+export async function carregarPermissoesDosFuncionarios(): Promise<Record<string, any>> {
+  if (!supabaseConfigurado) return {};
+  const { data, error } = await supabase
+    .from('usuarios')
+    .select('login, permissoes')
+    .eq('papel', 'SECRETARIA');
+  if (error || !data) return {};
+  const mapa: Record<string, any> = {};
+  data.forEach((u: any) => { if (u.permissoes) mapa[u.login] = u.permissoes; });
+  return mapa;
 }
