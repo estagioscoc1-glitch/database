@@ -32,18 +32,47 @@ export const TeacherDashboard: React.FC = () => {
 
   /* SUPERVISOR DE ESTÁGIO.
      A aba só aparece para quem tem cadastro de supervisor vinculado ao
-     login. Professor comum nem vê que ela existe. */
+     login. Professor comum nem vê que ela existe.
+
+     ATENÇÃO AO IDENTIFICADOR (foi exatamente aqui que quebrou).
+     Cada pessoa tem DOIS números: o da FICHA (`professores.id`, um texto) e o
+     da CONTA DE LOGIN (`usuarios.id`, um uuid — é o que o banco compara em
+     `auth.uid()`). Para professor, o `currentUser.id` já vem trocado pelo id
+     da ficha; o id da conta fica guardado em `currentUser.contaId`.
+
+     A coluna `supervisores.usuario_id` guarda o id da CONTA. Procurar por
+     `currentUser.id` nunca achava nada — e o supervisor caía no painel de
+     professor comum, sem aviso nenhum na tela.
+
+     Procuramos primeiro pela conta. Se não achar, tentamos pela ficha, para
+     continuar reconhecendo cadastros antigos que ficaram gravados com o id
+     errado. O id que funcionou é o que passamos adiante para o módulo. */
   const [ehSupervisor, setEhSupervisor] = useState(false);
+  const [idEstagio, setIdEstagio] = useState<string | null>(null);
   const [abaEstagio, setAbaEstagio] = useState(false);
 
   useEffect(() => {
-    if (!currentUser?.id) return;
+    const idConta = currentUser?.contaId;
+    const idFicha = currentUser?.id;
+    if (!idConta && !idFicha) return;
+
     let ativo = true;
-    void meuCadastroSupervisor(currentUser.id).then(s => {
-      if (ativo) setEhSupervisor(!!s);
-    });
+    void (async () => {
+      let achado = idConta ? await meuCadastroSupervisor(idConta) : null;
+      let idQueFuncionou = achado ? idConta! : null;
+
+      if (!achado && idFicha && idFicha !== idConta) {
+        achado = await meuCadastroSupervisor(idFicha);
+        if (achado) idQueFuncionou = idFicha;
+      }
+
+      if (!ativo) return;
+      setEhSupervisor(!!achado);
+      setIdEstagio(idQueFuncionou);
+    })();
+
     return () => { ativo = false; };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.contaId]);
 
   const [journalView, setJournalView] = useState<'grades' | 'attendance' | 'content'>('grades');
   const [gradeWindowState, setGradeWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
@@ -266,10 +295,10 @@ export const TeacherDashboard: React.FC = () => {
   const temDiario = (currentUser?.assignedJournals?.length ?? 0) > 0;
   const supervisorPuro = ehSupervisor && !temDiario;
 
-  if (supervisorPuro && currentUser?.id) {
+  if (supervisorPuro && idEstagio) {
     return (
       <div className="space-y-6">
-        <SupervisorEstagioModule usuarioId={currentUser.id} nome={currentUser.name} />
+        <SupervisorEstagioModule usuarioId={idEstagio} nome={currentUser?.name} />
       </div>
     );
   }
@@ -295,11 +324,11 @@ export const TeacherDashboard: React.FC = () => {
     </div>
   ) : null;
 
-  if (ehSupervisor && abaEstagio && currentUser?.id) {
+  if (ehSupervisor && abaEstagio && idEstagio) {
     return (
       <div className="space-y-6">
         {SeletorEstagio}
-        <SupervisorEstagioModule usuarioId={currentUser.id} nome={currentUser.name} />
+        <SupervisorEstagioModule usuarioId={idEstagio} nome={currentUser?.name} />
       </div>
     );
   }
