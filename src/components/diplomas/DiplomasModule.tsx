@@ -34,12 +34,12 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
   const [verso, setVerso] = useState<VersoDiploma>({ ...VERSO_VAZIO });
   const [imprimirVerso, setImprimirVerso] = useState(true);
 
-  /* DIPLOMA EM PAPEL COMUM.
-     O diploma normal é impresso sobre o papel de segurança e usa a arte
-     digitalizada dele como fundo. Marcando esta opção, sai a mesma folha em
-     A4 comum, desenhada em preto e branco: mesmo texto, mesmos dados, mesmas
-     assinaturas. Só vale para o diploma técnico — os dois certificados já são
-     desenhados assim. */
+  /* DIPLOMA SEM COR.
+     A mesma folha de sempre, com a mesma arte do papel de segurança, só que
+     descolorida: a faixa vermelha da lateral sai preta e a logomarca sai em
+     cinza. Serve para impressora monocromática e para papel comum. Frente e
+     verso saem os dois assim. Só vale para o diploma técnico — os dois
+     certificados já são desenhados em preto. */
   const [diplomaA4PB, setDiplomaA4PB] = useState(false);
   const [preview, setPreview] = useState<any | null>(null);
   // Notas do histórico do verso — só a Especialização Técnica usa.
@@ -307,7 +307,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       Diploma A4 em preto e branco
                       <span className="block font-medium text-[11px] text-slate-400 mt-0.5">
-                        Para papel comum, sem a arte do papel de segurança. Mesmo texto e mesmos dados.
+                        Mesma arte de sempre, sem cor: a faixa vermelha sai preta e a logomarca em cinza. Vale para a frente e o verso.
                       </span>
                     </span>
                   </label>

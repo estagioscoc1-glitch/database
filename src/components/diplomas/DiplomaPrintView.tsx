@@ -4,7 +4,6 @@ import { Printer, X, Award, AlertTriangle } from 'lucide-react';
 import { FUNDO_DIPLOMA_FRENTE, FUNDO_DIPLOMA_VERSO } from '../../lib/diplomaAssets';
 import type { ModeloDiploma, VersoDiploma } from '../../lib/diplomaTextos';
 import { CertificadoFrente, CertificadoVerso } from './CertificadoRetrato';
-import { DiplomaA4PretoBranco } from './DiplomaA4PretoBranco';
 import { CarimboRegistro } from './CarimboRegistro';
 import {
   REGISTRO_CABECALHO, REGISTRO_RODAPE, COMPONENTES_INSTRUMENTACAO,
@@ -138,6 +137,16 @@ export const DiplomaPrintView: React.FC<Props> = ({
   const serif = '"Times New Roman", Times, serif';
 
   /* FRENTE — as posições em % vieram da medição do arquivo do Word. */
+  /* PRETO E BRANCO SEM PERDER A ARTE.
+     O fundo saiu de dentro do estilo da folha e virou uma camada só dele.
+     Precisou ser assim porque o filtro que tira a cor vale para o elemento
+     inteiro: aplicado na folha, apagaria também o texto por cima. Numa camada
+     separada, ele descolore só a arte — a faixa vermelha vira preta, a
+     logomarca vira cinza, e o texto continua preto cheio.
+     `contrast` fecha um pouco o traço, senão o vermelho vira um cinza claro
+     de aparência lavada na impressão. */
+  const fundoSemCor = versaoA4PB ? 'grayscale(1) contrast(1.25)' : 'none';
+
   const Frente = (
     <div
       className="dip-folha"
@@ -145,13 +154,18 @@ export const DiplomaPrintView: React.FC<Props> = ({
         position: 'relative',
         width: '297mm',
         height: '210mm',
-        backgroundImage: `url(${FUNDO_DIPLOMA_FRENTE})`,
-        backgroundSize: '100% 100%',
-        backgroundRepeat: 'no-repeat',
+        background: '#fff',
         fontFamily: serif,
         color: '#000',
       }}
     >
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `url(${FUNDO_DIPLOMA_FRENTE})`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+        filter: fundoSemCor,
+      }} />
       {/* Parágrafo legal */}
       <div style={{
         position: 'absolute', left: '10%', right: '10%', top: '22%',
@@ -253,14 +267,20 @@ export const DiplomaPrintView: React.FC<Props> = ({
         position: 'relative',
         width: '210mm',
         height: '297mm',
-        backgroundImage: `url(${FUNDO_DIPLOMA_VERSO})`,
-        backgroundSize: '100% 100%',
-        backgroundRepeat: 'no-repeat',
+        background: '#fff',
         fontFamily: serif,
         color: '#000',
         fontSize: '12pt',
       }}
     >
+      {/* Mesma camada da frente: a arte perde a cor, o texto não. */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `url(${FUNDO_DIPLOMA_VERSO})`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+        filter: fundoSemCor,
+      }} />
       <div style={{ position: 'absolute', left: '19%', top: '4.3%' }}>{verso.cursoAnterior}</div>
       <div style={{ position: 'absolute', left: '21%', top: '7.9%' }}>{verso.unidadeEscolar}</div>
       <div style={{ position: 'absolute', left: '30%', top: '11.5%' }}>{verso.localDataConclusao}</div>
@@ -381,16 +401,11 @@ export const DiplomaPrintView: React.FC<Props> = ({
      de segurança. Os dois certificados são retrato, com moldura desenhada. */
   const FrenteEscolhida = ehCertificadoRetrato
     ? <CertificadoFrente dados={dados} preencher={(t: string) => preencher(t, dados)} />
-    : versaoA4PB
-      ? <DiplomaA4PretoBranco dados={dados} preencher={(t: string) => preencher(t, dados)} />
-      : Frente;
+    : Frente;
 
-  /* O verso do diploma também é uma digitalização. Na versão em preto e
-     branco ele daria o mesmo problema da frente, então usa o verso
-     desenhado — os quatro campos são exatamente os mesmos. */
   const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO'
     ? VersoInstrumentacao
-    : (ehCertificadoRetrato || versaoA4PB)
+    : ehCertificadoRetrato
       ? <CertificadoVerso verso={verso} />
       : Verso;
 
