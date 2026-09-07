@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { CronogramaDoAluno } from './estagios/EstagioCronogramaModule';
 import { InscricaoEstagioAluno } from './estagios/InscricaoEstagioAluno';
+import { chaveComponente } from '../lib/supabaseEstagioModulo';
 import { enviarArquivoDeDocumento, linkDoDocumento } from '../lib/repositorios';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
@@ -641,8 +642,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
             // Calculations
             const totalRequiredHrs = components.reduce((sum, c) => sum + c.workload, 0);
+            /* A comparação ignora acento e maiúscula. Lançamento antigo pode
+               ter sido gravado com o nome do catálogo ("Introdução à
+               Enfermagem") em vez do oficial ("INTRODUÇÃO À ENFERMAGEM"); sem
+               isto, a nota existe no histórico e o progresso fica em 0%. */
+            const lancamentoDe = (nome: string) =>
+              studentInternships.find(r => chaveComponente(r.subjectName) === chaveComponente(nome));
+
             const completedComponents = components.filter(c => {
-              const record = studentInternships.find(r => r.subjectName === c.name);
+              const record = lancamentoDe(c.name);
               return record && record.grade !== null;
             });
             const completedHrs = completedComponents.reduce((sum, c) => sum + c.workload, 0);
@@ -886,7 +894,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
                       <div className="space-y-3">
                         {components.map(comp => {
-                          const record = studentInternships.find(r => r.subjectName === comp.name);
+                          const record = lancamentoDe(comp.name);
                           const isCompleted = record && record.grade !== null;
 
                           return (
