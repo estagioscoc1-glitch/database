@@ -54,19 +54,29 @@ export const SinoDeAlertas: React.FC = () => {
     return desligar;
   }, []);
 
+  /* SÓ MUDA A TELA SE O BANCO ACEITOU.
+     Antes a linha sumia da lista mesmo quando a gravação era recusada — e
+     voltava na próxima abertura, dando a impressão de que a lixeira não
+     funcionava. Agora, recusado, o erro aparece escrito. */
   const lerTudo = async () => {
-    await marcarTudoComoLido();
+    const { erro: e } = await marcarTudoComoLido();
+    if (e) { setErro(e); return; }
+    setErro(null);
     setLista(atual => atual.map(a => ({ ...a, lido: true })));
   };
 
   const ler = async (a: Alerta) => {
     if (a.lido) return;
-    await marcarComoLido(a.id);
+    const { erro: e } = await marcarComoLido(a.id);
+    if (e) { setErro(e); return; }
+    setErro(null);
     setLista(atual => atual.map(x => x.id === a.id ? { ...x, lido: true } : x));
   };
 
   const apagar = async (id: string) => {
-    await excluirAlerta(id);
+    const { erro: e } = await excluirAlerta(id);
+    if (e) { setErro(e); return; }
+    setErro(null);
     setLista(atual => atual.filter(a => a.id !== id));
   };
 
