@@ -216,6 +216,13 @@ export interface VagaEstagio {
   /** Quando verdadeiro, a vaga aparece no painel do aluno para inscrição. */
   inscricoesAbertas?: boolean;
   inscricoesAte?: string;
+  /**
+   * Turmas que enxergam esta vaga no painel do aluno.
+   * VAZIO OU AUSENTE = TODAS AS TURMAS. É o comportamento que o sistema já
+   * tinha, e é o que as vagas antigas continuam fazendo sem ninguém mexer
+   * nelas. Preenchido, só os alunos dessas turmas veem a vaga.
+   */
+  turmasIds?: string[];
 }
 
 export interface AlunoNaVaga {
@@ -266,6 +273,7 @@ const vagaDoBanco = (v: any): VagaEstagio => ({
   fechadaEm: v.fechada_em ?? undefined,
   inscricoesAbertas: !!v.inscricoes_abertas,
   inscricoesAte: v.inscricoes_ate ?? undefined,
+  turmasIds: Array.isArray(v.turmas_ids) ? v.turmas_ids : undefined,
 });
 
 export async function listarVagas(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
@@ -285,6 +293,7 @@ export async function salvarVaga(v: VagaEstagio): Promise<{ erro?: string; id?: 
     vagas_total: v.vagasTotal, situacao: v.situacao,
     token_acesso: v.tokenAcesso || gerarToken(),
     valor_por_aluno: v.valorPorAluno,
+    turmas_ids: v.turmasIds && v.turmasIds.length > 0 ? v.turmasIds : null,
   };
   if (v.id) linha.id = v.id;
   const { data, error } = await supabase
@@ -679,7 +688,7 @@ const inscDoBanco = (i: any): InscricaoEstagio => ({
 });
 
 /** Vagas que o aluno pode ver e se inscrever. */
-export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+export async function vagasAbertasParaInscricao(turmaId?: string): Promise<{ lista: VagaEstagio[]; erro?: string }> {
   const hoje = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('estagio_vagas').select('*')
@@ -688,7 +697,30 @@ export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[
     .or(`inscricoes_ate.is.null,inscricoes_ate.gte.${hoje}`)
     .order('data_inicio', { ascending: true });
   if (error) return { lista: [], erro: explicar(error) };
-  return { lista: (data ?? []).map(vagaDoBanco) };
+
+  /* FILTRO POR TURMA.
+     Vaga sem turmas marcadas continua aparecendo para todo mundo — é como o
+     sistema sempre funcionou, e as vagas antigas não precisam ser revisadas.
+     Vaga com turmas marcadas só aparece para quem está numa delas.
+
+     Aluno sem turma no cadastro vê apenas as vagas abertas a todos: melhor
+     não mostrar do que mostrar a vaga errada e ele se inscrever à toa. */
+  const lista = (data ?? []).map(vagaDoBanco).filter(v => {
+    if (!v.turmasIds || v.turmasIds.length === 0) return true;
+    return !!turmaId && v.turmasIds.includes(turmaId);
+  });
+
+  return { lista };
+}
+
+/** Define quais turmas enxergam a vaga. Lista vazia = todas as turmas. */
+export async function definirTurmasDaVaga(
+  vagaId: string, turmas: string[]
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_vagas')
+    .update({ turmas_ids: turmas.length > 0 ? turmas : null })
+    .eq('id', vagaId);
+  return error ? { erro: explicar(error) } : {};
 }
 
 export async function minhasInscricoes(alunoId: string): Promise<{ lista: InscricaoEstagio[]; erro?: string }> {
