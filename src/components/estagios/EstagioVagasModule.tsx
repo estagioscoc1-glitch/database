@@ -445,10 +445,19 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!vagaAberta.inscricoesAbertas}
                          onChange={async e => {
-                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, e.target.checked, vagaAberta.inscricoesAte);
+                           /* GUARDAR O VALOR ANTES DO AWAIT.
+                              A caixinha é controlada pelo estado. Durante a
+                              espera da gravação o estado ainda diz "fechada",
+                              então o navegador desmarca a caixinha de volta —
+                              e `e.target.checked`, lido depois, já vem false.
+                              O banco recebia TRUE (o argumento é lido antes da
+                              espera) e a tela dizia "inscrições fechadas".
+                              Marcar funcionava; só a tela mentia. */
+                           const marcado = e.target.checked;
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, marcado, vagaAberta.inscricoesAte);
                            if (err) { mostrar('erro', err); return; }
-                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: e.target.checked });
-                           mostrar('ok', e.target.checked
+                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: marcado });
+                           mostrar('ok', marcado
                              ? 'Vaga aberta. Os alunos já veem no painel deles.'
                              : 'Inscrições fechadas. A vaga sumiu do painel do aluno.');
                          }} />
@@ -460,8 +469,11 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                          className="px-2 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px]"
                          value={vagaAberta.inscricoesAte ?? ''}
                          onChange={async e => {
-                           await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, e.target.value);
-                           setVagaAberta({ ...vagaAberta, inscricoesAte: e.target.value });
+                           // Mesmo cuidado do campo acima: guardar antes da espera.
+                           const ate = e.target.value;
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, ate);
+                           if (err) { mostrar('erro', err); return; }
+                           setVagaAberta({ ...vagaAberta, inscricoesAte: ate });
                          }} />
                 </div>
               </div>
