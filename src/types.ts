@@ -27,27 +27,26 @@ export enum CalendarEventType {
   INFO = 'INFO'
 }
 
+/**
+ * Nomes dos módulos que o administrador libera por funcionário.
+ *
+ * São os mesmos nomes das abas do painel do administrador (`activeTab`).
+ * A lista completa, com rótulo e descrição, está em utils/permissionUtils.ts.
+ */
 export type PermissionModule =
-  | 'dashboard'
-  | 'cadastros'
-  | 'matriculas'
-  | 'financeiro'
-  | 'diarios'
-  | 'frequencia'
-  | 'boletins'
-  | 'historico'
-  | 'certificados'
-  | 'relatorios'
-  | 'configuracoes'
-  | 'usuarios'
-  | 'cursos'
-  | 'disciplinas'
-  | 'turmas'
-  | 'importacoes'
-  | 'exportacoes'
-  | 'administracao'
-  | 'dependencias'
-  | 'funcionarios';
+  | 'visu'                // Dashboard
+  | 'crm'                 // CRM
+  | 'reg'                 // Cadastros Acadêmicos
+  | 'orientacao'          // Movimentação
+  | 'estagio'             // Estágios
+  | 'requerimentos'       // Requerimentos
+  | 'historico_completo'  // Histórico do Aluno
+  | 'imp'                 // Importar Planilhas
+  | 'msg'                 // Mensagens & Avisos
+  | 'acessos'             // Acessos e Presença
+  | 'sec'                 // Backup & Segurança
+  | 'financeiro'          // Financeiro
+  | 'relatorios';         // Relatórios
 
 export interface ModuleActions {
   view: boolean;
