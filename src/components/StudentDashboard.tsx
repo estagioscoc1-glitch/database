@@ -404,14 +404,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                     publica um — sem cronograma publicado, nada é mostrado. */}
                 <CronogramaDoAluno />
 
-                {/* Vagas abertas para inscrição. Some quando não há nenhuma. */}
-                {activeStudent && (
-                  <InscricaoEstagioAluno
-                    alunoId={activeStudent.id}
-                    alunoNome={activeStudent.name}
-                    alunoMatricula={(activeStudent as any).enrollment}
-                  />
-                )}
+                {/* As vagas de estágio saíram daqui: agora ficam na aba
+                    "Estágios Curriculares", que é onde o aluno procura. */}
 
                 <div>
                   <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Minhas Declarações</h3>
@@ -812,78 +806,24 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                       </div>
                     )}
 
-                    <h4 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                      Vagas e Turmas de Estágio Disponíveis ({allVacancies.length})
-                    </h4>
+                    {/* VAGAS ABERTAS PARA INSCRIÇÃO — módulo novo, lê do banco.
+                        Substitui a lista antiga desta aba, que vinha do
+                        armazenamento do navegador (movimentacaoStorage) e por
+                        isso nunca mostrava as vagas criadas pela coordenação em
+                        Movimentação → Estágio — Vagas: são dois lugares
+                        diferentes. O aluno procurava aqui e não achava nada. */}
+                    <InscricaoEstagioAluno
+                      alunoId={activeStudent.id}
+                      alunoNome={activeStudent.name}
+                      alunoMatricula={(activeStudent as any).enrollment}
+                    />
 
-                    {allVacancies.length === 0 ? (
-                      <div className="p-10 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
-                        <Briefcase className="h-8 w-8 text-slate-300 mx-auto" />
-                        <p className="font-bold text-slate-600 dark:text-slate-300">Nenhuma vaga de estágio publicada no momento.</p>
-                        <p>A coordenação acadêmica publicará novas vagas no cronograma oficial.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {allVacancies.map(vac => {
-                          const allocated = vac.studentsAllocated || [];
-                          const isEnrolled = allocated.some(s => s.studentId === activeStudent.id);
-                          const maxSlots = vac.maxStudents || 15;
-                          const slotsLeft = Math.max(0, maxSlots - allocated.length);
-
-                          return (
-                            <div key={vac.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5 flex flex-col justify-between">
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-extrabold text-[9px] rounded uppercase tracking-wider">
-                                      {vac.sector || 'Campo de Estágio'}
-                                    </span>
-                                    <h5 className="font-extrabold text-sm text-slate-900 dark:text-white mt-1">
-                                      {vac.companyName || vac.stageName || 'Hospital Geral'}
-                                    </h5>
-                                  </div>
-                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
-                                    isEnrolled
-                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/40'
-                                      : slotsLeft > 0
-                                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
-                                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                                  }`}>
-                                    {isEnrolled ? '✓ MATRICULADO' : slotsLeft > 0 ? `${slotsLeft} Vagas Restantes` : 'VAGAS ESGOTADAS'}
-                                  </span>
-                                </div>
-
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
-                                  <div>🎓 Docente Preceptor: <strong className="text-blue-600 dark:text-blue-400">{vac.teacherName || 'Prof. Responsável'}</strong></div>
-                                  <div>📅 Período: <strong>{vac.startDate} até {vac.endDate}</strong></div>
-                                  <div>🕒 Escala / Horário: <strong>{vac.scheduleDaysTime || 'Segunda a Sexta - 07:00 às 12:00'}</strong></div>
-                                  <div>👥 Alunos Inscritos: <strong>{allocated.length} de {maxSlots} vagas</strong></div>
-                                </div>
-                              </div>
-
-                              <div>
-                                {isEnrolled ? (
-                                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 font-extrabold">
-                                    <span className="flex items-center gap-1">
-                                      <Check className="h-4 w-4 text-emerald-600" /> Sua inscrição está confirmada nesta turma!
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    disabled={slotsLeft <= 0}
-                                    onClick={() => checkAndEnroll(vac)}
-                                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/15 cursor-pointer transition-all flex items-center justify-center gap-2"
-                                  >
-                                    <UserCheck className="h-4 w-4" /> Inscrever-me Nesta Vaga de Estágio
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {/* O quadro acima some sozinho quando não há vaga aberta
+                        nem inscrição feita. Sem esta linha, a aba ficaria em
+                        branco e o aluno não saberia se está vazia ou quebrada. */}
+                    <p className="text-[11px] text-slate-400 leading-relaxed text-center pt-1">
+                      As vagas aparecem aqui assim que a coordenação abre as inscrições.
+                    </p>
                   </div>
                 )}
 
