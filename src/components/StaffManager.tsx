@@ -4,7 +4,7 @@ import { StaffMember, StaffPermissions, PermissionModule } from '../types';
 import { PERMISSION_MODULES, getDefaultStaffPermissions } from '../utils/permissionUtils';
 import { Users, UserPlus, Shield, Key, Copy, Check, Search, Edit2, Trash2, Lock, Eye, PlusCircle, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { criarAcesso, salvarPermissoesDoFuncionario, carregarPermissoesDosFuncionarios } from '../lib/supabase';
+import { criarAcesso, salvarPermissoesDoFuncionario, carregarFuncionariosDoBanco } from '../lib/supabase';
 import { criarAcessoDeUmDocente, definirAcessoDaConta } from '../lib/repositorios';
 
 export const StaffManager: React.FC = () => {
@@ -27,13 +27,28 @@ export const StaffManager: React.FC = () => {
   const [active, setActive] = useState(true);
   const [permissions, setPermissions] = useState<StaffPermissions>(getDefaultStaffPermissions(true));
 
-  /* Permissões que já estão gravadas no banco, por login. Carregadas uma vez
-     ao abrir a tela, para a edição mostrar a verdade e não o que sobrou aqui
-     no navegador. */
-  const [permissoesDoBanco, setPermissoesDoBanco] = useState<Record<string, any>>({});
-  useEffect(() => {
-    void carregarPermissoesDosFuncionarios().then(setPermissoesDoBanco);
+  /* AS CONTAS DE SECRETARIA QUE EXISTEM NO BANCO.
+     É a lista que vale. A lista `staffMembers` só tem quem foi cadastrado por
+     esta tela, e mora no navegador — quem foi criado pelo cadastro rápido de
+     "Docente ou Administração" não estava nela, e a tela aparecia vazia. */
+  const [contasDoBanco, setContasDoBanco] = useState<
+    { id: string; login: string; nome: string; email: string; ativo: boolean; permissoes?: any }[]
+  >([]);
+  const [carregandoContas, setCarregandoContas] = useState(true);
+
+  const recarregarContas = React.useCallback(() => {
+    setCarregandoContas(true);
+    void carregarFuncionariosDoBanco()
+      .then(setContasDoBanco)
+      .finally(() => setCarregandoContas(false));
   }, []);
+  useEffect(() => { recarregarContas(); }, [recarregarContas]);
+
+  const permissoesDoBanco = React.useMemo(() => {
+    const mapa: Record<string, any> = {};
+    contasDoBanco.forEach(c => { if (c.permissoes) mapa[c.login] = c.permissoes; });
+    return mapa;
+  }, [contasDoBanco]);
 
   // Feedback banner
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -85,8 +100,15 @@ export const StaffManager: React.FC = () => {
     e.preventDefault();
     setFeedback(null);
 
-    if (!name.trim() || !cpf.trim() || !email.trim()) {
-      setFeedback({ type: 'error', text: 'Por favor, preencha os campos obrigatórios (Nome, CPF e E-mail).' });
+    /* CPF e e-mail só são obrigatórios ao CRIAR. Editando, muita conta veio do
+       cadastro rápido e não tem esses dados — exigi-los aqui impediria o
+       administrador de marcar as permissões de quem já existe. */
+    if (!name.trim()) {
+      setFeedback({ type: 'error', text: 'Por favor, preencha o nome.' });
+      return;
+    }
+    if (!editingStaff && (!cpf.trim() || !email.trim())) {
+      setFeedback({ type: 'error', text: 'Para cadastrar, preencha os campos obrigatórios (Nome, CPF e E-mail).' });
       return;
     }
 
@@ -113,6 +135,7 @@ export const StaffManager: React.FC = () => {
           setFeedback({ type: 'error', text: `Dados salvos, mas as permissões não foram gravadas: ${permRes.erro}` });
           return;
         }
+        recarregarContas();
       }
 
       // ATIVO/INATIVO PRECISA VALER NO SERVIDOR, NÃO SÓ NA LISTA.
@@ -194,6 +217,7 @@ export const StaffManager: React.FC = () => {
       // Mesma gravação do caso acima, agora com o login que o servidor aceitou.
       const loginFinal = resultado.loginUsado || login;
       const permRes = await salvarPermissoesDoFuncionario(loginFinal, permissions);
+      recarregarContas();
       if (permRes.erro) {
         setFeedback({ type: 'error', text: `Funcionário criado, mas as permissões não foram gravadas: ${permRes.erro}. Edite o cadastro e salve de novo.` });
       }
@@ -243,7 +267,38 @@ export const StaffManager: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const filteredStaff = staffMembers.filter(s =>
+  /* Junta as duas origens: a conta do banco (quem consegue entrar) e a ficha
+     local (CPF, telefone, cargo), casadas pelo login. Conta sem ficha aparece
+     do mesmo jeito, com os campos extras em branco — o que importa aqui é
+     poder marcar as permissões dela. */
+  const listaCompleta: StaffMember[] = React.useMemo(() => {
+    const porLogin = new Map<string, StaffMember>();
+
+    contasDoBanco.forEach(c => {
+      const local = staffMembers.find(s => s.username === c.login);
+      porLogin.set(c.login, {
+        id: local?.id || `conta_${c.id}`,
+        name: c.nome,
+        cpf: local?.cpf || '',
+        phone: local?.phone || '',
+        email: c.email || local?.email || '',
+        position: local?.position || 'Administração',
+        registrationDate: local?.registrationDate || '',
+        active: c.ativo,
+        username: c.login,
+        permissions: c.permissoes || local?.permissions || getDefaultStaffPermissions(false),
+      });
+    });
+
+    // Fichas locais sem conta no banco: mantidas à vista, para não sumirem.
+    staffMembers.forEach(s => {
+      if (s.username && !porLogin.has(s.username)) porLogin.set(s.username, s);
+    });
+
+    return Array.from(porLogin.values());
+  }, [contasDoBanco, staffMembers]);
+
+  const filteredStaff = listaCompleta.filter(s =>
     (s.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.cpf.includes(searchTerm) ||
     (s.username ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -333,7 +388,7 @@ export const StaffManager: React.FC = () => {
           />
         </div>
         <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
-          Total de Funcionários Ativos: <span className="text-indigo-600 dark:text-indigo-400 text-sm font-extrabold">{staffMembers.filter(s => s.active).length}</span>
+          Total de Funcionários Ativos: <span className="text-indigo-600 dark:text-indigo-400 text-sm font-extrabold">{listaCompleta.filter(s => s.active).length}</span>
         </div>
       </div>
 
