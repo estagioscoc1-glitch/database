@@ -33,6 +33,14 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
   const [tipo, setTipo] = useState<TipoDiploma>('DIPLOMA');
   const [verso, setVerso] = useState<VersoDiploma>({ ...VERSO_VAZIO });
   const [imprimirVerso, setImprimirVerso] = useState(true);
+
+  /* DIPLOMA EM PAPEL COMUM.
+     O diploma normal é impresso sobre o papel de segurança e usa a arte
+     digitalizada dele como fundo. Marcando esta opção, sai a mesma folha em
+     A4 comum, desenhada em preto e branco: mesmo texto, mesmos dados, mesmas
+     assinaturas. Só vale para o diploma técnico — os dois certificados já são
+     desenhados assim. */
+  const [diplomaA4PB, setDiplomaA4PB] = useState(false);
   const [preview, setPreview] = useState<any | null>(null);
   // Notas do histórico do verso — só a Especialização Técnica usa.
   const [notasInstr, setNotasInstr] = useState<Record<string, string>>({});
@@ -291,6 +299,19 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
                          onChange={e => setImprimirVerso(e.target.checked)} />
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Imprimir o verso junto</span>
                 </label>
+
+                {tipo === 'DIPLOMA' && (
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" checked={diplomaA4PB}
+                           onChange={e => setDiplomaA4PB(e.target.checked)} />
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Diploma A4 em preto e branco
+                      <span className="block font-medium text-[11px] text-slate-400 mt-0.5">
+                        Para papel comum, sem a arte do papel de segurança. Mesmo texto e mesmos dados.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {([
                     ['cursoAnterior', 'Curso anterior'], ['unidadeEscolar', 'Unidade escolar'],
@@ -316,11 +337,13 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
             <button type="button" disabled={!liberado}
                     onClick={() => setPreview({
                       modelo, dados: d, verso, imprimirVerso,
+                      versaoA4PB: tipo === 'DIPLOMA' && diplomaA4PB,
                       notasInstrumentacao: notasInstr, frequenciaInstrumentacao: freqInstr,
                       faltasInstrumentacao: faltasInstr,
                     })}
                     className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-2xl text-xs">
               <Award className="h-4 w-4" /> Gerar {modelo.palavraDocumento}
+              {tipo === 'DIPLOMA' && diplomaA4PB && ' (A4 P&B)'}
             </button>
           </div>
         </>
@@ -332,6 +355,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
           dados={preview.dados}
           verso={preview.verso}
           imprimirVerso={preview.imprimirVerso}
+          versaoA4PB={(preview as any).versaoA4PB}
           notasInstrumentacao={preview.notasInstrumentacao}
           frequenciaInstrumentacao={preview.frequenciaInstrumentacao}
           faltasInstrumentacao={preview.faltasInstrumentacao}

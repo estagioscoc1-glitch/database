@@ -4,6 +4,7 @@ import { Printer, X, Award, AlertTriangle } from 'lucide-react';
 import { FUNDO_DIPLOMA_FRENTE, FUNDO_DIPLOMA_VERSO } from '../../lib/diplomaAssets';
 import type { ModeloDiploma, VersoDiploma } from '../../lib/diplomaTextos';
 import { CertificadoFrente, CertificadoVerso } from './CertificadoRetrato';
+import { DiplomaA4PretoBranco } from './DiplomaA4PretoBranco';
 import { CarimboRegistro } from './CarimboRegistro';
 import {
   REGISTRO_CABECALHO, REGISTRO_RODAPE, COMPONENTES_INSTRUMENTACAO,
@@ -47,6 +48,11 @@ interface Props {
   };
   verso: VersoDiploma;
   imprimirVerso: boolean;
+  /**
+   * Diploma técnico impresso em papel comum, sem a arte do papel de
+   * segurança: tudo em preto e branco. Mesmo conteúdo, outra folha.
+   */
+  versaoA4PB?: boolean;
   /** Notas do histórico do verso, só na Especialização. */
   notasInstrumentacao?: Record<string, string>;
   frequenciaInstrumentacao?: string;
@@ -92,7 +98,8 @@ function preencher(texto: string, d: Props['dados']): string {
 
 export const DiplomaPrintView: React.FC<Props> = ({
   modelo, dados, verso, imprimirVerso, notasInstrumentacao = {},
-  frequenciaInstrumentacao = '', faltasInstrumentacao = {}, onClose,
+  frequenciaInstrumentacao = '', faltasInstrumentacao = {},
+  versaoA4PB = false, onClose,
 }) => {
   const [imprimindo, setImprimindo] = useState(false);
   // QUAL LADO ESTÁ ABERTO.
@@ -374,11 +381,16 @@ export const DiplomaPrintView: React.FC<Props> = ({
      de segurança. Os dois certificados são retrato, com moldura desenhada. */
   const FrenteEscolhida = ehCertificadoRetrato
     ? <CertificadoFrente dados={dados} preencher={(t: string) => preencher(t, dados)} />
-    : Frente;
+    : versaoA4PB
+      ? <DiplomaA4PretoBranco dados={dados} preencher={(t: string) => preencher(t, dados)} />
+      : Frente;
 
+  /* O verso do diploma também é uma digitalização. Na versão em preto e
+     branco ele daria o mesmo problema da frente, então usa o verso
+     desenhado — os quatro campos são exatamente os mesmos. */
   const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO'
     ? VersoInstrumentacao
-    : ehCertificadoRetrato
+    : (ehCertificadoRetrato || versaoA4PB)
       ? <CertificadoVerso verso={verso} />
       : Verso;
 
