@@ -159,31 +159,43 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         {parcial ? modelo.titulo.replace('HISTÓRICO ESCOLAR', 'HISTÓRICO ESCOLAR PARCIAL') : modelo.titulo}
       </h1>
 
-      {/* Identificação */}
+      {/* IDENTIFICAÇÃO — RÓTULO E VALOR NA MESMA CÉLULA.
+          Antes cada rótulo tinha a sua coluna e o valor a dele, e o quadro
+          ficava picotado por linhas verticais que o modelo da secretaria não
+          tem. Pior: com a coluna estreita, "Estágio Supervisionado Concluído
+          em:" quebrava em três linhas.
+
+          Agora é uma célula por informação, com o rótulo em negrito e o valor
+          logo em seguida — do jeito que sai no Word. */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
         <tbody>
           <tr>
-            <td style={{ ...celIdent, width: '16%', fontWeight: 'bold' }}>Nome do Aluno:</td>
-            <td style={celIdentValor} colSpan={3}>{dados.alunoNome.toUpperCase()}</td>
+            <td style={celIdent} colSpan={2}>
+              <strong>Nome do Aluno:</strong> <strong>{dados.alunoNome.toUpperCase()}</strong>
+            </td>
           </tr>
           <tr>
-            <td style={{ ...celIdent, fontWeight: 'bold' }}>Data Nascimento:</td>
-            <td style={{ ...celIdentValor, width: '30%' }}>{dataBr(dados.dataNascimento) || '\u00a0'}</td>
-            <td style={{ ...celIdent, width: '14%', fontWeight: 'bold' }}>Naturalidade:</td>
-            <td style={celIdentValor}>{dados.naturalidade || '\u00a0'}</td>
+            <td style={{ ...celIdent, width: '46%' }}>
+              <strong>Data Nascimento:</strong> <strong>{dataBr(dados.dataNascimento) || '\u00a0'}</strong>
+            </td>
+            <td style={celIdent}>
+              <strong>Naturalidade:</strong> <strong>{dados.naturalidade || '\u00a0'}</strong>
+            </td>
           </tr>
           {modelo.filiacaoSeparada ? (
             <tr>
-              <td style={{ ...celIdent, fontWeight: 'bold' }}>Pai:</td>
-              <td style={celIdentValor}>{dados.nomePai || '\u00a0'}</td>
-              <td style={{ ...celIdent, fontWeight: 'bold' }}>Mãe:</td>
-              <td style={celIdentValor}>{dados.nomeMae || '\u00a0'}</td>
+              <td style={{ ...celIdent, width: '46%' }}>
+                <strong>Pai:</strong> <strong>{dados.nomePai || '\u00a0'}</strong>
+              </td>
+              <td style={celIdent}>
+                <strong>Mãe:</strong> <strong>{dados.nomeMae || '\u00a0'}</strong>
+              </td>
             </tr>
           ) : (
             <tr>
-              <td style={{ ...celIdent, fontWeight: 'bold' }}>Filiação:</td>
-              <td style={celIdentValor} colSpan={3}>
-                {[dados.nomePai, dados.nomeMae].filter(Boolean).join(' e ') || '\u00a0'}
+              <td style={celIdent} colSpan={2}>
+                <strong>Filiação:</strong>{' '}
+                <strong>{[dados.nomePai, dados.nomeMae].filter(Boolean).join(' e ') || '\u00a0'}</strong>
               </td>
             </tr>
           )}
@@ -244,13 +256,15 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             ))
           )}
 
-          {/* Estágio supervisionado */}
+          {/* ESTÁGIO SUPERVISIONADO.
+              O rótulo e a data ficam na mesma célula, correndo pela largura
+              das duas primeiras colunas. Separados, a coluna estreita da
+              esquerda quebrava "Estágio Supervisionado Concluído em:" em três
+              linhas empilhadas. */}
           <tr>
-            <td style={{ ...cel, fontWeight: 'bold' }}>
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>
               Estágio Supervisionado {parcial ? 'à cursar' : 'Concluído em:'}
-            </td>
-            <td style={{ ...celC, fontWeight: 'bold' }}>
-              {parcial ? '' : dataBr(dados.estagioConcluidoEm)}
+              {!parcial && ` ${dataBr(dados.estagioConcluidoEm) || ''}`}
             </td>
             <td style={{ ...celC, fontWeight: 'bold' }}>{parcial ? '----' : 'APTO (A)'}</td>
             <td style={celC}>----</td>
@@ -258,15 +272,19 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             <td colSpan={3} style={celC}>--------------------</td>
           </tr>
 
-          {/* Totais */}
+          {/* TOTAIS — três informações, três células, cada uma numa linha só.
+              Antes eram seis células: rótulo e número separados, e cada par
+              espremido numa coluna estreita, o que fazia "FREQUENCIA OBTIDA"
+              e "% DE FREQUENCIA" quebrarem no meio. */}
           <tr>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>CARGA HORÁRIA TOTAL:</td>
-            <td colSpan={2} style={{ ...celC, fontWeight: 'bold' }}>{modelo.cargaTotal}</td>
-            <td colSpan={2} style={{ ...cel, fontWeight: 'bold', fontSize: '8.5pt' }}>FREQUENCIA OBTIDA:</td>
-            <td style={{ ...celC, fontWeight: 'bold' }}>{frequenciaFinal ?? '----'}</td>
-            <td colSpan={2} style={{ ...celC, fontSize: '8.5pt' }}>
-              <strong>% DE FREQUENCIA:</strong>{' '}
-              {percentualFrequencia(frequenciaFinal, modelo.cargaTotal)}
+            <td colSpan={3} style={{ ...cel, fontWeight: 'bold' }}>
+              CARGA HORÁRIA TOTAL: {modelo.cargaTotal}
+            </td>
+            <td colSpan={3} style={{ ...cel, fontWeight: 'bold' }}>
+              FREQUENCIA OBTIDA: {frequenciaFinal ?? '----'}
+            </td>
+            <td colSpan={2} style={{ ...cel, fontWeight: 'bold' }}>
+              % DE FREQUENCIA: {percentualFrequencia(frequenciaFinal, modelo.cargaTotal)}
             </td>
           </tr>
           <tr>
