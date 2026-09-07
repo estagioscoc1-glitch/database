@@ -54,6 +54,8 @@ import {
   Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles, IdCard, Layers,
   Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
 } from 'lucide-react';
+import { hasPermission } from '../utils/permissionUtils';
+import { PermissionModule } from '../types';
 import { SpreadsheetImporter } from './SpreadsheetImporter';
 import { HistoricalDataImporter } from './HistoricalDataImporter';
 import { PrintModal } from './PrintModal';
@@ -157,11 +159,41 @@ export const AdminDashboard: React.FC = () => {
     currentUser, verComoUsuario, acessos, recarregarAcessos, apagarPessoaPorCompleto
   } = useApp();
 
+  /* ============================ QUEM VÊ O QUÊ =============================
+     ABAS_VISIVEIS continua mandando no que existe no sistema — módulo ainda
+     não conferido fica oculto para todo mundo, inclusive para o
+     administrador. Em cima disso entra a permissão da pessoa: o funcionário
+     só enxerga o que o administrador liberou na tela de Funcionários.
+
+     Administrador vê tudo o que estiver ligado em ABAS_VISIVEIS. É de
+     propósito — evita alguém se trancar para fora do próprio sistema.
+
+     Funcionário sem nada marcado vê só o Dashboard, nunca o sistema inteiro:
+     na dúvida, de menos. ====================================================*/
+  const podeVer = React.useCallback((aba: keyof typeof ABAS_VISIVEIS): boolean => {
+    if (!ABAS_VISIVEIS[aba]) return false;
+    return hasPermission(currentUser, aba as PermissionModule, 'view');
+  }, [currentUser]);
+
   const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'requerimentos' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
     // A aba inicial precisa ser uma que esteja VISÍVEL. Antes era 'crm' — que
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
   );
+  /* Esconder o botão não basta: a aba inicial é escolhida antes de o sistema
+     saber quem entrou, e o conteúdo apareceria mesmo sem o botão. Aqui, assim
+     que o usuário é conhecido, uma aba que ele não pode ver é trocada pela
+     primeira que ele pode. */
+  React.useEffect(() => {
+    if (!currentUser) return;
+    if (!(activeTab in ABAS_VISIVEIS)) return;          // telas internas, sem menu
+    if (podeVer(activeTab as keyof typeof ABAS_VISIVEIS)) return;
+
+    const primeira = (Object.keys(ABAS_VISIVEIS) as (keyof typeof ABAS_VISIVEIS)[])
+      .find(a => podeVer(a));
+    if (primeira) setActiveTab(primeira as any);
+  }, [currentUser, activeTab, podeVer]);
+
   const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas' | 'vercomo' | 'historico_matriculas' | 'matriculas_semestrais' | 'grades_curriculares'>('cursos');
   const [verComoSearch, setVerComoSearch] = useState('');
   const [verComoErro, setVerComoErro] = useState<string | null>(null);
@@ -1390,7 +1422,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Tab Selectors - Nova Estrutura Principal */}
       <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none border-b border-slate-200 dark:border-slate-800 gap-2 select-none pb-0.5">
-        {ABAS_VISIVEIS.crm && (
+        {podeVer('crm') && (
         <button
           type="button"
           onClick={() => setActiveTab('crm')}
@@ -1404,7 +1436,7 @@ export const AdminDashboard: React.FC = () => {
           <span>CRM</span>
         </button>
         )}
-        {ABAS_VISIVEIS.cadastros && (
+        {podeVer('cadastros') && (
         <button
           type="button"
           onClick={() => setActiveTab('cadastros')}
@@ -1417,7 +1449,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Cadastros</span>
         </button>
         )}
-        {ABAS_VISIVEIS.financeiro && (
+        {podeVer('financeiro') && (
         <button
           type="button"
           onClick={() => setActiveTab('financeiro')}
@@ -1430,7 +1462,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Financeiro</span>
         </button>
         )}
-        {ABAS_VISIVEIS.orientacao && (
+        {podeVer('orientacao') && (
         <button
           type="button"
           onClick={() => setActiveTab('orientacao')}
@@ -1443,7 +1475,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Movimentação</span>
         </button>
         )}
-        {ABAS_VISIVEIS.pesquisa && (
+        {podeVer('pesquisa') && (
         <button
           type="button"
           onClick={() => setActiveTab('pesquisa')}
@@ -1456,7 +1488,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Pesquisa</span>
         </button>
         )}
-        {ABAS_VISIVEIS.relatorios && (
+        {podeVer('relatorios') && (
         <button
           type="button"
           onClick={() => setActiveTab('relatorios')}
@@ -1469,7 +1501,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Relatórios</span>
         </button>
         )}
-        {ABAS_VISIVEIS.requerimentos && (
+        {podeVer('requerimentos') && (
         <button
           type="button"
           onClick={() => setActiveTab('requerimentos')}
@@ -1484,12 +1516,13 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* A barrinha separadora só faz sentido se houver algo à esquerda dela. */}
-        {(ABAS_VISIVEIS.crm || ABAS_VISIVEIS.cadastros || ABAS_VISIVEIS.financeiro
-          || ABAS_VISIVEIS.orientacao || ABAS_VISIVEIS.pesquisa || ABAS_VISIVEIS.relatorios
-          || ABAS_VISIVEIS.requerimentos) && (
+        {(podeVer('crm') || podeVer('cadastros') || podeVer('financeiro')
+          || podeVer('orientacao') || podeVer('pesquisa') || podeVer('relatorios')
+          || podeVer('requerimentos')) && (
           <span className="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></span>
         )}
 
+        {podeVer('visu') && (
         <button
           type="button"
           onClick={() => setActiveTab('visu')}
@@ -1501,6 +1534,8 @@ export const AdminDashboard: React.FC = () => {
         >
           Dashboard
         </button>
+        )}
+        {podeVer('reg') && (
         <button
           type="button"
           onClick={() => setActiveTab('reg')}
@@ -1512,6 +1547,8 @@ export const AdminDashboard: React.FC = () => {
         >
           Cadastros Acadêmicos
         </button>
+        )}
+        {podeVer('imp') && (
         <button
           type="button"
           onClick={() => setActiveTab('imp')}
@@ -1523,6 +1560,8 @@ export const AdminDashboard: React.FC = () => {
         >
           Importar Planilhas
         </button>
+        )}
+        {podeVer('msg') && (
         <button
           type="button"
           onClick={() => setActiveTab('msg')}
@@ -1534,6 +1573,8 @@ export const AdminDashboard: React.FC = () => {
         >
           Mensagens & Avisos
         </button>
+        )}
+        {podeVer('sec') && (
         <button
           type="button"
           onClick={() => setActiveTab('sec')}
@@ -1546,7 +1587,8 @@ export const AdminDashboard: React.FC = () => {
           <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           <span>Backup & Segurança</span>
         </button>
-        {ABAS_VISIVEIS.boletins && (
+        )}
+        {podeVer('boletins') && (
         <button
           type="button"
           onClick={() => setActiveTab('boletins')}
@@ -1560,6 +1602,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Boletim Completo</span>
         </button>
         )}
+        {podeVer('historico_completo') && (
         <button
           type="button"
           onClick={() => setActiveTab('historico_completo')}
@@ -1572,6 +1615,8 @@ export const AdminDashboard: React.FC = () => {
           <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span>Histórico do Aluno</span>
         </button>
+        )}
+        {podeVer('estagio') && (
         <button
           type="button"
           onClick={() => setActiveTab('estagio')}
@@ -1584,7 +1629,8 @@ export const AdminDashboard: React.FC = () => {
           <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <span>Estágios</span>
         </button>
-        {ABAS_VISIVEIS.acessos && (
+        )}
+        {podeVer('acessos') && (
         <button
           type="button"
           onClick={() => setActiveTab('acessos')}

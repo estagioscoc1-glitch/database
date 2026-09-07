@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { StaffMember, StaffPermissions, PermissionModule } from '../types';
 import { PERMISSION_MODULES, getDefaultStaffPermissions } from '../utils/permissionUtils';
 import { Users, UserPlus, Shield, Key, Copy, Check, Search, Edit2, Trash2, Lock, Eye, PlusCircle, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { criarAcesso } from '../lib/supabase';
+import { criarAcesso, salvarPermissoesDoFuncionario, carregarPermissoesDosFuncionarios } from '../lib/supabase';
 import { criarAcessoDeUmDocente, definirAcessoDaConta } from '../lib/repositorios';
 
 export const StaffManager: React.FC = () => {
@@ -26,6 +26,14 @@ export const StaffManager: React.FC = () => {
   const [position, setPosition] = useState('Secretário Acadêmico');
   const [active, setActive] = useState(true);
   const [permissions, setPermissions] = useState<StaffPermissions>(getDefaultStaffPermissions(true));
+
+  /* Permissões que já estão gravadas no banco, por login. Carregadas uma vez
+     ao abrir a tela, para a edição mostrar a verdade e não o que sobrou aqui
+     no navegador. */
+  const [permissoesDoBanco, setPermissoesDoBanco] = useState<Record<string, any>>({});
+  useEffect(() => {
+    void carregarPermissoesDosFuncionarios().then(setPermissoesDoBanco);
+  }, []);
 
   // Feedback banner
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -67,7 +75,9 @@ export const StaffManager: React.FC = () => {
     setEmail(staff.email || '');
     setPosition(staff.position || 'Auxiliar Administrativo');
     setActive(staff.active);
-    setPermissions(staff.permissions || getDefaultStaffPermissions(true));
+    /* O que vale é o que está no banco. A cópia guardada neste navegador
+       pode ser de outra máquina, ou antiga. */
+    setPermissions(permissoesDoBanco[staff.username] || staff.permissions || getDefaultStaffPermissions(true));
     setShowAddModal(true);
   };
 
@@ -92,6 +102,18 @@ export const StaffManager: React.FC = () => {
         permissions
       };
       updateStaffMember(updated);
+
+      /* AS PERMISSÕES VÃO PARA O BANCO, JUNTO DA CONTA.
+         Antes ficavam só neste navegador: o que o administrador marcasse no
+         computador dele não existia no computador da secretaria. Agora valem
+         em qualquer máquina, porque o menu as lê no login. */
+      if (editingStaff.username) {
+        const permRes = await salvarPermissoesDoFuncionario(editingStaff.username, permissions);
+        if (permRes.erro) {
+          setFeedback({ type: 'error', text: `Dados salvos, mas as permissões não foram gravadas: ${permRes.erro}` });
+          return;
+        }
+      }
 
       // ATIVO/INATIVO PRECISA VALER NO SERVIDOR, NÃO SÓ NA LISTA.
       //
@@ -168,6 +190,13 @@ export const StaffManager: React.FC = () => {
         permissions,
         username: resultado.loginUsado || login,
       });
+
+      // Mesma gravação do caso acima, agora com o login que o servidor aceitou.
+      const loginFinal = resultado.loginUsado || login;
+      const permRes = await salvarPermissoesDoFuncionario(loginFinal, permissions);
+      if (permRes.erro) {
+        setFeedback({ type: 'error', text: `Funcionário criado, mas as permissões não foram gravadas: ${permRes.erro}. Edite o cadastro e salve de novo.` });
+      }
 
       setCreatedCredentials({
         name: res.staff.name,
