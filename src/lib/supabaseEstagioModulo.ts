@@ -233,13 +233,6 @@ export interface AlunoNaVaga {
   mensalidadeOk?: boolean;
   seguroOk?: boolean;
   kitOk?: boolean;
-
-  /* SGE, VAGA e SALA da ficha impressa. Existem no papel da escola, não têm
-     equivalente digital, e ficam como campo livre — a secretaria digita
-     quando quiser, em branco não aparece nada no documento. */
-  sgeManual?: string;
-  vagaManual?: string;
-  salaManual?: string;
 }
 
 /**
@@ -332,9 +325,6 @@ const alunoDoBanco = (a: any): AlunoNaVaga => ({
   mensalidadeOk: a.mensalidade_ok ?? undefined,
   seguroOk: a.seguro_ok ?? undefined,
   kitOk: a.kit_ok ?? undefined,
-  sgeManual: a.sge_manual ?? undefined,
-  vagaManual: a.vaga_manual ?? undefined,
-  salaManual: a.sala_manual ?? undefined,
 });
 
 export async function listarAlunosDaVaga(vagaId: string): Promise<{ lista: AlunoNaVaga[]; erro?: string }> {
@@ -365,7 +355,26 @@ export async function removerAlunoDaVaga(id: string): Promise<{ erro?: string }>
 }
 
 /** Grava as quatro notas. Usada pela secretaria e pelo supervisor. */
-export async function lancarNotas(a: AlunoNaVaga, quem?: string): Promise<{ erro?: string }> {
+/**
+ * Grava as quatro notas do supervisor na vaga E, se a média fechar, já copia
+ * para o histórico do aluno na hora — não espera o Fechar Vaga.
+ *
+ * POR QUE MUDOU: antes a nota só valia depois de fechar a vaga, e o intervalo
+ * entre lançar e fechar gerava reclamação de demora. Agora vale na hora.
+ *
+ * O QUE ISSO MUDA NA PRÁTICA: uma vez copiada para o histórico, corrigir essa
+ * nota deixa de ser "o supervisor lança de novo" — precisa passar por
+ * corrigirNotaHistorico(), que só o administrador usa. O supervisor pode até
+ * reabrir esta tela e mudar os campos, mas a correção no histórico é sempre
+ * feita pelo admin, de propósito: nota de histórico não deve mudar sozinha
+ * sem alguém da gestão saber.
+ *
+ * Fechar Vaga continua existindo, só que agora não copia nota nenhuma — serve
+ * só para travar novas inclusões e liberar o recibo do supervisor.
+ */
+export async function lancarNotas(
+  a: AlunoNaVaga, vaga: VagaEstagio, quem?: string
+): Promise<{ erro?: string; foiParaOHistorico?: boolean }> {
   const media = mediaDoAluno(a);
   const { error } = await supabase.from('estagio_vaga_alunos').update({
     nota_conhecimento: a.notaConhecimento,
@@ -378,6 +387,40 @@ export async function lancarNotas(a: AlunoNaVaga, quem?: string): Promise<{ erro
     lancado_em: new Date().toISOString(),
     lancado_por: quem ?? null,
   }).eq('id', a.id);
+  if (error) return { erro: explicar(error) };
+
+  if (media === null) return { foiParaOHistorico: false };
+
+  const nomeOficial = nomeOficialDoComponente(vaga.curso, vaga.componente);
+  const { error: erroHist } = await supabase.from('estagios').upsert({
+    id: `est_${a.alunoId}_${nomeOficial}`.replace(/[^\w-]/g, '_'),
+    aluno_id: a.alunoId,
+    componente: nomeOficial,
+    carga_horaria: 0,
+    local_realizado: vaga.localNome || null,
+    professor_nome: vaga.supervisorNome || null,
+    nota: media,
+    atualizado_em: new Date().toISOString(),
+  }, { onConflict: 'aluno_id,componente' });
+
+  // A nota da vaga já está gravada mesmo se isto falhar — o supervisor não
+  // perde o trabalho. O admin fecha a diferença depois, na tela de correção.
+  if (erroHist) return { erro: `Nota salva, mas não copiada ao histórico agora: ${explicar(erroHist)}. Feche a vaga para tentar de novo.`, foiParaOHistorico: false };
+  return { foiParaOHistorico: true };
+}
+
+/**
+ * CORREÇÃO DE NOTA JÁ LANÇADA NO HISTÓRICO — só o administrador usa.
+ *
+ * É o único caminho para mudar uma nota de estágio depois que ela já virou
+ * histórico. O supervisor não tem este botão.
+ */
+export async function corrigirNotaHistorico(
+  alunoId: string, componente: string, novaNota: number
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagios')
+    .update({ nota: novaNota, atualizado_em: new Date().toISOString() })
+    .eq('aluno_id', alunoId).eq('componente', componente);
   return error ? { erro: explicar(error) } : {};
 }
 
@@ -388,18 +431,6 @@ export async function atualizarPreRequisitos(
     mensalidade_ok: campos.mensalidadeOk ?? null,
     seguro_ok: campos.seguroOk ?? null,
     kit_ok: campos.kitOk ?? null,
-  }).eq('id', id);
-  return error ? { erro: explicar(error) } : {};
-}
-
-/** Grava SGE, VAGA e SALA da ficha — campo livre, sem regra nenhuma por trás. */
-export async function atualizarCamposDaFicha(
-  id: string, campos: { sgeManual?: string; vagaManual?: string; salaManual?: string }
-): Promise<{ erro?: string }> {
-  const { error } = await supabase.from('estagio_vaga_alunos').update({
-    sge_manual: campos.sgeManual || null,
-    vaga_manual: campos.vagaManual || null,
-    sala_manual: campos.salaManual || null,
   }).eq('id', id);
   return error ? { erro: explicar(error) } : {};
 }
