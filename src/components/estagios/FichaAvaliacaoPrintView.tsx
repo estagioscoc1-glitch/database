@@ -25,6 +25,8 @@ interface Props {
   aluno: AlunoNaVaga;
   catalogo?: EstagioCatalogo;
   supervisorRegistro?: string;
+  /** CPF do aluno. Vem do cadastro dele, não da vaga — por isso é opcional. */
+  alunoCpf?: string;
   onClose: () => void;
 }
 
@@ -53,7 +55,7 @@ const cel: React.CSSProperties = {
 };
 
 export const FichaAvaliacaoPrintView: React.FC<Props> = ({
-  vaga, aluno, catalogo, supervisorRegistro, onClose,
+  vaga, aluno, catalogo, supervisorRegistro, alunoCpf, onClose,
 }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
@@ -114,29 +116,49 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
     <div className="fav-folha" style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000', padding: '4mm' }}>
       {Cabecalho}
 
-      <p style={{ fontSize: '9.5pt', fontWeight: 'bold', fontStyle: 'italic', margin: '0 0 1mm' }}>
-        {(vaga.curso ? `TÉCNICO EM ${vaga.curso}` : '').toUpperCase()}
+      <p style={{ fontSize: '9.5pt', fontWeight: 'bold', margin: '0 0 1mm' }}>
+        TÉCNICO EM {(vaga.curso ?? '').toUpperCase()}
       </p>
 
+      {/* GRADE IDÊNTICA À FICHA EM PAPEL.
+          Duas linhas de identificação: a primeira com Aluno(a), Comp.
+          Curricular e Período; a segunda com os cinco campos pequenos —
+          SGE, VAGA, SALA, TURNO e EMPRESA/SUPERVISOR/CPF — na mesma ordem
+          do modelo da escola. SGE, VAGA e SALA não têm dado digital por
+          trás: a secretaria digita direto no campo, e ficam em branco
+          quando ninguém preenche. */}
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <tbody>
           <tr>
-            <td style={{ ...cel, width: '55%' }}>
-              <strong>ALUNO(A):</strong> <span style={{ color: '#1d4ed8' }}>{aluno.alunoNome.toUpperCase()}</span>
+            <td style={cel}>
+              <strong>Aluno(a)</strong> {aluno.alunoMatricula ? `${aluno.alunoMatricula} - ` : ''}{aluno.alunoNome.toUpperCase()}
             </td>
-            <td style={{ ...cel, width: '17%' }}><strong>SALA / TURNO:</strong> {vaga.turno ?? ''}</td>
-            <td style={cel}><strong>TELEFONE</strong></td>
           </tr>
           <tr>
-            <td style={cel}><strong>COMPONENTE CURRICULAR:</strong> {vaga.componente.toUpperCase()}</td>
-            <td style={cel} colSpan={2}><strong>LOCAL:</strong> {vaga.localNome ?? ''}</td>
+            <td style={cel}>
+              <strong>COMP. CURRICULAR</strong> {vaga.componente.toUpperCase()}
+            </td>
           </tr>
           <tr>
-            <td style={cel}><strong>PERÍODO DO ESTÁGIO:</strong> {periodo}</td>
-            <td style={cel} colSpan={2}>
-              <strong>PROFESSOR/SUPERVISOR:</strong> {vaga.supervisorNome ?? ''}
-              {supervisorRegistro ? `  ${supervisorRegistro}` : ''}
+            <td style={cel}>
+              <strong>PERÍODO DE ESTÁGIO:</strong> {periodo}
             </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
+        <tbody>
+          <tr>
+            <td style={{ ...cel, width: '14%' }}><strong>SGE</strong> {aluno.sgeManual ?? ''}</td>
+            <td style={{ ...cel, width: '14%' }}><strong>VAGA</strong> {aluno.vagaManual ?? ''}</td>
+            <td style={{ ...cel, width: '14%' }}><strong>SALA</strong> {aluno.salaManual ?? ''}</td>
+            <td style={{ ...cel, width: '14%' }}><strong>TURNO</strong> {vaga.turno ?? ''}</td>
+            <td style={cel}><strong>CPF</strong> {alunoCpf ?? ''}</td>
+          </tr>
+          <tr>
+            <td style={cel} colSpan={2}><strong>SUPERVISOR</strong> {vaga.supervisorNome ?? ''}{supervisorRegistro ? ` - ${supervisorRegistro}` : ''}</td>
+            <td style={cel} colSpan={3}><strong>EMPRESA</strong> {vaga.localNome ?? ''}</td>
           </tr>
         </tbody>
       </table>
@@ -173,12 +195,15 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
               </td>
             </tr>
           ))}
+          {/* No papel é uma linha só, "RESULTADO FINAL", com o número na
+              coluna da nota — não duas caixas separadas de resultado e
+              média. */}
           <tr>
             <td style={{ ...cel, background: '#d9d9d9', fontWeight: 'bold', fontSize: '10pt' }}>
-              RESULTADO: {aluno.resultado === 'PENDENTE' ? '' : aluno.resultado}
+              RESULTADO FINAL {aluno.resultado === 'PENDENTE' ? '' : `— ${aluno.resultado}`}
             </td>
-            <td style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontWeight: 'bold', fontSize: '10pt' }}>
-              MÉDIA: {media === null ? '' : media.toFixed(1).replace('.', ',')}
+            <td style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
+              {media === null ? '' : media.toFixed(1).replace('.', ',')}
             </td>
           </tr>
         </tbody>
@@ -187,7 +212,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2mm' }}>
         <tbody>
           <tr>
-            {['ASSINATURA DO ALUNO:', 'ASSINATURA DO PROFESSOR/SUPERVISOR:', 'ASSINATURA DA COORDENAÇÃO:'].map(t => (
+            {['ASSINATURA DO ALUNO:', 'ASSINATURA DO SUPERVISOR:', 'ASSINATURA DA GERÊNCIA DE ESTÁGIO:'].map(t => (
               <td key={t} style={{ ...cel, height: '22mm', fontWeight: 'bold', width: '33.33%' }}>{t}</td>
             ))}
           </tr>

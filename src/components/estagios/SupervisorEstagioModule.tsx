@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   meuCadastroSupervisor, minhasVagas, listarAlunosDaVaga, lancarNotas,
-  listarCatalogo, mediaDoAluno,
+  listarCatalogo, mediaDoAluno, atualizarCamposDaFicha,
   type Supervisor, type VagaEstagio, type AlunoNaVaga, type EstagioCatalogo,
 } from '../../lib/supabaseEstagioModulo';
+import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import {
   Briefcase, Users, Save, ChevronLeft, AlertTriangle, CheckCircle2,
-  RefreshCw, ClipboardCheck, Info,
+  RefreshCw, ClipboardCheck, Info, FileText,
 } from 'lucide-react';
 
 // ===========================================================================
@@ -37,6 +38,11 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
   const [vagaAberta, setVagaAberta] = useState<VagaEstagio | null>(null);
   const [alunos, setAlunos] = useState<AlunoNaVaga[]>([]);
   const [fichaAberta, setFichaAberta] = useState<AlunoNaVaga | null>(null);
+
+  /* A FICHA DE VERDADE — a mesma que o administrador imprime, com o timbre
+     da escola, os quatro blocos e o verso da frequência. É diferente da
+     tela acima, que é só o formulário para lançar as quatro notas. */
+  const [fichaImprimir, setFichaImprimir] = useState<AlunoNaVaga | null>(null);
   const [catalogo, setCatalogo] = useState<EstagioCatalogo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -188,14 +194,15 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
               const media = mediaDoAluno(a);
               const lancado = media !== null;
               return (
-                <button key={a.id} type="button" onClick={() => setFichaAberta({ ...a })}
-                        className="w-full text-left bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-300 transition-all flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                <div key={a.id}
+                     className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-300 transition-all flex items-center justify-between gap-3">
+                  <button type="button" onClick={() => setFichaAberta({ ...a })}
+                          className="flex-1 min-w-0 text-left">
                     <p className="font-black text-sm text-slate-800 dark:text-white truncate">{a.alunoNome}</p>
                     <p className="text-[11px] font-bold text-slate-500 mt-0.5">
                       {a.alunoMatricula || 'Sem matrícula'}
                     </p>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <span className={`font-mono font-black text-lg ${lancado ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300'}`}>
                       {lancado ? media.toFixed(1).replace('.', ',') : '—'}
@@ -206,8 +213,17 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
                       : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                       {a.resultado === 'PENDENTE' ? 'LANÇAR' : a.resultado}
                     </span>
+                    {/* ABRIR A FICHA DE VERDADE — com timbre, os quatro
+                        blocos e o verso da frequência. Independe da nota já
+                        ter sido lançada: o supervisor pode querer imprimir
+                        a folha de frequência antes mesmo de avaliar. */}
+                    <button type="button" onClick={() => setFichaImprimir(a)}
+                            title="Abrir ficha para imprimir"
+                            className="p-2 text-slate-400 hover:text-blue-600 flex-shrink-0">
+                      <FileText className="h-4 w-4" />
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })}
             {alunos.length === 0 && (
@@ -279,6 +295,27 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
                         onChange={e => setFichaAberta({ ...fichaAberta, observacoes: e.target.value })} />
             </div>
 
+            {/* SGE, VAGA E SALA — só entram na ficha impressa. O sistema não
+                usa nem confere esses números; ficam gravados assim que o
+                campo perde o foco. */}
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                ['sgeManual', 'SGE'], ['vagaManual', 'VAGA'], ['salaManual', 'SALA'],
+              ] as const).map(([chave, rotulo]) => (
+                <div key={chave}>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                    {rotulo} <span className="font-medium normal-case text-slate-400">(só para a ficha impressa)</span>
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-sm"
+                    value={(fichaAberta as any)[chave] ?? ''}
+                    onChange={e => setFichaAberta({ ...fichaAberta, [chave]: e.target.value } as AlunoNaVaga)}
+                    onBlur={e => { if (fichaAberta.id) void atualizarCamposDaFicha(fichaAberta.id, { [chave]: e.target.value } as any); }}
+                  />
+                </div>
+              ))}
+            </div>
+
             <div className="flex items-start gap-2 px-4 py-3 rounded-2xl border border-blue-200 bg-blue-50 dark:bg-blue-950/20">
               <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <p className="text-[11px] font-semibold text-blue-800 leading-relaxed">
@@ -300,6 +337,16 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
             </div>
           </div>
         </div>
+      )}
+
+      {fichaImprimir && vagaAberta && (
+        <FichaAvaliacaoPrintView
+          vaga={vagaAberta}
+          aluno={fichaImprimir}
+          catalogo={catalogo.find(c => c.componente === vagaAberta.componente)}
+          supervisorRegistro={supervisor.conselho && supervisor.registro ? `${supervisor.conselho} ${supervisor.registro}` : undefined}
+          onClose={() => setFichaImprimir(null)}
+        />
       )}
     </div>
   );

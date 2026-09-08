@@ -727,6 +727,7 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
           vaga={vagaAberta}
           aluno={fichaImprimir}
           catalogo={catalogo.find(c => c.componente === vagaAberta.componente)}
+          alunoCpf={users.find(u => u.id === fichaImprimir.alunoId)?.cpf}
           supervisorRegistro={(() => {
             const s = supervisores.find(x => x.id === vagaAberta.supervisorId);
             return s?.conselho && s?.registro ? `${s.conselho} ${s.registro}` : undefined;
