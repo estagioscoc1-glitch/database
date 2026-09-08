@@ -55,11 +55,15 @@ export const MODELOS_HISTORICO: ModeloHistorico[] = [
     cursoNome: 'Auxiliar de Enfermagem',
     titulo: 'HISTÓRICO ESCOLAR DO CURSO DE QUALIFICAÇÃO TÉCNICA EM AUXILIAR DE ENFERMAGEM',
     resolucao: 'Resolução CEE/GO nº 018/2022',
-    /* "AUXILIAR DE ENFERMAGEM" tem mais letras que "ENFERMAGEM" sozinho, e
-       modeloDoCurso() sempre escolhe o termo mais longo que casar. Por isso
-       não existe risco deste curso cair no modelo de Técnico em Enfermagem,
-       mesmo os dois contendo a palavra "ENFERMAGEM". */
-    termosCurso: ['AUXILIAR DE ENFERMAGEM', 'AUXILIAR EM ENFERMAGEM'],
+    /* SEM termosCurso DE PROPÓSITO.
+       Auxiliar de Enfermagem não é um curso com turma própria — é um
+       certificado intermediário que o aluno do Técnico em Enfermagem tira
+       depois de 1 ano e 400h de estágio, seguindo depois para o Técnico. O
+       curso dele no cadastro será sempre "Técnico em Enfermagem", nunca
+       "Auxiliar" — por isso a escolha automática por nome de curso nunca
+       serviria aqui. A secretaria escolhe este modelo à mão, na tela, para
+       o aluno certo, no momento certo. modeloDoCurso() nunca o retorna. */
+    termosCurso: [],
     cargaEstagio: 400,
     cargaTotal: 1220,
     observacoes: 'A média mínima para aprovação no Componente Curricular é 6,0 (seis).',
