@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { UserRole } from '../../types';
 import { HistoricoEscolarPrintView } from './HistoricoEscolarPrintView';
 import {
-  modeloDoCurso, conceitoDaNota, RESOLUCOES_DISPONIVEIS,
+  modeloDoCurso, conceitoDaNota, RESOLUCOES_DISPONIVEIS, MODELOS_HISTORICO,
   type ModeloHistorico,
 } from '../../lib/historicoTextos';
 import {
@@ -87,7 +87,25 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
     return { turma, curso };
   };
   const { curso: cursoAluno } = aluno ? contexto(aluno) : { curso: null };
-  const modelo: ModeloHistorico | null = modeloDoCurso(cursoAluno?.name);
+  const modeloDoCadastro: ModeloHistorico | null = modeloDoCurso(cursoAluno?.name);
+
+  /* AUXILIAR DE ENFERMAGEM — ESCOLHA MANUAL, NÃO AUTOMÁTICA.
+     Não é curso com turma própria: é o certificado que o aluno do Técnico em
+     Enfermagem tira depois de 1 ano e 400h de estágio, e segue no curso
+     depois de tirá-lo. O curso no cadastro dele sempre vai dizer "Técnico em
+     Enfermagem" — nunca "Auxiliar" — então a busca automática por nome de
+     curso nunca ofereceria este modelo. Por isso ele só aparece como opção
+     quando o curso do aluno é de Enfermagem, e a secretaria decide usá-lo. */
+  const modeloAuxiliar = MODELOS_HISTORICO.find(m => m.chave === 'AUXILIAR_ENFERMAGEM') ?? null;
+  const podeEmitirAuxiliar = !!modeloDoCadastro && modeloDoCadastro.chave === 'ENFERMAGEM';
+
+  const [usarModeloAuxiliar, setUsarModeloAuxiliar] = useState(false);
+  useEffect(() => { setUsarModeloAuxiliar(false); }, [aluno?.id]);
+
+  const modelo: ModeloHistorico | null =
+    usarModeloAuxiliar && podeEmitirAuxiliar && modeloAuxiliar
+      ? modeloAuxiliar
+      : modeloDoCadastro;
 
   /**
    * Notas do aluno indexadas pelo NOME da disciplina, em maiúsculas.
@@ -463,6 +481,22 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
           </>
         )}
       </div>
+
+      {/* AUXILIAR DE ENFERMAGEM — opção manual, só para aluno de Enfermagem */}
+      {aluno && podeEmitirAuxiliar && (
+        <label className="flex items-start gap-2 px-4 py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 cursor-pointer">
+          <input type="checkbox" className="mt-0.5" checked={usarModeloAuxiliar}
+                 onChange={e => setUsarModeloAuxiliar(e.target.checked)} />
+          <span className="text-xs font-bold text-amber-900 leading-relaxed">
+            Emitir como Auxiliar de Enfermagem
+            <span className="block font-medium text-[11px] text-amber-700 mt-0.5">
+              Use só depois de confirmar que o aluno já tem 1 ano de curso e 400h de estágio
+              concluídas. O curso continua "Técnico em Enfermagem" no cadastro dele — isto muda
+              apenas o documento gerado agora, sem alterar a matrícula.
+            </span>
+          </span>
+        </label>
+      )}
 
       {/* TRAVA POR CURSO */}
       {aluno && !modelo && (
