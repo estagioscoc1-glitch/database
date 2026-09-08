@@ -491,6 +491,12 @@ export interface ReciboEstagio {
   situacao: 'PENDENTE' | 'PAGO';
   pagoEm?: string;
   criadoEm?: string;
+
+  /* Nomes dos alunos cobertos por este recibo, para a lista impressa. Vem da
+     vaga no momento da emissão — se um aluno for tirado da vaga depois, o
+     recibo já emitido não muda, porque o pagamento já foi feito com base
+     nessa lista. */
+  alunosNomes?: string[];
 }
 
 const reciboDoBanco = (r: any): ReciboEstagio => ({
@@ -502,6 +508,7 @@ const reciboDoBanco = (r: any): ReciboEstagio => ({
   valorTotal: Number(r.valor_total ?? 0),
   competencia: r.competencia ?? '', situacao: r.situacao ?? 'PENDENTE',
   pagoEm: r.pago_em ?? undefined, criadoEm: r.criado_em,
+  alunosNomes: Array.isArray(r.alunos_nomes) ? r.alunos_nomes : [],
 });
 
 export async function listarRecibos(): Promise<{ lista: ReciboEstagio[]; erro?: string }> {
@@ -526,25 +533,49 @@ export async function gerarNumeroRecibo(): Promise<string> {
  * SÓ VAGA FECHADA GERA RECIBO. Enquanto a vaga está aberta o número de alunos
  * ainda pode mudar, e um recibo assinado com valor errado é problema.
  */
-export async function emitirRecibo(v: VagaEstagio, qtdAlunos: number, quem?: string): Promise<{ erro?: string }> {
+/**
+ * Emite o recibo de uma vaga fechada, com o nome de cada aluno coberto.
+ *
+ * SÓ VAGA FECHADA GERA RECIBO. Enquanto a vaga está aberta o número de alunos
+ * ainda pode mudar, e um recibo assinado com valor errado é problema.
+ *
+ * SAI JÁ COMO PAGO. O recibo é o próprio comprovante de pagamento ao
+ * supervisor — não existe uma etapa de "vou pagar depois" entre emitir e
+ * pagar. Se algum dia for preciso desfazer (recibo emitido por engano),
+ * marcarReciboPago(id, false) volta para pendente.
+ */
+export async function emitirRecibo(
+  v: VagaEstagio, nomesAlunos: string[], quem?: string
+): Promise<{ erro?: string }> {
   if (v.situacao !== 'FECHADA') {
     return { erro: 'Só é possível emitir recibo de vaga fechada. Feche a vaga primeiro.' };
   }
   const numero = await gerarNumeroRecibo();
   const hoje = new Date();
+  const qtdAlunos = nomesAlunos.length;
   const { error } = await supabase.from('estagio_recibos').insert({
     numero, vaga_id: v.id, supervisor_id: v.supervisorId,
     supervisor_nome: v.supervisorNome || '', componente: v.componente,
     local_nome: v.localNome, qtd_alunos: qtdAlunos,
+    alunos_nomes: nomesAlunos,
     valor_por_aluno: v.valorPorAluno, valor_total: qtdAlunos * v.valorPorAluno,
     competencia: `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`,
     emitido_por: quem ?? null,
+    situacao: 'PAGO',
+    pago_em: hoje.toISOString().split('T')[0],
   });
   if (error) {
     if (error.code === '23505') return { erro: 'Esta vaga já tem recibo emitido.' };
     return { erro: explicar(error) };
   }
   return {};
+}
+
+/** Diz se a vaga já tem recibo emitido — para mostrar o selo de pago. */
+export async function reciboDaVaga(vagaId: string): Promise<ReciboEstagio | null> {
+  const { data } = await supabase
+    .from('estagio_recibos').select('*').eq('vaga_id', vagaId).maybeSingle();
+  return data ? reciboDoBanco(data) : null;
 }
 
 export async function marcarReciboPago(id: string, pago: boolean): Promise<{ erro?: string }> {
