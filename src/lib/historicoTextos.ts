@@ -51,6 +51,67 @@ export interface ModeloHistorico {
 
 export const MODELOS_HISTORICO: ModeloHistorico[] = [
   {
+    chave: 'AUXILIAR_ENFERMAGEM',
+    cursoNome: 'Auxiliar de Enfermagem',
+    titulo: 'HISTÓRICO ESCOLAR DO CURSO DE QUALIFICAÇÃO TÉCNICA EM AUXILIAR DE ENFERMAGEM',
+    resolucao: 'Resolução CEE/GO nº 018/2022',
+    /* "AUXILIAR DE ENFERMAGEM" tem mais letras que "ENFERMAGEM" sozinho, e
+       modeloDoCurso() sempre escolhe o termo mais longo que casar. Por isso
+       não existe risco deste curso cair no modelo de Técnico em Enfermagem,
+       mesmo os dois contendo a palavra "ENFERMAGEM". */
+    termosCurso: ['AUXILIAR DE ENFERMAGEM', 'AUXILIAR EM ENFERMAGEM'],
+    cargaEstagio: 400,
+    cargaTotal: 1220,
+    observacoes: 'A média mínima para aprovação no Componente Curricular é 6,0 (seis).',
+    modulos: [
+      { nome: 'MÓDULO I', disciplinas: [
+        { nome: 'Anatomia e Fisiologia Humana', ch: 80 },
+        { nome: 'Biossegurança nas Ações de Saúde', ch: 40 },
+        { nome: 'Introdução à Enfermagem', ch: 120 },
+        { nome: 'Microbiologia e Parasitologia', ch: 40 },
+        { nome: 'Noções de Farmacologia', ch: 40 },
+        { nome: 'Nutrição', ch: 40 },
+        { nome: 'Primeiros Socorros', ch: 40 },
+      ]},
+      { nome: 'MÓDULO II', disciplinas: [
+        { nome: 'Enfermagem em Centro Cirúrgico', ch: 40 },
+        { nome: 'Enfermagem em Cent. De Mat. E Esterilização', ch: 20 },
+        { nome: 'Enfermagem em Clínica Cirúrgica', ch: 40 },
+        { nome: 'Enfermagem em Clínica Médica', ch: 40 },
+        { nome: 'Enfermagem em Obstetrícia', ch: 40 },
+        { nome: 'Enfermagem em Pediatria', ch: 40 },
+        { nome: 'Enfermagem em Saúde Mental', ch: 40 },
+        { nome: 'Ética e Legislação Profissional', ch: 20 },
+        { nome: 'Psicologia do Trabalho em Saúde', ch: 40 },
+        { nome: 'Saúde Coletiva', ch: 80 },
+      ]},
+    ],
+    competenciasGerais: [
+      'Realizar trabalho em equipe, correlacionando conhecimentos de várias disciplinas ou ciências, tendo em vista o caráter interdisciplinar da área.',
+      'Aplicar princípios e normas de higiene e saúde pessoal e ambiental.',
+      'Interpretar e aplicar a legislação referente aos direitos do consumidor / usuário.',
+      'Identificar e aplicar princípios e normas de conservação de recursos e de preservação do meio ambiente.',
+      'Aplicar princípios ergonômicos na realização do trabalho.',
+      'Identificar e avaliar rotinas, protocolos de trabalho, instalações e equipamentos.',
+      'Registrar ocorrências e serviços prestados de acordo com as exigências do campo de atuação.',
+      'Orientar clientes / pacientes a assumirem, com autonomia, a própria condição de saúde.',
+      'Coletar e organizar dados relativos ao campo de atuação.',
+      'Utilizar recursos e ferramentas de informática específicas da área.',
+    ],
+    competenciasEspecificas: [
+      'Preparar o paciente para consultas, exames e tratamentos.',
+      'Observar, colher e descrever sinais e sintomas, ao nível de sua qualificação.',
+      'Executar tratamentos especificamente prescritos, ou de rotina, além de outras atividades de enfermagem.',
+      'Prestar cuidados de higiene e conforto ao paciente e zelar por sua segurança, inclusive alimentá-lo ou auxiliá-lo a alimentar-se.',
+      'Integrar a equipe de saúde.',
+      'Participar das atividades de educação em saúde.',
+      'Verificar sinais vitais.',
+      'Colaborar com o enfermeiro para o efetivo cumprimento de suas tarefas.',
+      'Executar os tratamentos de rotina vinculados à falta de pacientes.',
+      'Participar dos procedimentos pós-morte.',
+    ],
+  },
+  {
     chave: 'ENFERMAGEM_EAD',
     cursoNome: 'Técnico em Enfermagem',
     // Identificação interna. Nunca é impressa — ver nomeInterno abaixo.
