@@ -299,9 +299,17 @@ export const HistoricoEscolarModule: React.FC<Props> = ({ currentUser = 'Adminis
   const linhasPorModulo = useMemo(() => {
     if (!modelo) return [];
 
-    const doCurso = (subjects ?? []).filter(
-      (d: any) => d.courseId === cursoAluno?.id
-    );
+    /* EMITINDO COMO AUXILIAR, A GRADE DE VERDADE NÃO SERVE.
+       Ela traz os três módulos do Técnico em Enfermagem, porque é esse o
+       curso do cadastro do aluno — o sistema não tem "curso Auxiliar" para
+       filtrar. Usando a grade de verdade aqui, o Módulo III aparecia sempre,
+       mesmo pedindo o Auxiliar. Por isso, só neste caso, a lista vem fixa do
+       modelo (dois módulos, dezessete disciplinas), do mesmo jeito que
+       Radiologia e Segurança do Trabalho já fazem quando o curso não tem
+       grade cadastrada. */
+    const doCurso = usarModeloAuxiliar
+      ? []
+      : (subjects ?? []).filter((d: any) => d.courseId === cursoAluno?.id);
 
     // Sem disciplinas cadastradas para o curso, volta para a grade do modelo.
     // Melhor um histórico montado da lista antiga do que uma folha em branco.
