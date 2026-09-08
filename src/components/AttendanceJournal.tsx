@@ -127,15 +127,24 @@ export const AttendanceJournal: React.FC = () => {
       .sort((a, b) => a.id.localeCompare(b.id));
   }, [attendance, targetSubject.id, targetClass.id]);
 
-  // 48 colunas — igual ao PDF do Diário de Frequência (era 30, e por isso o
-  // professor não conseguia nem VER, nem preencher, nenhuma aula lançada
-  // depois da 30ª: as colunas 31-48 simplesmente não existiam nesta tela,
-  // mesmo já existindo no PDF gerado a partir dos mesmos dados. A tela já
-  // tem rolagem horizontal (`overflow-x-auto`, com Nº/Matrícula/Aluno fixos
-  // do lado esquerdo), então isso só precisa gerar mais colunas — não precisa
-  // caber tudo numa largura fixa como o PDF precisa.
+  // A QUANTIDADE DE COLUNAS CRESCE EM FOLHAS INTEIRAS DE 48, NUNCA MENOS.
+  //
+  // 48 é o tamanho de uma folha do Diário de Frequência impresso. A tela
+  // segue a mesma divisão: sempre um múltiplo de 48, nunca uma coluna solta
+  // a mais ou a menos. Terminou de preencher a folha 1 (até a coluna 48) e
+  // lançou a 49ª aula, a tela abre a folha 2 inteira — colunas 49 a 96 — em
+  // vez de crescer aos poucos. Disciplina de 96 aulas usa duas folhas;
+  // disciplina de 130, três; e assim por diante, sem precisar mexer neste
+  // número de novo.
+  //
+  // A tela já tem rolagem horizontal (`overflow-x-auto`, com Nº/Matrícula/
+  // Aluno fixos do lado esquerdo), então isso só precisa gerar mais colunas
+  // — não precisa caber tudo numa largura fixa como o PDF precisa.
+  const COLUNAS_POR_FOLHA = 48;
+  const totalColunas = Math.ceil((subjectSessions.length + 1) / COLUNAS_POR_FOLHA) * COLUNAS_POR_FOLHA;
+
   const cols = useMemo(() => {
-    return Array.from({ length: 48 }).map((_, index) => {
+    return Array.from({ length: totalColunas }).map((_, index) => {
       const sess = subjectSessions[index];
       let month = '';
       let day = '';
@@ -165,7 +174,7 @@ export const AttendanceJournal: React.FC = () => {
         records
       };
     });
-  }, [subjectSessions, classStudents]);
+  }, [subjectSessions, classStudents, totalColunas]);
 
   const storageKeyInicio = `oc_header_${targetClass.id}_${targetSubject.id}_inicioModulo`;
   const storageKeyTermino = `oc_header_${targetClass.id}_${targetSubject.id}_terminoModulo`;

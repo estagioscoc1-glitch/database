@@ -136,11 +136,22 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   }, [documentType, classId, subjectId]);
 
   const [colsData, setColsData] = useState(() => {
-    // 144 = 3 páginas × 48 colunas (era 90 = 3 × 30, do tempo em que cada
-    // página tinha 30 colunas). Sem isso, a 3ª página de um curso mais longo
-    // ficaria sem nenhuma coluna de dia — o `slice` simplesmente não teria
-    // mais dado pra pegar.
-    return Array.from({ length: 144 }).map((_, index) => {
+    // TAMANHO EM FOLHAS INTEIRAS DE 48, DO TAMANHO DO QUE FOR PRECISO.
+    //
+    // Era um número fixo — primeiro 90 (3×30), depois 144 (3×48). Os dois
+    // travavam do mesmo jeito: qualquer diário com mais aulas do que o
+    // número escolhido perdia as colunas do fim, porque o `slice` não tinha
+    // mais dado pra pegar. Uma disciplina de 96 aulas já bastava para
+    // estourar o teto de 3 páginas em alguns casos, e há disciplinas com
+    // ainda mais aulas do que isso.
+    //
+    // Agora o tamanho acompanha o maior entre o que já foi lançado
+    // (`subjectSessions`) e o que a secretaria digitou em "Aulas Previstas"
+    // — arredondado para cima até fechar uma folha de 48. Sem teto.
+    const previstas = parseInt(aulasPrevistas, 10) || 0;
+    const necessarias = Math.max(previstas, subjectSessions.length, 1);
+    const folhas = Math.ceil(necessarias / 48);
+    return Array.from({ length: folhas * 48 }).map((_, index) => {
       const sess = subjectSessions[index];
       let month = '';
       let day = '';
@@ -201,11 +212,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     return getStudentAbsences(studentId, targetSubject.id).total;
   };
 
+  // Sem teto de 3 páginas: cada folha impressa continua com 48 colunas
+  // (renderDiarioFreqPage já faz esse corte certinho); o que muda é quantas
+  // folhas existem, calculado do mesmo jeito que o tamanho de colsData acima
+  // — o maior entre o lançado e o previsto, arredondado para cima.
   const getPageCount = () => {
-    const w = parseInt(aulasPrevistas, 10) || 80;
-    if (w <= 40) return 1;
-    if (w <= 80) return 2;
-    return 3;
+    const previstas = parseInt(aulasPrevistas, 10) || 0;
+    const necessarias = Math.max(previstas, subjectSessions.length, 1);
+    return Math.ceil(necessarias / 48);
   };
 
   const capitalizeWord = (word: string) => {
