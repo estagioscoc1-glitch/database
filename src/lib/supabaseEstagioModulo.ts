@@ -216,13 +216,6 @@ export interface VagaEstagio {
   /** Quando verdadeiro, a vaga aparece no painel do aluno para inscrição. */
   inscricoesAbertas?: boolean;
   inscricoesAte?: string;
-  /**
-   * Turmas que enxergam esta vaga no painel do aluno.
-   * VAZIO OU AUSENTE = TODAS AS TURMAS. É o comportamento que o sistema já
-   * tinha, e é o que as vagas antigas continuam fazendo sem ninguém mexer
-   * nelas. Preenchido, só os alunos dessas turmas veem a vaga.
-   */
-  turmasIds?: string[];
 }
 
 export interface AlunoNaVaga {
@@ -240,6 +233,13 @@ export interface AlunoNaVaga {
   mensalidadeOk?: boolean;
   seguroOk?: boolean;
   kitOk?: boolean;
+
+  /* SGE, VAGA e SALA da ficha impressa. Existem no papel da escola, não têm
+     equivalente digital, e ficam como campo livre — a secretaria digita
+     quando quiser, em branco não aparece nada no documento. */
+  sgeManual?: string;
+  vagaManual?: string;
+  salaManual?: string;
 }
 
 /**
@@ -273,7 +273,6 @@ const vagaDoBanco = (v: any): VagaEstagio => ({
   fechadaEm: v.fechada_em ?? undefined,
   inscricoesAbertas: !!v.inscricoes_abertas,
   inscricoesAte: v.inscricoes_ate ?? undefined,
-  turmasIds: Array.isArray(v.turmas_ids) ? v.turmas_ids : undefined,
 });
 
 export async function listarVagas(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
@@ -293,7 +292,6 @@ export async function salvarVaga(v: VagaEstagio): Promise<{ erro?: string; id?: 
     vagas_total: v.vagasTotal, situacao: v.situacao,
     token_acesso: v.tokenAcesso || gerarToken(),
     valor_por_aluno: v.valorPorAluno,
-    turmas_ids: v.turmasIds && v.turmasIds.length > 0 ? v.turmasIds : null,
   };
   if (v.id) linha.id = v.id;
   const { data, error } = await supabase
@@ -334,6 +332,9 @@ const alunoDoBanco = (a: any): AlunoNaVaga => ({
   mensalidadeOk: a.mensalidade_ok ?? undefined,
   seguroOk: a.seguro_ok ?? undefined,
   kitOk: a.kit_ok ?? undefined,
+  sgeManual: a.sge_manual ?? undefined,
+  vagaManual: a.vaga_manual ?? undefined,
+  salaManual: a.sala_manual ?? undefined,
 });
 
 export async function listarAlunosDaVaga(vagaId: string): Promise<{ lista: AlunoNaVaga[]; erro?: string }> {
@@ -387,6 +388,18 @@ export async function atualizarPreRequisitos(
     mensalidade_ok: campos.mensalidadeOk ?? null,
     seguro_ok: campos.seguroOk ?? null,
     kit_ok: campos.kitOk ?? null,
+  }).eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+/** Grava SGE, VAGA e SALA da ficha — campo livre, sem regra nenhuma por trás. */
+export async function atualizarCamposDaFicha(
+  id: string, campos: { sgeManual?: string; vagaManual?: string; salaManual?: string }
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_vaga_alunos').update({
+    sge_manual: campos.sgeManual || null,
+    vaga_manual: campos.vagaManual || null,
+    sala_manual: campos.salaManual || null,
   }).eq('id', id);
   return error ? { erro: explicar(error) } : {};
 }
@@ -642,22 +655,18 @@ export async function copiarNotasParaHistorico(
   const { data: existentes } = await supabase
     .from('estagios')
     .select('aluno_id, nota')
-    .eq('componente', nomeOficialDoComponente(vaga.curso, vaga.componente))
+    .eq('componente', vaga.componente)
     .in('aluno_id', comNota.map(a => a.alunoId));
 
   const jaExistiam = (existentes ?? [])
     .filter((e: any) => e.nota !== null && e.nota !== undefined)
     .map((e: any) => comNota.find(a => a.alunoId === e.aluno_id)?.alunoNome || e.aluno_id);
 
-  // O nome oficial, não o do catálogo: é ele que o histórico e o progresso
-  // do aluno procuram.
-  const nomeOficial = nomeOficialDoComponente(vaga.curso, vaga.componente);
-
   const linhas = comNota.map(a => ({
     // Mesmo formato de id que o repositório usa, para não criar linha paralela.
-    id: `est_${a.alunoId}_${nomeOficial}`.replace(/[^\w-]/g, '_'),
+    id: `est_${a.alunoId}_${vaga.componente}`.replace(/[^\w-]/g, '_'),
     aluno_id: a.alunoId,
-    componente: nomeOficial,
+    componente: vaga.componente,
     carga_horaria: 0,
     local_realizado: vaga.localNome || null,
     professor_nome: vaga.supervisorNome || null,
@@ -670,78 +679,6 @@ export async function copiarNotasParaHistorico(
 
   if (error) return { copiados: 0, semNota, jaExistiam, erro: explicar(error) };
   return { copiados: linhas.length, semNota, jaExistiam };
-}
-
-
-// ------------------------------------------- NOME OFICIAL DO COMPONENTE
-/*
- * POR QUE ISTO EXISTE.
- *
- * O mesmo estágio tem dois nomes no sistema. No catálogo ele é "Introdução à
- * Enfermagem"; na lista que monta o histórico e o progresso do aluno ele é
- * "INTRODUÇÃO À ENFERMAGEM". A comparação é letra por letra, então a nota
- * chegava ao histórico e o progresso continuava em 0%, sem erro nenhum.
- *
- * Aqui a nota é gravada sempre com o nome oficial. Assim ela cai na mesma
- * linha do lançamento feito à mão pela secretaria, em vez de criar uma
- * segunda linha para o mesmo aluno e o mesmo componente.
- *
- * A lista abaixo é cópia da que está em AdminInternships.tsx. Mudou lá,
- * muda aqui.
- */
-const COMPONENTES_OFICIAIS: Record<string, string[]> = {
-  ENFERMAGEM: [
-    'INTRODUÇÃO À ENFERMAGEM',
-    'FUNDAMENTOS DE ENFERMAGEM',
-    'ASST. À MULHER, CRIANÇA E O ADOLESCENTE',
-    'SAÚDE COLETIVA',
-    'SAÚDE MENTAL',
-    'URGÊNCIA E EMERGÊNCIA',
-    'GERIATRIA',
-    'PROCESSO DE TRABALHO EM CME',
-    'ASST. EM TRAT. CLINICO CIRURGICO',
-    'ASST. DE ENF. EM TRAT. ESPECIALIZADO',
-  ],
-  RADIOLOGIA: [
-    'AMBIENTAÇÃO HOSPITALAR',
-    'TÉCNICAS RADIOGRÁFICAS CONVENCIONAIS',
-    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS I',
-    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS II',
-  ],
-  SEGURANCA: ['ESTÁGIO'],
-  INSTRUMENTACAO: ['ESTÁGIO'],
-};
-
-/** Tira acento, pontuação e maiúscula, para comparar dois nomes. */
-export function chaveComponente(t: string): string {
-  return (t || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-/**
- * Devolve o nome oficial correspondente ao componente da vaga.
- *
- * Primeiro tenta o nome igual ignorando acento e maiúscula — resolve
- * "Asst. em Trat. Clínico Cirúrgico" x "ASST. EM TRAT. CLINICO CIRURGICO".
- * Se não achar, aceita um nome que contenha o outro, mas SÓ quando houver
- * exatamente um candidato: é o caso de "Estágio Supervisionado" x "ESTÁGIO",
- * em Segurança e Instrumentação, onde o curso tem um componente só.
- * Não achando nada, devolve o nome como está — melhor gravar do que perder.
- */
-export function nomeOficialDoComponente(curso: string | undefined, componente: string): string {
-  const oficiais = COMPONENTES_OFICIAIS[chaveComponente(curso || '')];
-  if (!oficiais) return componente;
-
-  const alvo = chaveComponente(componente);
-  const igual = oficiais.find(o => chaveComponente(o) === alvo);
-  if (igual) return igual;
-
-  const parecidos = oficiais.filter(o => {
-    const k = chaveComponente(o);
-    return k.includes(alvo) || alvo.includes(k);
-  });
-  return parecidos.length === 1 ? parecidos[0] : componente;
 }
 
 // ============================================== INSCRIÇÃO DO ALUNO
@@ -764,9 +701,7 @@ const inscDoBanco = (i: any): InscricaoEstagio => ({
 });
 
 /** Vagas que o aluno pode ver e se inscrever. */
-export async function vagasAbertasParaInscricao(
-  turmaId?: string, cursoAluno?: string
-): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
   const hoje = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('estagio_vagas').select('*')
@@ -775,56 +710,7 @@ export async function vagasAbertasParaInscricao(
     .or(`inscricoes_ate.is.null,inscricoes_ate.gte.${hoje}`)
     .order('data_inicio', { ascending: true });
   if (error) return { lista: [], erro: explicar(error) };
-
-  /* FILTRO POR CURSO E POR TURMA.
-     Vaga sem turmas marcadas continua aparecendo para todo mundo — é como o
-     sistema sempre funcionou, e as vagas antigas não precisam ser revisadas.
-     Vaga com turmas marcadas só aparece para quem está numa delas.
-
-     Aluno sem turma no cadastro vê apenas as vagas abertas a todos: melhor
-     não mostrar do que mostrar a vaga errada e ele se inscrever à toa. */
-  const lista = (data ?? []).map(vagaDoBanco).filter(v => {
-    // 1) Curso. Vaga de Enfermagem não aparece para aluno de Segurança.
-    if (v.curso && !mesmoCurso(v.curso, cursoAluno)) return false;
-
-    // 2) Turma, quando a coordenação restringiu.
-    if (!v.turmasIds || v.turmasIds.length === 0) return true;
-    return !!turmaId && v.turmasIds.includes(turmaId);
-  });
-
-  return { lista };
-}
-
-/**
- * O curso da vaga vem do catálogo em forma curta e sem acento ("ENFERMAGEM",
- * "SEGURANCA", "INSTRUMENTACAO"). O curso do aluno é o nome completo do
- * cadastro ("Técnico em Enfermagem"). Comparar os dois direto nunca daria
- * certo, então tiramos acento e pontuação dos dois lados e checamos se um
- * contém o outro.
- *
- * Aluno sem curso não vê vaga de curso nenhum: melhor não mostrar do que
- * mostrar a vaga errada e ele se inscrever à toa.
- */
-function mesmoCurso(cursoVaga: string, cursoAluno?: string): boolean {
-  const limpar = (t: string) => (t || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-  const vaga = limpar(cursoVaga);
-  const aluno = limpar(cursoAluno || '');
-  if (!vaga) return true;      // vaga sem curso vale para todos
-  if (!aluno) return false;    // aluno sem curso não vê vaga de curso definido
-  return aluno.includes(vaga) || vaga.includes(aluno);
-}
-
-/** Define quais turmas enxergam a vaga. Lista vazia = todas as turmas. */
-export async function definirTurmasDaVaga(
-  vagaId: string, turmas: string[]
-): Promise<{ erro?: string }> {
-  const { error } = await supabase.from('estagio_vagas')
-    .update({ turmas_ids: turmas.length > 0 ? turmas : null })
-    .eq('id', vagaId);
-  return error ? { erro: explicar(error) } : {};
+  return { lista: (data ?? []).map(vagaDoBanco) };
 }
 
 export async function minhasInscricoes(alunoId: string): Promise<{ lista: InscricaoEstagio[]; erro?: string }> {
