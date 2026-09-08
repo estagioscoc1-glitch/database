@@ -73,12 +73,16 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
   };
 
   const gravar = async () => {
-    if (!fichaAberta) return;
+    if (!fichaAberta || !vagaAberta) return;
     setSalvando(true);
-    const { erro } = await lancarNotas(fichaAberta, nome);
+    /* Lançou aqui, já vale no histórico do aluno — não espera o Fechar
+       Vaga. Corrigir depois é só o administrador, numa tela própria. */
+    const { erro, foiParaOHistorico } = await lancarNotas(fichaAberta, vagaAberta, nome);
     setSalvando(false);
     if (erro) { mostrar('erro', erro); return; }
-    mostrar('ok', `Notas de ${fichaAberta.alunoNome} salvas.`);
+    mostrar('ok', foiParaOHistorico
+      ? `Notas de ${fichaAberta.alunoNome} salvas e já lançadas no histórico dele.`
+      : `Notas de ${fichaAberta.alunoNome} salvas.`);
     setFichaAberta(null);
     if (vagaAberta) await abrir(vagaAberta);
   };

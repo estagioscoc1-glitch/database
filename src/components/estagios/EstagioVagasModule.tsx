@@ -6,19 +6,19 @@ import {
   listarAlunosDaVaga, incluirAlunoNaVaga, removerAlunoDaVaga,
   atualizarPreRequisitos, listarSupervisores, listarLocais, listarCatalogo,
   mediaDoAluno, formatarDinheiro, SITUACOES_VAGA,
+  corrigirNotaHistorico, nomeOficialDoComponente,
   type VagaEstagio, type AlunoNaVaga, type SituacaoVaga,
   type Supervisor, type LocalEstagio, type EstagioCatalogo,
 } from '../../lib/supabaseEstagioModulo';
 import {
   Briefcase, Plus, Trash2, Save, X, AlertTriangle, CheckCircle2,
-  RefreshCw, Search, Users, Link2, Lock, Copy, Printer, Receipt,
+  RefreshCw, Search, Users, Link2, Lock, Copy, Printer, Receipt, Pencil,
 } from 'lucide-react';
-import { bloqueiosDeEstagio, resumoDasObservacoes } from '../../lib/supabaseObservacoes';
 import { FichaAvaliacaoPrintView } from './FichaAvaliacaoPrintView';
 import { ListaVagaPrintView } from './ListaVagaPrintView';
 import {
   emitirRecibo, copiarNotasParaHistorico, listarInscricoesDaVaga,
-  aprovarInscricao, recusarInscricao, abrirInscricoes, definirTurmasDaVaga,
+  aprovarInscricao, recusarInscricao, abrirInscricoes,
   type InscricaoEstagio,
 } from '../../lib/supabaseEstagioModulo';
 
@@ -41,12 +41,7 @@ const campo = 'w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slat
 const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1';
 
 export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ currentUser = 'Administração' }) => {
-  const { users, classes } = useApp();
-
-  /* Quem tem observação e quem está bloqueado — uma consulta só, para a
-     busca poder avisar antes do clique em vez de recusar depois. */
-  const [obsPorAluno, setObsPorAluno] = useState<Record<string, { total: number; bloqueado: boolean }>>({});
-  useEffect(() => { void resumoDasObservacoes().then(setObsPorAluno); }, []);
+  const { users } = useApp();
 
   const [vagas, setVagas] = useState<VagaEstagio[]>([]);
   const [supervisores, setSupervisores] = useState<Supervisor[]>([]);
@@ -62,6 +57,12 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
   const [buscaAluno, setBuscaAluno] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState<'TODAS' | SituacaoVaga>('TODAS');
   const [fichaImprimir, setFichaImprimir] = useState<AlunoNaVaga | null>(null);
+
+  /* CORREÇÃO DE NOTA JÁ NO HISTÓRICO — só o admin tem este botão.
+     A nota do supervisor já foi copiada para o histórico na hora do
+     lançamento; corrigir ela agora é mudar direto lá, não relançar aqui. */
+  const [corrigindo, setCorrigindo] = useState<AlunoNaVaga | null>(null);
+  const [notaCorrigida, setNotaCorrigida] = useState('');
   const [listaImprimir, setListaImprimir] = useState(false);
   const [inscricoes, setInscricoes] = useState<InscricaoEstagio[]>([]);
 
@@ -119,16 +120,6 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
       mostrar('erro', `A vaga tem ${vagaAberta.vagasTotal} lugares e já está cheia. Aumente o total antes de incluir mais.`);
       return;
     }
-    /* PENDÊNCIA REGISTRADA BARRA A INCLUSÃO.
-       A tesouraria, a coordenação ou o estágio marcam "bloquear estágio"
-       numa observação da ficha do aluno; aqui o sistema recusa e diz o
-       motivo. Antes disso, conferir pendência dependia de alguém lembrar. */
-    const bloqueios = await bloqueiosDeEstagio(a.id);
-    if (bloqueios.length > 0) {
-      mostrar('erro', `${a.name} tem pendência registrada e não pode entrar em estágio — ${bloqueios.join(' | ')}`);
-      return;
-    }
-
     const { erro: e } = await incluirAlunoNaVaga({
       vagaId: vagaAberta.id, alunoId: a.id, alunoNome: a.name,
       alunoMatricula: a.enrollment ?? '',
@@ -141,38 +132,20 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
   };
 
   /**
-   * Fechar a vaga faz DUAS coisas: trava o lançamento e copia as notas para o
-   * histórico do aluno. A cópia é o que faz a nota aparecer na Ficha Geral de
-   * Estágio — sem ela, o supervisor lançava e a ficha continuava vazia.
+   * Fechar a vaga trava novas inclusões e libera o recibo do supervisor.
+   * A cópia para o histórico não acontece mais aqui — é feita na hora em
+   * que o supervisor lança a nota, para o aluno não esperar o fechamento.
    */
   const fechar = async (v: VagaEstagio) => {
     const semNota = alunosDaVaga.filter(a => mediaDoAluno(a) === null).length;
     if (semNota > 0 && !window.confirm(
-      `${semNota} aluno(s) ainda estão sem nota. Fechar a vaga trava o lançamento — ` +
-      `nem o supervisor nem você conseguirão lançar depois, e esses alunos ficarão ` +
-      `sem nota no histórico. Fechar mesmo assim?`
-    )) return;
-
-    // A cópia vem ANTES de fechar. Se ela falhar, a vaga continua aberta e dá
-    // para tentar de novo — melhor do que fechar e a nota não chegar ao aluno.
-    const r = await copiarNotasParaHistorico(v, alunosDaVaga);
-    if (r.erro) {
-      mostrar('erro', `A vaga NÃO foi fechada. Não deu para copiar as notas para o histórico: ${r.erro}`);
-      return;
-    }
-
-    if (r.jaExistiam.length > 0 && !window.confirm(
-      `Estes alunos já tinham nota lançada neste componente e serão substituídos ` +
-      `pela nota desta vaga:\n\n${r.jaExistiam.join('\n')}\n\nContinuar?`
+      `${semNota} aluno(s) ainda não têm nota lançada e vão ficar sem histórico. Fechar mesmo assim?`
     )) return;
 
     const { erro: e } = await mudarSituacaoVaga(v.id!, 'FECHADA', currentUser);
     if (e) { mostrar('erro', e); return; }
 
-    mostrar('ok',
-      `Vaga fechada. ${r.copiados} nota(s) foram para o histórico dos alunos` +
-      (r.semNota > 0 ? `, e ${r.semNota} ficaram sem nota` : '') +
-      '. Já dá para gerar o recibo do supervisor.');
+    mostrar('ok', 'Vaga fechada. Já dá para gerar o recibo do supervisor.');
     void recarregar();
     setVagaAberta({ ...v, situacao: 'FECHADA' });
   };
@@ -461,19 +434,10 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!vagaAberta.inscricoesAbertas}
                          onChange={async e => {
-                           /* GUARDAR O VALOR ANTES DO AWAIT.
-                              A caixinha é controlada pelo estado. Durante a
-                              espera da gravação o estado ainda diz "fechada",
-                              então o navegador desmarca a caixinha de volta —
-                              e `e.target.checked`, lido depois, já vem false.
-                              O banco recebia TRUE (o argumento é lido antes da
-                              espera) e a tela dizia "inscrições fechadas".
-                              Marcar funcionava; só a tela mentia. */
-                           const marcado = e.target.checked;
-                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, marcado, vagaAberta.inscricoesAte);
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, e.target.checked, vagaAberta.inscricoesAte);
                            if (err) { mostrar('erro', err); return; }
-                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: marcado });
-                           mostrar('ok', marcado
+                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: e.target.checked });
+                           mostrar('ok', e.target.checked
                              ? 'Vaga aberta. Os alunos já veem no painel deles.'
                              : 'Inscrições fechadas. A vaga sumiu do painel do aluno.');
                          }} />
@@ -485,68 +449,10 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                          className="px-2 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px]"
                          value={vagaAberta.inscricoesAte ?? ''}
                          onChange={async e => {
-                           // Mesmo cuidado do campo acima: guardar antes da espera.
-                           const ate = e.target.value;
-                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, ate);
-                           if (err) { mostrar('erro', err); return; }
-                           setVagaAberta({ ...vagaAberta, inscricoesAte: ate });
+                           await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, e.target.value);
+                           setVagaAberta({ ...vagaAberta, inscricoesAte: e.target.value });
                          }} />
                 </div>
-              </div>
-            </div>
-
-            {/* QUEM ENXERGA ESTA VAGA.
-                Nenhuma turma marcada = todos os alunos da escola veem, que é
-                como o sistema funcionava antes desta tela existir. Marcando
-                turmas, a vaga passa a aparecer só para elas. */}
-            <div className="mb-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                <label className={rotulo}>Turmas que enxergam esta vaga</label>
-                {(vagaAberta.turmasIds?.length ?? 0) > 0 && (
-                  <button type="button"
-                          onClick={async () => {
-                            const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, []);
-                            if (err) { mostrar('erro', err); return; }
-                            setVagaAberta({ ...vagaAberta, turmasIds: [] });
-                            mostrar('ok', 'Vaga liberada para todas as turmas.');
-                          }}
-                          className="text-[11px] font-bold text-slate-500 hover:text-blue-600">
-                    Liberar para todas
-                  </button>
-                )}
-              </div>
-
-              <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
-                {(vagaAberta.turmasIds?.length ?? 0) === 0
-                  ? 'Nenhuma turma marcada: todos os alunos da escola veem esta vaga.'
-                  : `Só os alunos de ${vagaAberta.turmasIds!.length} turma(s) veem esta vaga.`}
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {classes.map(t => {
-                  const marcada = (vagaAberta.turmasIds ?? []).includes(t.id);
-                  return (
-                    <button key={t.id} type="button"
-                            onClick={async () => {
-                              const atuais = vagaAberta.turmasIds ?? [];
-                              const novas = marcada
-                                ? atuais.filter(x => x !== t.id)
-                                : [...atuais, t.id];
-                              const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, novas);
-                              if (err) { mostrar('erro', err); return; }
-                              setVagaAberta({ ...vagaAberta, turmasIds: novas });
-                            }}
-                            className={`px-3 py-2 rounded-xl text-[11px] font-black border transition-all ${
-                              marcada
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-750 hover:border-blue-300'}`}>
-                      {t.code || t.name}
-                    </button>
-                  );
-                })}
-                {classes.length === 0 && (
-                  <p className="text-[11px] text-slate-400">Nenhuma turma cadastrada.</p>
-                )}
               </div>
             </div>
 
@@ -607,19 +513,7 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                   {candidatos.map(a => (
                     <button key={a.id} type="button" onClick={() => void incluir(a)}
                             className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                      <p className="font-bold text-sm text-slate-800 dark:text-white">
-                        {a.name}
-                        {obsPorAluno[a.id]?.bloqueado && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded-md bg-red-600 text-white text-[9px] font-black align-middle">
-                            BLOQUEADO
-                          </span>
-                        )}
-                        {obsPorAluno[a.id] && !obsPorAluno[a.id].bloqueado && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 text-[9px] font-black align-middle">
-                            {obsPorAluno[a.id].total} OBS.
-                          </span>
-                        )}
-                      </p>
+                      <p className="font-bold text-sm text-slate-800 dark:text-white">{a.name}</p>
                       <p className="text-[11px] text-slate-500">{a.enrollment || 'sem matrícula'}</p>
                     </button>
                   ))}
@@ -677,6 +571,14 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                                   className="p-2 text-slate-400 hover:text-blue-600">
                             <Printer className="h-3.5 w-3.5" />
                           </button>
+                          {media !== null && (
+                            <button type="button"
+                                    onClick={() => { setCorrigindo(a); setNotaCorrigida(media.toFixed(1)); }}
+                                    title="Corrigir a nota já lançada no histórico"
+                                    className="p-2 text-slate-400 hover:text-amber-600">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {vagaAberta.situacao !== 'FECHADA' && (
                             <button type="button"
                                     onClick={async () => {
@@ -722,12 +624,49 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
         />
       )}
 
+      {/* CORREÇÃO DE NOTA — só o admin vê este botão e esta janela. */}
+      {corrigindo && vagaAberta && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 w-full max-w-sm space-y-3">
+            <h3 className="font-black text-sm text-slate-800 dark:text-white">
+              Corrigir nota no histórico
+            </h3>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              {corrigindo.alunoNome} · {nomeOficialDoComponente(vagaAberta.curso, vagaAberta.componente)}
+              <br />Esta é a nota que já está no histórico do aluno. Mudar aqui muda lá — não altera
+              o que o supervisor lançou na vaga.
+            </p>
+            <input type="number" step="0.1" min={0} max={10}
+                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-sm font-mono"
+                   value={notaCorrigida} onChange={e => setNotaCorrigida(e.target.value)} />
+            <div className="flex gap-2 justify-end pt-1">
+              <button type="button" onClick={() => setCorrigindo(null)}
+                      className="px-4 py-2 text-xs font-bold text-slate-500">Cancelar</button>
+              <button type="button"
+                      onClick={async () => {
+                        const valor = Number(notaCorrigida.replace(',', '.'));
+                        if (isNaN(valor) || valor < 0 || valor > 10) {
+                          mostrar('erro', 'Digite um número de 0 a 10.'); return;
+                        }
+                        const nomeOficial = nomeOficialDoComponente(vagaAberta.curso, vagaAberta.componente);
+                        const { erro: e } = await corrigirNotaHistorico(corrigindo.alunoId, nomeOficial, valor);
+                        if (e) { mostrar('erro', e); return; }
+                        mostrar('ok', 'Nota corrigida no histórico.');
+                        setCorrigindo(null);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs">
+                Salvar correção
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {fichaImprimir && vagaAberta && (
         <FichaAvaliacaoPrintView
           vaga={vagaAberta}
           aluno={fichaImprimir}
           catalogo={catalogo.find(c => c.componente === vagaAberta.componente)}
-          alunoCpf={users.find(u => u.id === fichaImprimir.alunoId)?.cpf}
           supervisorRegistro={(() => {
             const s = supervisores.find(x => x.id === vagaAberta.supervisorId);
             return s?.conselho && s?.registro ? `${s.conselho} ${s.registro}` : undefined;
