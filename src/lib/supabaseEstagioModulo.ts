@@ -216,6 +216,13 @@ export interface VagaEstagio {
   /** Quando verdadeiro, a vaga aparece no painel do aluno para inscrição. */
   inscricoesAbertas?: boolean;
   inscricoesAte?: string;
+  /**
+   * Turmas que enxergam esta vaga no painel do aluno.
+   * VAZIO OU AUSENTE = TODAS AS TURMAS. É o comportamento que o sistema já
+   * tinha, e é o que as vagas antigas continuam fazendo sem ninguém mexer
+   * nelas. Preenchido, só os alunos dessas turmas veem a vaga.
+   */
+  turmasIds?: string[];
 }
 
 export interface AlunoNaVaga {
@@ -233,6 +240,13 @@ export interface AlunoNaVaga {
   mensalidadeOk?: boolean;
   seguroOk?: boolean;
   kitOk?: boolean;
+
+  /* SGE, VAGA e SALA da ficha impressa. Existem no papel da escola, não têm
+     equivalente digital, e ficam como campo livre — a secretaria digita
+     quando quiser, em branco não aparece nada no documento. */
+  sgeManual?: string;
+  vagaManual?: string;
+  salaManual?: string;
 }
 
 /**
@@ -266,6 +280,7 @@ const vagaDoBanco = (v: any): VagaEstagio => ({
   fechadaEm: v.fechada_em ?? undefined,
   inscricoesAbertas: !!v.inscricoes_abertas,
   inscricoesAte: v.inscricoes_ate ?? undefined,
+  turmasIds: Array.isArray(v.turmas_ids) ? v.turmas_ids : undefined,
 });
 
 export async function listarVagas(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
@@ -285,6 +300,7 @@ export async function salvarVaga(v: VagaEstagio): Promise<{ erro?: string; id?: 
     vagas_total: v.vagasTotal, situacao: v.situacao,
     token_acesso: v.tokenAcesso || gerarToken(),
     valor_por_aluno: v.valorPorAluno,
+    turmas_ids: v.turmasIds && v.turmasIds.length > 0 ? v.turmasIds : null,
   };
   if (v.id) linha.id = v.id;
   const { data, error } = await supabase
@@ -325,6 +341,9 @@ const alunoDoBanco = (a: any): AlunoNaVaga => ({
   mensalidadeOk: a.mensalidade_ok ?? undefined,
   seguroOk: a.seguro_ok ?? undefined,
   kitOk: a.kit_ok ?? undefined,
+  sgeManual: a.sge_manual ?? undefined,
+  vagaManual: a.vaga_manual ?? undefined,
+  salaManual: a.sala_manual ?? undefined,
 });
 
 export async function listarAlunosDaVaga(vagaId: string): Promise<{ lista: AlunoNaVaga[]; erro?: string }> {
@@ -359,18 +378,9 @@ export async function removerAlunoDaVaga(id: string): Promise<{ erro?: string }>
  * Grava as quatro notas do supervisor na vaga E, se a média fechar, já copia
  * para o histórico do aluno na hora — não espera o Fechar Vaga.
  *
- * POR QUE MUDOU: antes a nota só valia depois de fechar a vaga, e o intervalo
- * entre lançar e fechar gerava reclamação de demora. Agora vale na hora.
- *
- * O QUE ISSO MUDA NA PRÁTICA: uma vez copiada para o histórico, corrigir essa
- * nota deixa de ser "o supervisor lança de novo" — precisa passar por
- * corrigirNotaHistorico(), que só o administrador usa. O supervisor pode até
- * reabrir esta tela e mudar os campos, mas a correção no histórico é sempre
- * feita pelo admin, de propósito: nota de histórico não deve mudar sozinha
+ * Corrigir uma nota já copiada passa a ser só o administrador, com
+ * corrigirNotaHistorico() logo abaixo — nota de histórico não muda sozinha
  * sem alguém da gestão saber.
- *
- * Fechar Vaga continua existindo, só que agora não copia nota nenhuma — serve
- * só para travar novas inclusões e liberar o recibo do supervisor.
  */
 export async function lancarNotas(
   a: AlunoNaVaga, vaga: VagaEstagio, quem?: string
@@ -403,18 +413,11 @@ export async function lancarNotas(
     atualizado_em: new Date().toISOString(),
   }, { onConflict: 'aluno_id,componente' });
 
-  // A nota da vaga já está gravada mesmo se isto falhar — o supervisor não
-  // perde o trabalho. O admin fecha a diferença depois, na tela de correção.
-  if (erroHist) return { erro: `Nota salva, mas não copiada ao histórico agora: ${explicar(erroHist)}. Feche a vaga para tentar de novo.`, foiParaOHistorico: false };
+  if (erroHist) return { erro: `Nota salva, mas não copiada ao histórico agora: ${explicar(erroHist)}.`, foiParaOHistorico: false };
   return { foiParaOHistorico: true };
 }
 
-/**
- * CORREÇÃO DE NOTA JÁ LANÇADA NO HISTÓRICO — só o administrador usa.
- *
- * É o único caminho para mudar uma nota de estágio depois que ela já virou
- * histórico. O supervisor não tem este botão.
- */
+/** CORREÇÃO DE NOTA JÁ LANÇADA NO HISTÓRICO — só o administrador usa. */
 export async function corrigirNotaHistorico(
   alunoId: string, componente: string, novaNota: number
 ): Promise<{ erro?: string }> {
@@ -431,6 +434,18 @@ export async function atualizarPreRequisitos(
     mensalidade_ok: campos.mensalidadeOk ?? null,
     seguro_ok: campos.seguroOk ?? null,
     kit_ok: campos.kitOk ?? null,
+  }).eq('id', id);
+  return error ? { erro: explicar(error) } : {};
+}
+
+/** Grava SGE, VAGA e SALA da ficha — campo livre, sem regra nenhuma por trás. */
+export async function atualizarCamposDaFicha(
+  id: string, campos: { sgeManual?: string; vagaManual?: string; salaManual?: string }
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_vaga_alunos').update({
+    sge_manual: campos.sgeManual || null,
+    vaga_manual: campos.vagaManual || null,
+    sala_manual: campos.salaManual || null,
   }).eq('id', id);
   return error ? { erro: explicar(error) } : {};
 }
@@ -491,11 +506,6 @@ export interface ReciboEstagio {
   situacao: 'PENDENTE' | 'PAGO';
   pagoEm?: string;
   criadoEm?: string;
-
-  /* Nomes dos alunos cobertos por este recibo, para a lista impressa. Vem da
-     vaga no momento da emissão — se um aluno for tirado da vaga depois, o
-     recibo já emitido não muda, porque o pagamento já foi feito com base
-     nessa lista. */
   alunosNomes?: string[];
 }
 
@@ -535,14 +545,7 @@ export async function gerarNumeroRecibo(): Promise<string> {
  */
 /**
  * Emite o recibo de uma vaga fechada, com o nome de cada aluno coberto.
- *
- * SÓ VAGA FECHADA GERA RECIBO. Enquanto a vaga está aberta o número de alunos
- * ainda pode mudar, e um recibo assinado com valor errado é problema.
- *
- * SAI JÁ COMO PAGO. O recibo é o próprio comprovante de pagamento ao
- * supervisor — não existe uma etapa de "vou pagar depois" entre emitir e
- * pagar. Se algum dia for preciso desfazer (recibo emitido por engano),
- * marcarReciboPago(id, false) volta para pendente.
+ * Sai já como PAGO — o recibo é o próprio comprovante de pagamento.
  */
 export async function emitirRecibo(
   v: VagaEstagio, nomesAlunos: string[], quem?: string
@@ -717,18 +720,22 @@ export async function copiarNotasParaHistorico(
   const { data: existentes } = await supabase
     .from('estagios')
     .select('aluno_id, nota')
-    .eq('componente', vaga.componente)
+    .eq('componente', nomeOficialDoComponente(vaga.curso, vaga.componente))
     .in('aluno_id', comNota.map(a => a.alunoId));
 
   const jaExistiam = (existentes ?? [])
     .filter((e: any) => e.nota !== null && e.nota !== undefined)
     .map((e: any) => comNota.find(a => a.alunoId === e.aluno_id)?.alunoNome || e.aluno_id);
 
+  // O nome oficial, não o do catálogo: é ele que o histórico e o progresso
+  // do aluno procuram.
+  const nomeOficial = nomeOficialDoComponente(vaga.curso, vaga.componente);
+
   const linhas = comNota.map(a => ({
     // Mesmo formato de id que o repositório usa, para não criar linha paralela.
-    id: `est_${a.alunoId}_${vaga.componente}`.replace(/[^\w-]/g, '_'),
+    id: `est_${a.alunoId}_${nomeOficial}`.replace(/[^\w-]/g, '_'),
     aluno_id: a.alunoId,
-    componente: vaga.componente,
+    componente: nomeOficial,
     carga_horaria: 0,
     local_realizado: vaga.localNome || null,
     professor_nome: vaga.supervisorNome || null,
@@ -741,6 +748,78 @@ export async function copiarNotasParaHistorico(
 
   if (error) return { copiados: 0, semNota, jaExistiam, erro: explicar(error) };
   return { copiados: linhas.length, semNota, jaExistiam };
+}
+
+
+// ------------------------------------------- NOME OFICIAL DO COMPONENTE
+/*
+ * POR QUE ISTO EXISTE.
+ *
+ * O mesmo estágio tem dois nomes no sistema. No catálogo ele é "Introdução à
+ * Enfermagem"; na lista que monta o histórico e o progresso do aluno ele é
+ * "INTRODUÇÃO À ENFERMAGEM". A comparação é letra por letra, então a nota
+ * chegava ao histórico e o progresso continuava em 0%, sem erro nenhum.
+ *
+ * Aqui a nota é gravada sempre com o nome oficial. Assim ela cai na mesma
+ * linha do lançamento feito à mão pela secretaria, em vez de criar uma
+ * segunda linha para o mesmo aluno e o mesmo componente.
+ *
+ * A lista abaixo é cópia da que está em AdminInternships.tsx. Mudou lá,
+ * muda aqui.
+ */
+const COMPONENTES_OFICIAIS: Record<string, string[]> = {
+  ENFERMAGEM: [
+    'INTRODUÇÃO À ENFERMAGEM',
+    'FUNDAMENTOS DE ENFERMAGEM',
+    'ASST. À MULHER, CRIANÇA E O ADOLESCENTE',
+    'SAÚDE COLETIVA',
+    'SAÚDE MENTAL',
+    'URGÊNCIA E EMERGÊNCIA',
+    'GERIATRIA',
+    'PROCESSO DE TRABALHO EM CME',
+    'ASST. EM TRAT. CLINICO CIRURGICO',
+    'ASST. DE ENF. EM TRAT. ESPECIALIZADO',
+  ],
+  RADIOLOGIA: [
+    'AMBIENTAÇÃO HOSPITALAR',
+    'TÉCNICAS RADIOGRÁFICAS CONVENCIONAIS',
+    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS I',
+    'TÉCNICAS RADIOGRÁFICAS ESPECIAIS II',
+  ],
+  SEGURANCA: ['ESTÁGIO'],
+  INSTRUMENTACAO: ['ESTÁGIO'],
+};
+
+/** Tira acento, pontuação e maiúscula, para comparar dois nomes. */
+export function chaveComponente(t: string): string {
+  return (t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Devolve o nome oficial correspondente ao componente da vaga.
+ *
+ * Primeiro tenta o nome igual ignorando acento e maiúscula — resolve
+ * "Asst. em Trat. Clínico Cirúrgico" x "ASST. EM TRAT. CLINICO CIRURGICO".
+ * Se não achar, aceita um nome que contenha o outro, mas SÓ quando houver
+ * exatamente um candidato: é o caso de "Estágio Supervisionado" x "ESTÁGIO",
+ * em Segurança e Instrumentação, onde o curso tem um componente só.
+ * Não achando nada, devolve o nome como está — melhor gravar do que perder.
+ */
+export function nomeOficialDoComponente(curso: string | undefined, componente: string): string {
+  const oficiais = COMPONENTES_OFICIAIS[chaveComponente(curso || '')];
+  if (!oficiais) return componente;
+
+  const alvo = chaveComponente(componente);
+  const igual = oficiais.find(o => chaveComponente(o) === alvo);
+  if (igual) return igual;
+
+  const parecidos = oficiais.filter(o => {
+    const k = chaveComponente(o);
+    return k.includes(alvo) || alvo.includes(k);
+  });
+  return parecidos.length === 1 ? parecidos[0] : componente;
 }
 
 // ============================================== INSCRIÇÃO DO ALUNO
@@ -763,7 +842,9 @@ const inscDoBanco = (i: any): InscricaoEstagio => ({
 });
 
 /** Vagas que o aluno pode ver e se inscrever. */
-export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[]; erro?: string }> {
+export async function vagasAbertasParaInscricao(
+  turmaId?: string, cursoAluno?: string
+): Promise<{ lista: VagaEstagio[]; erro?: string }> {
   const hoje = new Date().toISOString().split('T')[0];
   const { data, error } = await supabase
     .from('estagio_vagas').select('*')
@@ -772,7 +853,56 @@ export async function vagasAbertasParaInscricao(): Promise<{ lista: VagaEstagio[
     .or(`inscricoes_ate.is.null,inscricoes_ate.gte.${hoje}`)
     .order('data_inicio', { ascending: true });
   if (error) return { lista: [], erro: explicar(error) };
-  return { lista: (data ?? []).map(vagaDoBanco) };
+
+  /* FILTRO POR CURSO E POR TURMA.
+     Vaga sem turmas marcadas continua aparecendo para todo mundo — é como o
+     sistema sempre funcionou, e as vagas antigas não precisam ser revisadas.
+     Vaga com turmas marcadas só aparece para quem está numa delas.
+
+     Aluno sem turma no cadastro vê apenas as vagas abertas a todos: melhor
+     não mostrar do que mostrar a vaga errada e ele se inscrever à toa. */
+  const lista = (data ?? []).map(vagaDoBanco).filter(v => {
+    // 1) Curso. Vaga de Enfermagem não aparece para aluno de Segurança.
+    if (v.curso && !mesmoCurso(v.curso, cursoAluno)) return false;
+
+    // 2) Turma, quando a coordenação restringiu.
+    if (!v.turmasIds || v.turmasIds.length === 0) return true;
+    return !!turmaId && v.turmasIds.includes(turmaId);
+  });
+
+  return { lista };
+}
+
+/**
+ * O curso da vaga vem do catálogo em forma curta e sem acento ("ENFERMAGEM",
+ * "SEGURANCA", "INSTRUMENTACAO"). O curso do aluno é o nome completo do
+ * cadastro ("Técnico em Enfermagem"). Comparar os dois direto nunca daria
+ * certo, então tiramos acento e pontuação dos dois lados e checamos se um
+ * contém o outro.
+ *
+ * Aluno sem curso não vê vaga de curso nenhum: melhor não mostrar do que
+ * mostrar a vaga errada e ele se inscrever à toa.
+ */
+function mesmoCurso(cursoVaga: string, cursoAluno?: string): boolean {
+  const limpar = (t: string) => (t || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const vaga = limpar(cursoVaga);
+  const aluno = limpar(cursoAluno || '');
+  if (!vaga) return true;      // vaga sem curso vale para todos
+  if (!aluno) return false;    // aluno sem curso não vê vaga de curso definido
+  return aluno.includes(vaga) || vaga.includes(aluno);
+}
+
+/** Define quais turmas enxergam a vaga. Lista vazia = todas as turmas. */
+export async function definirTurmasDaVaga(
+  vagaId: string, turmas: string[]
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('estagio_vagas')
+    .update({ turmas_ids: turmas.length > 0 ? turmas : null })
+    .eq('id', vagaId);
+  return error ? { erro: explicar(error) } : {};
 }
 
 export async function minhasInscricoes(alunoId: string): Promise<{ lista: InscricaoEstagio[]; erro?: string }> {
