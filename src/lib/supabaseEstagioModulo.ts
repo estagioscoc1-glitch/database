@@ -507,6 +507,8 @@ export interface ReciboEstagio {
   pagoEm?: string;
   criadoEm?: string;
   alunosNomes?: string[];
+  /** Nome e matrícula de cada aluno, para o recibo mostrar valor por linha. */
+  alunosDetalhe?: { nome: string; matricula?: string }[];
 }
 
 const reciboDoBanco = (r: any): ReciboEstagio => ({
@@ -519,6 +521,7 @@ const reciboDoBanco = (r: any): ReciboEstagio => ({
   competencia: r.competencia ?? '', situacao: r.situacao ?? 'PENDENTE',
   pagoEm: r.pago_em ?? undefined, criadoEm: r.criado_em,
   alunosNomes: Array.isArray(r.alunos_nomes) ? r.alunos_nomes : [],
+  alunosDetalhe: Array.isArray(r.alunos_detalhe) ? r.alunos_detalhe : undefined,
 });
 
 export async function listarRecibos(): Promise<{ lista: ReciboEstagio[]; erro?: string }> {
@@ -548,7 +551,7 @@ export async function gerarNumeroRecibo(): Promise<string> {
  * Sai já como PAGO — o recibo é o próprio comprovante de pagamento.
  */
 export async function emitirRecibo(
-  v: VagaEstagio, nomesAlunos: string[], quem?: string
+  v: VagaEstagio, alunos: { nome: string; matricula?: string }[], quem?: string
 ): Promise<{ erro?: string }> {
   if (v.situacao !== 'FECHADA') {
     return { erro: 'Só é possível emitir recibo de vaga fechada. Feche a vaga primeiro.' };
@@ -565,12 +568,13 @@ export async function emitirRecibo(
 
   const numero = await gerarNumeroRecibo();
   const hoje = new Date();
-  const qtdAlunos = nomesAlunos.length;
+  const qtdAlunos = alunos.length;
   const { error } = await supabase.from('estagio_recibos').insert({
     numero, vaga_id: v.id, supervisor_id: v.supervisorId,
     supervisor_nome: v.supervisorNome || '', componente: v.componente,
     local_nome: v.localNome, qtd_alunos: qtdAlunos,
-    alunos_nomes: nomesAlunos,
+    alunos_nomes: alunos.map(a => a.nome),
+    alunos_detalhe: alunos,
     valor_por_aluno: v.valorPorAluno, valor_total: qtdAlunos * v.valorPorAluno,
     competencia: `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`,
     emitido_por: quem ?? null,
@@ -580,6 +584,20 @@ export async function emitirRecibo(
   if (error) {
     if (error.code === '23505') return { erro: 'Esta vaga já tem recibo emitido.' };
     return { erro: explicar(error) };
+  }
+  return {};
+}
+
+/**
+ * Apaga um recibo. Só para corrigir engano ou limpar teste — não é uso do
+ * dia a dia. A vaga volta a poder emitir um recibo novo depois disso.
+ */
+export async function excluirRecibo(id: string): Promise<{ erro?: string }> {
+  const { data, error } = await supabase
+    .from('estagio_recibos').delete().eq('id', id).select('id');
+  if (error) return { erro: explicar(error) };
+  if (!data || data.length === 0) {
+    return { erro: 'O banco não autorizou apagar — só a administração e a secretaria podem.' };
   }
   return {};
 }
