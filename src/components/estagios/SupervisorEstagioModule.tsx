@@ -211,12 +211,18 @@ export const SupervisorEstagioModule: React.FC<{ usuarioId: string; nome?: strin
                     <span className={`font-mono font-black text-lg ${lancado ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300'}`}>
                       {lancado ? media.toFixed(1).replace('.', ',') : '—'}
                     </span>
-                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${
-                      a.resultado === 'APTO' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : a.resultado === 'NÃO APTO' ? 'bg-rose-50 text-rose-700 border-rose-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                    {/* Esta etiqueta tem cara de botão — borda, maiúsculas,
+                        negrito — mas era só decoração, sem onClick. Quem
+                        clicasse nela (o mais natural, já que parece
+                        clicável) não via nada acontecer; só o nome do aluno,
+                        ao lado, abria a tela de lançar. Agora os dois abrem. */}
+                    <button type="button" onClick={() => setFichaAberta({ ...a })}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-colors ${
+                      a.resultado === 'APTO' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : a.resultado === 'NÃO APTO' ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                      : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}>
                       {a.resultado === 'PENDENTE' ? 'LANÇAR' : a.resultado}
-                    </span>
+                    </button>
                     {/* ABRIR A FICHA DE VERDADE — com timbre, os quatro
                         blocos e o verso da frequência. Independe da nota já
                         ter sido lançada: o supervisor pode querer imprimir
