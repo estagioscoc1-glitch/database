@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  listarRecibos, marcarReciboPago, listarSupervisores, formatarDinheiro,
+  listarRecibos, marcarReciboPago, excluirRecibo, listarSupervisores, formatarDinheiro,
   carregarModeloEstagio, salvarModeloEstagio, MODELOS_ESTAGIO_PADRAO,
   type ReciboEstagio, type Supervisor, type ModeloEstagio,
 } from '../../lib/supabaseEstagioModulo';
@@ -397,6 +397,17 @@ export const EstagioPagamentosModule: React.FC<{ currentUser?: string }> = () =>
                                               : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
                 {r.situacao === 'PAGO' ? 'Desmarcar' : 'Marcar pago'}
               </button>
+              <button type="button"
+                      onClick={async () => {
+                        if (!window.confirm(`Apagar o recibo ${r.numero}? A vaga volta a poder emitir outro.`)) return;
+                        const { erro: e } = await excluirRecibo(r.id!);
+                        if (e) { setErro(e); return; }
+                        setAviso('Recibo apagado.');
+                        window.setTimeout(() => setAviso(null), 4000);
+                        void recarregar();
+                      }}
+                      title="Apagar este recibo"
+                      className="p-2 text-slate-300 hover:text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         ))}

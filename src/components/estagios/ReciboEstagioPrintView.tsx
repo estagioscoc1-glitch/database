@@ -87,7 +87,119 @@ export const ReciboEstagioPrintView: React.FC<Props> = ({
     day: '2-digit', month: 'long', year: 'numeric',
   });
 
-  const Documento = (
+  // Célula igual à da Relação de Alunos, para o recibo ficar no mesmo molde.
+  const cel: React.CSSProperties = { border: '0.4mm solid #000', padding: '2px 6px', fontSize: '9.5pt' };
+
+  /* RECIBO — MESMO MOLDE DA RELAÇÃO DE ALUNOS, COM VALOR NO LUGAR DE
+     ASSINATURA. Uma tabela com um aluno por linha e o valor dele, fechando
+     com o total em negrito. A Declaração continua com o texto corrido do
+     modelo — não faz sentido numa declaração de horas, só no recibo. */
+  const DocumentoRecibo = (
+    <div style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000' }}>
+      <div style={{ textAlign: 'center', marginBottom: '6mm' }}>
+        <img src={LOGO_COLEGIO_OSWALDO_CRUZ} alt="Colégio Oswaldo Cruz"
+             referrerPolicy="no-referrer"
+             style={{ height: '1.8cm', width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+        <p style={{ fontSize: '8pt', margin: '3px 0 0' }}>Rua 20 nº 796 - Centro Goiânia - Goiás CEP 74020-170</p>
+        <p style={{ fontSize: '8pt', margin: 0 }}>Fone: (62) 3223.7602 - www.colegiooswaldocruz.com.br</p>
+      </div>
+
+      <h1 style={{ textAlign: 'center', fontSize: '13pt', fontWeight: 'bold', margin: '0 0 5mm' }}>
+        RECIBO DE PAGAMENTO — ESTÁGIO CURRICULAR
+      </h1>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '5mm' }}>
+        <tbody>
+          <tr>
+            <td style={{ ...cel, width: '20%', fontWeight: 'bold' }}>COMPONENTE:</td>
+            <td style={cel}>{(recibo.componente || '—').toUpperCase()}</td>
+            <td style={{ ...cel, width: '16%', fontWeight: 'bold' }}>Nº RECIBO:</td>
+            <td style={{ ...cel, width: '18%', fontFamily: 'monospace' }}>{recibo.numero || '—'}</td>
+          </tr>
+          <tr>
+            <td style={{ ...cel, fontWeight: 'bold' }}>SUPERVISOR:</td>
+            <td style={cel} colSpan={3}>
+              {recibo.supervisorNome || '—'}
+              {supervisor?.conselho && supervisor?.registro ? `   ${supervisor.conselho} ${supervisor.registro}` : ''}
+              {supervisor?.cpf ? `   CPF ${supervisor.cpf}` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td style={{ ...cel, fontWeight: 'bold' }}>LOCAL:</td>
+            <td style={cel}>{recibo.localNome || '—'}</td>
+            <td style={{ ...cel, fontWeight: 'bold' }}>PERÍODO:</td>
+            <td style={cel}>{periodo || '—'}</td>
+          </tr>
+          <tr>
+            <td style={{ ...cel, fontWeight: 'bold' }}>COMPETÊNCIA:</td>
+            <td style={cel}>{recibo.competencia || '—'}</td>
+            <td style={{ ...cel, fontWeight: 'bold' }}>ALUNOS:</td>
+            <td style={cel}>{recibo.qtdAlunos}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...cel, background: '#d9d9d9', width: '7%', textAlign: 'center' }}>Nº</th>
+            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'left' }}>NOME DO ALUNO</th>
+            <th style={{ ...cel, background: '#d9d9d9', width: '16%', textAlign: 'center' }}>MATRÍCULA</th>
+            <th style={{ ...cel, background: '#d9d9d9', width: '22%', textAlign: 'center' }}>VALOR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Recibo emitido depois desta lista existir traz nome e matrícula
+              juntos (alunosDetalhe). Recibo antigo, de antes, só tinha os
+              nomes — continua aparecendo, sem matrícula, em vez de quebrar. */}
+          {(recibo.alunosDetalhe && recibo.alunosDetalhe.length > 0
+            ? recibo.alunosDetalhe
+            : (recibo.alunosNomes || []).map(nome => ({ nome, matricula: undefined as string | undefined }))
+          ).map((a, i) => (
+            <tr key={i}>
+              <td style={{ ...cel, textAlign: 'center' }}>{String(i + 1).padStart(2, '0')}</td>
+              <td style={cel}>{a.nome.toUpperCase()}</td>
+              <td style={{ ...cel, textAlign: 'center' }}>{a.matricula || '—'}</td>
+              <td style={{ ...cel, textAlign: 'right' }}>{formatarDinheiro(recibo.valorPorAluno)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td style={{ ...cel, fontWeight: 'bold', textAlign: 'right' }} colSpan={3}>TOTAL</td>
+            <td style={{ ...cel, fontWeight: 'bold', textAlign: 'right', fontSize: '11pt' }}>
+              {formatarDinheiro(recibo.valorTotal)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p style={{ fontSize: '10.5pt', margin: '4mm 0 0' }}>
+        Valor por extenso: <strong>{porExtenso(recibo.valorTotal)}</strong>
+      </p>
+
+      <p style={{ fontSize: '11pt', lineHeight: 1.7, textAlign: 'justify', margin: '6mm 0 0', textIndent: '2.5em' }}>
+        Recebi do Colégio Oswaldo Cruz a quantia total acima discriminada, referente à supervisão
+        de estágio curricular dos alunos relacionados nesta folha, no período de {periodo || '____________________'}.
+        Para clareza firmo o presente recibo, dando plena e geral quitação do valor acima.
+      </p>
+
+      <div style={{ textAlign: 'right', fontSize: '11pt', margin: '8mm 0 0' }}>
+        Goiânia, {hoje}
+      </div>
+
+      <div style={{ marginTop: '14mm', textAlign: 'center' }}>
+        <div style={{ borderTop: '0.4mm solid #000', width: '70%', margin: '0 auto', paddingTop: '2mm' }}>
+          <p style={{ fontSize: '11pt', margin: 0, fontWeight: 'bold' }}>{recibo.supervisorNome}</p>
+          <p style={{ fontSize: '9.5pt', margin: 0 }}>
+            {supervisor?.cpf ? `CPF ${supervisor.cpf}` : 'Supervisor de Estágio'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const DocumentoDeclaracao = (
     <div style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000', minHeight: '23cm', display: 'flex', flexDirection: 'column' }}>
       <div style={{ textAlign: 'center', marginBottom: '1.4cm' }}>
         <img src={LOGO_COLEGIO_OSWALDO_CRUZ} alt="Colégio Oswaldo Cruz"
@@ -98,13 +210,6 @@ export const ReciboEstagioPrintView: React.FC<Props> = ({
       <h1 style={{ textAlign: 'center', fontSize: '15pt', fontWeight: 'bold', margin: '0 0 4mm' }}>
         {modelo.titulo}
       </h1>
-
-      {/* No recibo, o valor grande vem logo abaixo do título. */}
-      {tipo === 'RECIBO' && (
-        <p style={{ textAlign: 'center', fontSize: '18pt', fontWeight: 'bold', margin: '0 0 1.2cm' }}>
-          {formatarDinheiro(recibo.valorTotal)}
-        </p>
-      )}
 
       <div style={{ flex: 1, fontSize: '12pt', lineHeight: 1.8, textAlign: 'justify' }}>
         {modelo.paragrafos.map((p, i) => (
@@ -117,33 +222,23 @@ export const ReciboEstagioPrintView: React.FC<Props> = ({
       </div>
 
       <div style={{ marginTop: '2.2cm', textAlign: 'center' }}>
-        {/* Na declaração quem assina é a escola; no recibo, o supervisor. */}
-        {tipo === 'DECLARACAO' && (
-          <img src={ASSINATURA_SECRETARIO} alt="Assinatura"
-               referrerPolicy="no-referrer"
-               style={{ display: 'block', margin: '0 auto -3mm', width: '5cm', height: 'auto' }} />
-        )}
+        <img src={ASSINATURA_SECRETARIO} alt="Assinatura"
+             referrerPolicy="no-referrer"
+             style={{ display: 'block', margin: '0 auto -3mm', width: '5cm', height: 'auto' }} />
         <div style={{ borderTop: '0.4mm solid #000', width: '70%', margin: '0 auto', paddingTop: '2mm' }}>
-          <p style={{ fontSize: '11.5pt', margin: 0, fontWeight: 'bold' }}>
-            {tipo === 'RECIBO' ? recibo.supervisorNome : 'Colégio Oswaldo Cruz'}
-          </p>
-          <p style={{ fontSize: '10pt', margin: 0 }}>
-            {tipo === 'RECIBO'
-              ? (supervisor?.cpf ? `CPF ${supervisor.cpf}` : 'Supervisor de Estágio')
-              : 'Secretaria'}
-          </p>
+          <p style={{ fontSize: '11.5pt', margin: 0, fontWeight: 'bold' }}>Colégio Oswaldo Cruz</p>
+          <p style={{ fontSize: '10pt', margin: 0 }}>Secretaria</p>
         </div>
       </div>
 
       <div style={{ marginTop: 'auto', paddingTop: '1.2cm', textAlign: 'center', fontSize: '8.5pt', color: '#444' }}>
         <p style={{ margin: 0 }}>Rua 20, 796 – Centro Goiânia Goiás · CEP 74020-170</p>
         <p style={{ margin: 0 }}>Fone e Whatsapp (62) 3223-7602 · www.colegiooswaldocruz.com.br</p>
-        {recibo.numero && (
-          <p style={{ margin: '2mm 0 0', fontFamily: 'monospace' }}>{recibo.numero}</p>
-        )}
       </div>
     </div>
   );
+
+  const Documento = tipo === 'RECIBO' ? DocumentoRecibo : DocumentoDeclaracao;
 
   return createPortal(
     <div className="no-print fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">

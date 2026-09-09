@@ -6,7 +6,7 @@ import {
   listarAlunosDaVaga, incluirAlunoNaVaga, removerAlunoDaVaga,
   atualizarPreRequisitos, listarSupervisores, listarLocais, listarCatalogo,
   mediaDoAluno, formatarDinheiro, SITUACOES_VAGA,
-  corrigirNotaHistorico, nomeOficialDoComponente,
+  corrigirNotaHistorico, nomeOficialDoComponente, reciboDaVaga, listarRecibos, definirTurmasDaVaga, type ReciboEstagio,
   type VagaEstagio, type AlunoNaVaga, type SituacaoVaga,
   type Supervisor, type LocalEstagio, type EstagioCatalogo,
 } from '../../lib/supabaseEstagioModulo';
@@ -41,7 +41,7 @@ const campo = 'w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slat
 const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1';
 
 export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ currentUser = 'Administração' }) => {
-  const { users } = useApp();
+  const { users, classes } = useApp();
 
   const [vagas, setVagas] = useState<VagaEstagio[]>([]);
   const [supervisores, setSupervisores] = useState<Supervisor[]>([]);
@@ -63,6 +63,23 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
      lançamento; corrigir ela agora é mudar direto lá, não relançar aqui. */
   const [corrigindo, setCorrigindo] = useState<AlunoNaVaga | null>(null);
   const [notaCorrigida, setNotaCorrigida] = useState('');
+
+  /* Recibo desta vaga, se já foi emitido — para mostrar o selo PAGO sem
+     precisar ir até Estágio — Pagamentos conferir. */
+  const [reciboVagaAtual, setReciboVagaAtual] = useState<ReciboEstagio | null>(null);
+  useEffect(() => {
+    if (vagaAberta?.id) void reciboDaVaga(vagaAberta.id).then(setReciboVagaAtual);
+    else setReciboVagaAtual(null);
+  }, [vagaAberta?.id]);
+
+  /* Selo PAGO nos cartões da lista — uma consulta só para todas as vagas,
+     em vez de uma por cartão. */
+  const [vagaIdsPagas, setVagaIdsPagas] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void listarRecibos().then(({ lista }) => {
+      setVagaIdsPagas(new Set(lista.filter(r => r.situacao === 'PAGO' && r.vagaId).map(r => r.vagaId!)));
+    });
+  }, [reciboVagaAtual]);
   const [listaImprimir, setListaImprimir] = useState(false);
   const [inscricoes, setInscricoes] = useState<InscricaoEstagio[]>([]);
 
@@ -328,6 +345,11 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                       <span className={`px-2 py-0.5 rounded-lg border text-[10px] font-black uppercase ${cor}`}>
                         {SITUACOES_VAGA.find(s => s.valor === v.situacao)?.rotulo}
                       </span>
+                      {vagaIdsPagas.has(v.id!) && (
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase">
+                          Pago
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] font-bold text-slate-500 mt-1">{v.componente}</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
@@ -395,15 +417,27 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                     <span className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-black">
                       Vaga fechada
                     </span>
-                    <button type="button"
-                            onClick={async () => {
-                              const { erro: e } = await emitirRecibo(vagaAberta, alunosDaVaga.length, currentUser);
-                              if (e) { mostrar('erro', e); return; }
-                              mostrar('ok', 'Recibo emitido. Veja em Estágio — Pagamentos.');
-                            }}
-                            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl text-xs">
-                      <Receipt className="h-4 w-4" /> Emitir Recibo
-                    </button>
+                    {reciboVagaAtual ? (
+                      <span className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white text-[11px] font-black">
+                        <Receipt className="h-3.5 w-3.5" /> PAGO — {reciboVagaAtual.numero}
+                      </span>
+                    ) : (
+                      <button type="button"
+                              onClick={async () => {
+                                /* O recibo sai já como PAGO — é o próprio comprovante de
+                                   pagamento, não existe etapa intermediária de "a pagar". */
+                                const { erro: e } = await emitirRecibo(
+                                  vagaAberta,
+                                  alunosDaVaga.map(a => ({ nome: a.alunoNome, matricula: a.alunoMatricula })),
+                                  currentUser);
+                                if (e) { mostrar('erro', e); return; }
+                                mostrar('ok', 'Recibo emitido e vaga marcada como paga.');
+                                void reciboDaVaga(vagaAberta.id!).then(setReciboVagaAtual);
+                              }}
+                              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl text-xs">
+                        <Receipt className="h-4 w-4" /> Emitir Recibo
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -434,10 +468,17 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={!!vagaAberta.inscricoesAbertas}
                          onChange={async e => {
-                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, e.target.checked, vagaAberta.inscricoesAte);
+                           /* GUARDAR O VALOR ANTES DO AWAIT.
+                              Lendo e.target.checked de novo depois da espera, o
+                              navegador já tinha desmarcado a caixinha de volta
+                              (o estado ainda dizia "fechada" enquanto a gravação
+                              não voltava) — o banco recebia certo, mas a tela
+                              mentia, dizendo "fechada" com o valor já aberto. */
+                           const marcado = e.target.checked;
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, marcado, vagaAberta.inscricoesAte);
                            if (err) { mostrar('erro', err); return; }
-                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: e.target.checked });
-                           mostrar('ok', e.target.checked
+                           setVagaAberta({ ...vagaAberta, inscricoesAbertas: marcado });
+                           mostrar('ok', marcado
                              ? 'Vaga aberta. Os alunos já veem no painel deles.'
                              : 'Inscrições fechadas. A vaga sumiu do painel do aluno.');
                          }} />
@@ -449,10 +490,67 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                          className="px-2 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-lg outline-none text-[11px]"
                          value={vagaAberta.inscricoesAte ?? ''}
                          onChange={async e => {
-                           await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, e.target.value);
-                           setVagaAberta({ ...vagaAberta, inscricoesAte: e.target.value });
+                           const ate = e.target.value;
+                           const { erro: err } = await abrirInscricoes(vagaAberta.id!, !!vagaAberta.inscricoesAbertas, ate);
+                           if (err) { mostrar('erro', err); return; }
+                           setVagaAberta({ ...vagaAberta, inscricoesAte: ate });
                          }} />
                 </div>
+              </div>
+            </div>
+
+            {/* QUEM ENXERGA ESTA VAGA.
+                Nenhuma turma marcada = todos os alunos do curso veem, que é
+                como o sistema funciona por padrão. Marcando turmas, aperta
+                mais: só os alunos dessas turmas veem a vaga. */}
+            <div className="mb-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <label className={rotulo}>Turmas que enxergam esta vaga</label>
+                {(vagaAberta.turmasIds?.length ?? 0) > 0 && (
+                  <button type="button"
+                          onClick={async () => {
+                            const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, []);
+                            if (err) { mostrar('erro', err); return; }
+                            setVagaAberta({ ...vagaAberta, turmasIds: [] });
+                            mostrar('ok', 'Vaga liberada para todas as turmas do curso.');
+                          }}
+                          className="text-[11px] font-bold text-slate-500 hover:text-blue-600">
+                    Liberar para todas
+                  </button>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
+                {(vagaAberta.turmasIds?.length ?? 0) === 0
+                  ? 'Nenhuma turma marcada: todos os alunos do curso veem esta vaga.'
+                  : `Só os alunos de ${vagaAberta.turmasIds!.length} turma(s) veem esta vaga.`}
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {classes.map(t => {
+                  const marcada = (vagaAberta.turmasIds ?? []).includes(t.id);
+                  return (
+                    <button key={t.id} type="button"
+                            onClick={async () => {
+                              const atuais = vagaAberta.turmasIds ?? [];
+                              const novas = marcada
+                                ? atuais.filter(x => x !== t.id)
+                                : [...atuais, t.id];
+                              const { erro: err } = await definirTurmasDaVaga(vagaAberta.id!, novas);
+                              if (err) { mostrar('erro', err); return; }
+                              setVagaAberta({ ...vagaAberta, turmasIds: novas });
+                            }}
+                            className={`px-3 py-2 rounded-xl text-[11px] font-black border transition-all ${
+                              marcada
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-750 hover:border-blue-300'}`}>
+                      {t.code || t.name}
+                    </button>
+                  );
+                })}
+                {classes.length === 0 && (
+                  <p className="text-[11px] text-slate-400">Nenhuma turma cadastrada.</p>
+                )}
               </div>
             </div>
 
