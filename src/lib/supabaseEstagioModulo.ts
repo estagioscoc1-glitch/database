@@ -553,6 +553,16 @@ export async function emitirRecibo(
   if (v.situacao !== 'FECHADA') {
     return { erro: 'Só é possível emitir recibo de vaga fechada. Feche a vaga primeiro.' };
   }
+
+  /* SEM PREÇO, O BANCO RECUSAVA COM UM ERRO CRU.
+     "null value in column valor_total... not-null constraint" não diz nada
+     para quem não programa. A causa real é sempre a mesma: o componente
+     deste curso não tem valor por aluno cadastrado. Confere antes de
+     tentar gravar, e explica em português o que fazer. */
+  if (!v.valorPorAluno || v.valorPorAluno <= 0) {
+    return { erro: `Este componente (${v.componente}) está sem preço cadastrado. Vá em Estágio — Cadastros → Estágios e Preços, preencha o valor por aluno e emita o recibo de novo.` };
+  }
+
   const numero = await gerarNumeroRecibo();
   const hoje = new Date();
   const qtdAlunos = nomesAlunos.length;
