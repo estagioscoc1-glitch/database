@@ -34,7 +34,10 @@ interface Props {
 
 const CSS_IMPRESSAO = `
   @media print {
-    @page { size: A4 portrait; margin: 1cm 1.2cm; }
+    /* Medida exata em milímetros, não a palavra "A4" — a diferença de
+       arredondamento entre as duas é o que fazia o Chrome encolher a folha
+       sozinho, obrigando a digitar 100% na mão toda vez. */
+    @page { size: 210mm 297mm; margin: 1cm 1.2cm; }
     #root, .no-print { display: none !important; }
     html, body {
       background: #fff !important; margin: 0 !important; padding: 0 !important;
@@ -404,14 +407,14 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </h2>
 
         <p style={{ fontSize: '8.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>GERAIS:</p>
-        <ul style={{ margin: '0 0 12px', paddingLeft: '18px', fontSize: '8pt', lineHeight: 1.4 }}>
+        <ul style={{ margin: '0 0 12px', paddingLeft: '18px', fontSize: '8.8pt', lineHeight: 1.5 }}>
           {modelo.competenciasGerais.map((c, i) => (
             <li key={i} style={{ marginBottom: '2px', textAlign: 'justify' }}>{c}</li>
           ))}
         </ul>
 
         <p style={{ fontSize: '8.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>ESPECÍFICAS:</p>
-        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '8pt', lineHeight: 1.4 }}>
+        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '8.8pt', lineHeight: 1.5 }}>
           {modelo.competenciasEspecificas.map((c, i) => (
             <li key={i} style={{ marginBottom: '2px', textAlign: 'justify' }}>{c}</li>
           ))}
