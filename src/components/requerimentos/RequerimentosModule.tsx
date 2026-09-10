@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ContratosModule } from '../contratos/ContratosModule';
 import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
+import { RequerimentoMatriculaModule } from './RequerimentoMatriculaModule';
 import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
 import { HistoricoEscolarModule } from '../historico/HistoricoEscolarModule';
 import { DiplomasModule } from '../diplomas/DiplomasModule';
@@ -52,7 +53,7 @@ interface Props {
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'matricula' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -276,6 +277,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'fila',  rotulo: 'Fila de Pedidos', icone: Inbox },
             { id: 'novo',  rotulo: 'Novo Requerimento', icone: Plus },
             { id: 'tipos', rotulo: 'Tipos e Prazos', icone: Settings2 },
+            { id: 'matricula', rotulo: 'Requerimento de Matrícula', icone: FileText },
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
             { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
@@ -733,6 +735,8 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
       {/* Contratos — tela própria, com geração e editor de modelo.
           Fica aqui porque "Contrato" também é um dos tipos de requerimento
           que a secretaria atende, então o atendente não precisa trocar de menu. */}
+      {aba === 'matricula' && <RequerimentoMatriculaModule />}
+
       {aba === 'contratos' && <ContratosModule currentUser={currentUser} />}
 
       {/* Declarações — os cinco modelos, incluindo os três que o aluno também
