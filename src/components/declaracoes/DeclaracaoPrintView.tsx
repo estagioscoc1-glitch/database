@@ -33,8 +33,10 @@ interface Props {
 
 const CSS_IMPRESSAO = `
   @media print {
+    /* Medida exata em milímetros, não a palavra "A4" — evita o
+       arredondamento que fazia o Chrome encolher a folha sozinho. */
     @page {
-      size: A4 portrait;
+      size: 210mm 297mm;
       margin: 1.5cm 2cm;
     }
     #root, .no-print { display: none !important; }
