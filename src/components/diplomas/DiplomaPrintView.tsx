@@ -61,7 +61,14 @@ interface Props {
 
 const CSS_IMPRESSAO = (ORIENTACAO: string) => `
   @media print {
-    @page { size: A4 ${ORIENTACAO}; margin: 0; }
+    /* MEDIDA EXATA, NÃO A PALAVRA "A4".
+       "A4 paisagem" e "297mm x 210mm" deveriam dar na mesma coisa, mas em
+       algumas versões do Chrome não dão — sobra uma fração de milímetro por
+       arredondamento interno, e o navegador reage encolhendo a folha para
+       caber, sozinho, sem avisar. Era por isso que a impressão saía em 80%
+       e era preciso digitar 100 na mão toda vez. Com o tamanho exato em
+       milímetros, não sobra o que arredondar. */
+    @page { size: ${ORIENTACAO === 'landscape' ? '297mm 210mm' : '210mm 297mm'}; margin: 0; }
     #root, .no-print { display: none !important; }
     html, body {
       background: #fff !important; margin: 0 !important; padding: 0 !important;
