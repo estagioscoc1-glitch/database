@@ -88,6 +88,25 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
     { titulo: 'VALORES ÉTICOS:',                    itens: catalogo?.compValores ?? [],      nota: aluno.notaValores },
   ];
 
+  /*
+     FONTE DA LISTA DE ITENS CALCULADA PELO TAMANHO REAL DO TEXTO, NÃO FIXA.
+     A ficha é a mesma para os 16 componentes de estágio, mas o tanto de
+     texto varia muito — "Conhecer a anatomia humana." é uma linha; a
+     Segurança do Trabalho tem blocos com several itens compridos. Uma fonte
+     fixa que coubesse no componente mais enxuto estourava a folha (que é
+     paisagem — só 210mm de altura, bem menos espaço vertical que uma folha
+     em pé) nos componentes mais extensos. Por isso o tamanho é calculado a
+     partir da soma de caracteres de todos os itens, toda vez que a ficha é
+     montada — sempre cabe em 1 folha, seja qual for o componente. */
+  const caracteresTotais = blocos.reduce(
+    (soma, b) => soma + b.itens.reduce((s, t) => s + t.length, 0), 0
+  );
+  const fonteItens =
+    caracteresTotais <= 260 ? 12 :
+    caracteresTotais <= 420 ? 10.5 :
+    caracteresTotais <= 600 ? 9.5 : 8.5;
+  const celItens: React.CSSProperties = { ...cel, fontSize: `${fonteItens}pt` };
+
   const Cabecalho = (
     <div style={{ display: 'flex', alignItems: 'stretch', gap: '8mm', marginBottom: '3mm' }}>
       <div style={{ flex: 1 }}>
@@ -177,7 +196,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
         <tbody>
           {blocos.map((b, i) => (
             <tr key={i}>
-              <td style={cel}>
+              <td style={celItens}>
                 <div style={{ fontWeight: 'bold' }}>{b.titulo}</div>
                 {b.itens.length > 0 ? (
                   <ul style={{ margin: '1mm 0 0', paddingLeft: '7mm' }}>
