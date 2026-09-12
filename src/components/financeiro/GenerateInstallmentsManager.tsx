@@ -55,8 +55,11 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
   });
 
   useEffect(() => {
-    const cfgs = getCoursePriceConfigs();
-    setCourseConfigs(cfgs);
+    // getCoursePriceConfigs já fala com o banco (Parte 2) — devolve Promise.
+    void (async () => {
+      const cfgs = await getCoursePriceConfigs();
+      setCourseConfigs(cfgs);
+    })();
   }, []);
 
   const handleCourseChange = (cId: string, isBatch: boolean = false) => {

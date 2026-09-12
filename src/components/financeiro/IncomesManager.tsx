@@ -25,7 +25,7 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
   
   // Common state
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodItem[]>([]);
-  const [openCash, setOpenCash] = useState(getOpenCashRegister());
+  const [openCash, setOpenCash] = useState<Awaited<ReturnType<typeof getOpenCashRegister>>>(null);
   const [activeReceipt, setActiveReceipt] = useState<FinancialReceipt | null>(null);
 
   // Installment Receiving State
@@ -46,14 +46,17 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
   const [miscPaymentMethod, setMiscPaymentMethod] = useState('PIX');
   const [miscNotes, setMiscNotes] = useState('');
 
-  const refreshData = () => {
-    setPaymentMethods(getPaymentMethods().filter(m => m.active));
+  /* getPaymentMethods e getOpenCashRegister já falam com o banco (Partes 1
+     e 2) — passaram a devolver Promise. getMiscPaymentCatalog continua no
+     navegador até a Parte 5 converter Pagamentos Diversos. */
+  const refreshData = async () => {
+    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
     setMiscCatalog(getMiscPaymentCatalog().filter(c => c.active));
-    setOpenCash(getOpenCashRegister());
+    setOpenCash(await getOpenCashRegister());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   // Update installments when student selection changes

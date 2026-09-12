@@ -13,26 +13,28 @@ export const PaymentMethodsManager: React.FC<PaymentMethodsManagerProps> = ({
   const [methods, setMethods] = useState<PaymentMethodItem[]>([]);
   const [newMethodName, setNewMethodName] = useState('');
 
-  const refreshData = () => {
-    setMethods(getPaymentMethods());
+  /* Parte 2: getPaymentMethods/savePaymentMethod/addCustomPaymentMethod já
+     falam com o banco — passaram a devolver Promise. */
+  const refreshData = async () => {
+    setMethods(await getPaymentMethods());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
-  const handleToggleActive = (pm: PaymentMethodItem) => {
-    savePaymentMethod({ ...pm, active: !pm.active }, currentUser);
-    refreshData();
+  const handleToggleActive = async (pm: PaymentMethodItem) => {
+    await savePaymentMethod({ ...pm, active: !pm.active }, currentUser);
+    void refreshData();
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMethodName.trim()) return;
 
-    addCustomPaymentMethod(newMethodName.trim(), currentUser);
+    await addCustomPaymentMethod(newMethodName.trim(), currentUser);
     setNewMethodName('');
-    refreshData();
+    void refreshData();
   };
 
   return (

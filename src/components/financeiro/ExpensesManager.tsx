@@ -17,7 +17,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
 }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodItem[]>([]);
-  const [openCash, setOpenCash] = useState(getOpenCashRegister());
+  const [openCash, setOpenCash] = useState<Awaited<ReturnType<typeof getOpenCashRegister>>>(null);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -35,14 +35,17 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [notes, setNotes] = useState('');
   const [voucherName, setVoucherName] = useState('');
 
-  const refreshData = () => {
+  /* getPaymentMethods e getOpenCashRegister já falam com o banco (Partes 1
+     e 2) — passaram a devolver Promise. getExpenses continua no navegador
+     até a Parte 6 converter Saídas. */
+  const refreshData = async () => {
     setExpenses(getExpenses());
-    setPaymentMethods(getPaymentMethods().filter(m => m.active));
-    setOpenCash(getOpenCashRegister());
+    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
+    setOpenCash(await getOpenCashRegister());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -79,7 +82,7 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
     setBeneficiary('');
     setNotes('');
     setVoucherName('');
-    refreshData();
+    void refreshData();
   };
 
   const filteredExpenses = expenses.filter(exp => {

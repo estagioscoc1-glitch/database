@@ -16,27 +16,29 @@ export const CoursePricesManager: React.FC<CoursePricesManagerProps> = ({
   const [editingConfig, setEditingConfig] = useState<CoursePriceConfig | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const refreshData = () => {
-    setConfigs(getCoursePriceConfigs());
+  /* Parte 2: getCoursePriceConfigs/saveCoursePriceConfig já falam com o
+     banco — passaram a devolver Promise. */
+  const refreshData = async () => {
+    setConfigs(await getCoursePriceConfigs());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   const handleEditClick = (cfg: CoursePriceConfig) => {
     setEditingConfig({ ...cfg });
   };
 
-  const handleSaveSubmit = (e: React.FormEvent) => {
+  const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingConfig) return;
 
-    saveCoursePriceConfig(editingConfig, currentUser);
+    await saveCoursePriceConfig(editingConfig, currentUser);
     setSuccessMessage(`Tabela de preços para ${editingConfig.courseName} atualizada com sucesso!`);
     setTimeout(() => setSuccessMessage(''), 4000);
     setEditingConfig(null);
-    refreshData();
+    void refreshData();
   };
 
   return (

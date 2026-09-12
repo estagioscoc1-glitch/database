@@ -26,13 +26,15 @@ export const CancelationsManager: React.FC<CancelationsManagerProps> = ({
   const [editMethodReceipt, setEditMethodReceipt] = useState<FinancialReceipt | null>(null);
   const [newMethod, setNewMethod] = useState('');
 
-  const refreshData = () => {
+  /* getPaymentMethods já fala com o banco (Parte 2) — devolve Promise.
+     getReceipts continua no navegador até a Parte 7 converter Recibos. */
+  const refreshData = async () => {
     setReceipts(getReceipts());
-    setPaymentMethods(getPaymentMethods().filter(m => m.active));
+    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   const handleCancelSubmit = (e: React.FormEvent) => {
@@ -43,7 +45,7 @@ export const CancelationsManager: React.FC<CancelationsManagerProps> = ({
       cancelReceipt(selectedReceipt.receiptNumber, currentUser, cancelReason.trim());
       setSelectedReceipt(null);
       setCancelReason('');
-      refreshData();
+      void refreshData();
     }
   };
 
@@ -55,7 +57,7 @@ export const CancelationsManager: React.FC<CancelationsManagerProps> = ({
     alert(res.message);
     if (res.success) {
       setEditMethodReceipt(null);
-      refreshData();
+      void refreshData();
     }
   };
 
