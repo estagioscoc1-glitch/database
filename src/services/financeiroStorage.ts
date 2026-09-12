@@ -1,13 +1,29 @@
 /**
  * Storage & Logic Service for Módulo Financeiro
+ *
+ * PARTE 1 DE 12 JÁ CONVERTIDA PARA O BANCO DE VERDADE: os logs de auditoria
+ * e as cinco funções de Caixa (getCashRegisters, getOpenCashRegister,
+ * openCashRegister, closeCashRegister, reopenCashRegister) leem e gravam no
+ * Supabase agora, não mais no navegador. O resto deste arquivo — parcelas,
+ * entradas, saídas, bolsas e tudo mais — continua em safeLocalStorage até
+ * as próximas entregas converterem, uma parte de cada vez.
  */
 
 import { safeLocalStorage } from '../lib/safeStorage';
+import { supabase } from '../lib/supabase';
 import { 
   CashRegister, PaymentMethodItem, Installment, MiscPaymentCatalog,
   MiscIncome, Expense, Scholarship, CoursePriceConfig,
   FinancialNote, FinancialReceipt, FinancialAuditLog, ExemptionItem, ReportTemplate
 } from '../types/financeiro';
+
+function explicarErroFinanceiro(erro: any): string {
+  const m = String(erro?.message || erro);
+  if (m.includes('financeiro_') && m.includes('does not exist')) {
+    return 'O financeiro ainda não foi instalado no banco. Rode o arquivo 40_financeiro_tabelas.sql no Supabase.';
+  }
+  return m;
+}
 
 const STORAGE_KEYS = {
   CASH_REGISTERS: 'gestao_fin_cash_registers_v1',
@@ -154,119 +170,115 @@ function setItemJSON<T>(key: string, value: T): void {
   }
 }
 
-// --- AUDIT LOGS ---
-export function getFinancialAuditLogs(): FinancialAuditLog[] {
-  return getItemJSON<FinancialAuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+// --- LOGS DE AUDITORIA (já no banco) ---
+export async function getFinancialAuditLogs(): Promise<FinancialAuditLog[]> {
+  const { data, error } = await supabase
+    .from('financeiro_logs_auditoria').select('*').order('data', { ascending: false }).limit(500);
+  if (error) { console.warn('[Financeiro] logs:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map((l: any) => ({
+    id: l.id, date: l.data, user: l.usuario, action: l.acao, details: l.detalhes ?? '', module: l.modulo,
+  }));
 }
 
-export function addFinancialAuditLog(user: string, action: string, details: string): void {
-  const logs = getFinancialAuditLogs();
-  const newLog: FinancialAuditLog = {
-    id: 'flog_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-    date: new Date().toISOString(),
-    user,
-    action,
-    details,
-    module: 'Financeiro'
+export async function addFinancialAuditLog(user: string, action: string, details: string): Promise<void> {
+  const { error } = await supabase.from('financeiro_logs_auditoria').insert({
+    usuario: user, acao: action, detalhes: details,
+  });
+  if (error) console.warn('[Financeiro] não gravou o log de auditoria:', explicarErroFinanceiro(error));
+}
+
+// --- CAIXA (parte 1 já ligada ao banco — as demais partes ainda usam
+//     o navegador, até serem convertidas nas próximas entregas) ---
+
+/*
+ * PRIMEIRA PARTE CONVERTIDA PARA O BANCO DE VERDADE.
+ *
+ * Antes, "getCashRegisters()" e as outras quatro funções abaixo liam e
+ * gravavam no navegador (safeLocalStorage) — cada computador da tesouraria
+ * tinha o seu próprio caixa, sem nada em comum com os outros. Agora conversam
+ * com o Supabase, na tabela financeiro_caixas.
+ *
+ * As funções continuam com o MESMO NOME e o mesmo formato de retorno de
+ * antes — só que agora devolvem uma Promise, porque falar com o banco nunca
+ * é instantâneo como ler o navegador. Por isso toda tela que chamava
+ * "getCashRegisters()" direto precisa passar a escrever
+ * "await getCashRegisters()" — é a única mudança que a interface precisa
+ * fazer para esta parte.
+ */
+function caixaDoBanco(c: any): CashRegister {
+  return {
+    id: c.id, seqNumber: c.seq_numero, openedAt: c.aberto_em, closedAt: c.fechado_em ?? undefined,
+    responsibleUser: c.responsavel, initialBalance: Number(c.saldo_inicial),
+    finalBalance: c.saldo_final != null ? Number(c.saldo_final) : undefined,
+    status: c.status, notes: c.observacoes ?? undefined,
+    calculatedIncomes: c.entradas_calculadas != null ? Number(c.entradas_calculadas) : undefined,
+    calculatedExpenses: c.saidas_calculadas != null ? Number(c.saidas_calculadas) : undefined,
   };
-  logs.unshift(newLog);
-  setItemJSON(STORAGE_KEYS.AUDIT_LOGS, logs.slice(0, 500)); // limit to 500
 }
 
-// --- CASH REGISTERS ---
-export function getCashRegisters(): CashRegister[] {
-  const seedRegisters: CashRegister[] = [
-    {
-      id: 'cx_001',
-      seqNumber: 1,
-      openedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-      closedAt: new Date(Date.now() - 86400000).toISOString(),
-      responsibleUser: 'Tesouraria Principal',
-      initialBalance: 200.00,
-      finalBalance: 1650.00,
-      status: 'CLOSED',
-      notes: 'Fechamento do dia anterior sem inconsistências.',
-      calculatedIncomes: 1850.00,
-      calculatedExpenses: 400.00
-    },
-    {
-      id: 'cx_002',
-      seqNumber: 2,
-      openedAt: new Date().toISOString(),
-      responsibleUser: 'Administração Financeira',
-      initialBalance: 300.00,
-      status: 'OPEN',
-      notes: 'Caixa do dia atual aberto normalmente.'
-    }
-  ];
-  return getItemJSON<CashRegister[]>(STORAGE_KEYS.CASH_REGISTERS, seedRegisters);
+export async function getCashRegisters(): Promise<CashRegister[]> {
+  const { data, error } = await supabase
+    .from('financeiro_caixas').select('*').order('seq_numero', { ascending: false });
+  if (error) { console.warn('[Financeiro] caixas:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(caixaDoBanco);
 }
 
-export function getOpenCashRegister(): CashRegister | null {
-  const registers = getCashRegisters();
-  return registers.find(r => r.status === 'OPEN') || null;
+export async function getOpenCashRegister(): Promise<CashRegister | null> {
+  const { data, error } = await supabase
+    .from('financeiro_caixas').select('*').eq('status', 'OPEN').maybeSingle();
+  if (error || !data) return null;
+  return caixaDoBanco(data);
 }
 
-export function openCashRegister(user: string, initialBalance: number, notes?: string): CashRegister {
-  const registers = getCashRegisters();
-  const maxSeq = registers.reduce((acc, r) => Math.max(acc, r.seqNumber || 0), 0);
-  
-  const newReg: CashRegister = {
-    id: 'cx_' + Date.now(),
-    seqNumber: maxSeq + 1,
-    openedAt: new Date().toISOString(),
-    responsibleUser: user,
-    initialBalance: Number(initialBalance),
-    status: 'OPEN',
-    notes: notes?.trim()
-  };
+export async function openCashRegister(user: string, initialBalance: number, notes?: string): Promise<CashRegister> {
+  const jaAberto = await getOpenCashRegister();
+  if (jaAberto) throw new Error(`Já existe o Caixa #${jaAberto.seqNumber} aberto. Feche-o antes de abrir outro.`);
 
-  registers.push(newReg);
-  setItemJSON(STORAGE_KEYS.CASH_REGISTERS, registers);
-  addFinancialAuditLog(user, 'ABERTURA_CAIXA', `Caixa #${newReg.seqNumber} aberto com saldo inicial de R$ ${initialBalance.toFixed(2)}`);
-  return newReg;
+  const { data: seqData, error: erroSeq } = await supabase.rpc('nextval_financeiro_caixa');
+  if (erroSeq) throw new Error(explicarErroFinanceiro(erroSeq));
+
+  const { data, error } = await supabase.from('financeiro_caixas').insert({
+    seq_numero: seqData, responsavel: user, saldo_inicial: Number(initialBalance),
+    status: 'OPEN', observacoes: notes?.trim() || null,
+  }).select('*').single();
+  if (error) throw new Error(explicarErroFinanceiro(error));
+
+  const novo = caixaDoBanco(data);
+  await addFinancialAuditLog(user, 'ABERTURA_CAIXA', `Caixa #${novo.seqNumber} aberto com saldo inicial de R$ ${initialBalance.toFixed(2)}`);
+  return novo;
 }
 
-export function closeCashRegister(registerId: string, user: string, finalNotes?: string): CashRegister | null {
-  const registers = getCashRegisters();
-  const idx = registers.findIndex(r => r.id === registerId);
-  if (idx === -1) return null;
+export async function closeCashRegister(registerId: string, user: string, finalNotes?: string): Promise<CashRegister | null> {
+  const { data: reg, error: erroReg } = await supabase
+    .from('financeiro_caixas').select('*').eq('id', registerId).single();
+  if (erroReg || !reg) return null;
 
-  const reg = registers[idx];
-  
-  // Calculate incomes and expenses linked to this cash register
-  const receipts = getReceipts().filter(rc => rc.cashRegisterId === registerId && rc.status === 'VALIDO');
-  const expenses = getExpenses().filter(ex => ex.cashRegisterId === registerId);
+  const { data: recibos } = await supabase
+    .from('financeiro_recibos').select('valor_total').eq('caixa_id', registerId).eq('status', 'VALIDO');
+  const { data: saidas } = await supabase
+    .from('financeiro_saidas').select('valor').eq('caixa_id', registerId);
 
-  const totalIncomes = receipts.reduce((sum, r) => sum + r.totalValue, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.value, 0);
-  const finalBalance = reg.initialBalance + totalIncomes - totalExpenses;
+  const totalEntradas = (recibos ?? []).reduce((s: number, r: any) => s + Number(r.valor_total), 0);
+  const totalSaidas = (saidas ?? []).reduce((s: number, e: any) => s + Number(e.valor), 0);
+  const saldoFinal = Number(reg.saldo_inicial) + totalEntradas - totalSaidas;
 
-  registers[idx] = {
-    ...reg,
-    status: 'CLOSED',
-    closedAt: new Date().toISOString(),
-    finalBalance,
-    calculatedIncomes: totalIncomes,
-    calculatedExpenses: totalExpenses,
-    notes: finalNotes ? `${reg.notes || ''} | Fechamento: ${finalNotes}` : reg.notes
-  };
+  const { data, error } = await supabase.from('financeiro_caixas').update({
+    status: 'CLOSED', fechado_em: new Date().toISOString(), saldo_final: saldoFinal,
+    entradas_calculadas: totalEntradas, saidas_calculadas: totalSaidas,
+    observacoes: finalNotes ? `${reg.observacoes || ''} | Fechamento: ${finalNotes}` : reg.observacoes,
+  }).eq('id', registerId).select('*').single();
+  if (error) { console.warn('[Financeiro] fechar caixa:', explicarErroFinanceiro(error)); return null; }
 
-  setItemJSON(STORAGE_KEYS.CASH_REGISTERS, registers);
-  addFinancialAuditLog(user, 'FECHAMENTO_CAIXA', `Caixa #${reg.seqNumber} fechado. Entradas: R$ ${totalIncomes.toFixed(2)}, Saídas: R$ ${totalExpenses.toFixed(2)}, Saldo Final: R$ ${finalBalance.toFixed(2)}`);
-  return registers[idx];
+  await addFinancialAuditLog(user, 'FECHAMENTO_CAIXA',
+    `Caixa #${reg.seq_numero} fechado. Entradas: R$ ${totalEntradas.toFixed(2)}, Saídas: R$ ${totalSaidas.toFixed(2)}, Saldo Final: R$ ${saldoFinal.toFixed(2)}`);
+  return caixaDoBanco(data);
 }
 
-export function reopenCashRegister(registerId: string, user: string): boolean {
-  const registers = getCashRegisters();
-  const idx = registers.findIndex(r => r.id === registerId);
-  if (idx === -1) return false;
-
-  registers[idx].status = 'OPEN';
-  delete registers[idx].closedAt;
-
-  setItemJSON(STORAGE_KEYS.CASH_REGISTERS, registers);
-  addFinancialAuditLog(user, 'REABERTURA_CAIXA', `Caixa #${registers[idx].seqNumber} reaberto pelo Administrador.`);
+export async function reopenCashRegister(registerId: string, user: string): Promise<boolean> {
+  const { data: reg, error } = await supabase
+    .from('financeiro_caixas').update({ status: 'OPEN', fechado_em: null }).eq('id', registerId).select('seq_numero').single();
+  if (error || !reg) return false;
+  await addFinancialAuditLog(user, 'REABERTURA_CAIXA', `Caixa #${reg.seq_numero} reaberto pelo Administrador.`);
   return true;
 }
 
