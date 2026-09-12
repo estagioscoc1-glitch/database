@@ -69,20 +69,29 @@ const CSS_IMPRESSAO = `
    NEGRITO ONDE O MODELO TEM. Conceito, faltas e carga horária saem em
    negrito; o nome do componente, não. É o contraste que faz a coluna de
    conceitos ser lida de relance. */
+/*
+   10pt NO CORPO, A PEDIDO — MAS COM O PREENCHIMENTO VERTICAL MAIS MAGRO.
+   Segurança do Trabalho tem 19 disciplinas na grade — o dobro de cursos
+   como Radiologia — e já era o único curso raspando o limite de 2 páginas
+   antes desta mudança. Aumentar a fonte sem cortar de outro lado faria
+   exatamente esse curso estourar para 3. Por isso o padding vertical caiu
+   de 1.5px para 1px: a fonte maior ocupa quase a mesma altura de linha que
+   a fonte menor ocupava antes, e o ganho de legibilidade fica quase de
+   graça em espaço de página. */
 const cel: React.CSSProperties = {
   border: '0.5pt solid #000',
-  padding: '1.5px 4px',
-  fontSize: '9pt',
+  padding: '1px 4px',
+  fontSize: '10pt',
   verticalAlign: 'middle',
 };
 const celCab: React.CSSProperties = {
   ...cel, fontWeight: 'bold', textAlign: 'center',
-  fontSize: '9pt', lineHeight: 1.1,
+  fontSize: '10pt', lineHeight: 1.05,
 };
 const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
 /** Conceito, faltas e C.H. — os números que a secretaria confere primeiro. */
 const celNum: React.CSSProperties = { ...celC, fontWeight: 'bold' };
-const celIdent: React.CSSProperties = { ...cel, fontSize: '9.5pt' };
+const celIdent: React.CSSProperties = { ...cel, fontSize: '10.5pt', padding: '1.5px 4px' };
 /** Valor preenchido na faixa de identificação: nome, nascimento, filiação. */
 const celIdentValor: React.CSSProperties = { ...celIdent, fontWeight: 'bold' };
 const celDep: React.CSSProperties = { ...celC };
@@ -158,7 +167,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </p>
       </div>
 
-      <h1 style={{ textAlign: 'center', fontSize: '12.5pt', fontWeight: 'bold', margin: '9px 0 8px', letterSpacing: '0.06em' }}>
+      <h1 style={{ textAlign: 'center', fontSize: '12.5pt', fontWeight: 'bold', margin: '6px 0 6px', letterSpacing: '0.06em' }}>
         {parcial ? modelo.titulo.replace('HISTÓRICO ESCOLAR', 'HISTÓRICO ESCOLAR PARCIAL') : modelo.titulo}
       </h1>
 
@@ -170,7 +179,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
 
           Agora é uma célula por informação, com o rótulo em negrito e o valor
           logo em seguida — do jeito que sai no Word. */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3px' }}>
         <tbody>
           <tr>
             <td style={celIdent} colSpan={2}>
@@ -232,7 +241,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                         lado a lado e viram duas linhas paralelas depois da
                         rotação — exatamente como na planilha, onde "MÓDULO I"
                         e "2025/2" aparecem um ao lado do outro. */}
-                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ ...girado, fontSize: '7.5pt', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <div>{mod.nome}</div>
                       {mod.anoSemestre && <div>{mod.anoSemestre}</div>}
                     </div>
@@ -248,7 +257,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                     modelo impresso da escola. */}
                 {mi === 0 && li === 0 && (
                   <td rowSpan={totalLinhas} style={{ ...celC, padding: '2px 0' }}>
-                    <div style={{ ...girado, fontSize: '7.5pt', fontWeight: 'bold' }}>
+                    <div style={{ ...girado, fontSize: '8pt', fontWeight: 'bold' }}>
                       APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA&nbsp;&nbsp;M.F.C
                     </div>
                   </td>
@@ -394,7 +403,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           <div style={{ marginTop: '3.2cm', textAlign: 'center' }}>
             <div style={{
               borderTop: '0.3mm solid #000', width: '78%', margin: '0 auto',
-              paddingTop: '2mm', fontSize: '10.5pt',
+              paddingTop: '2mm', fontSize: '11pt',
             }}>
               ASSINATURA
             </div>
@@ -402,27 +411,27 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </div>
       ) : (
       <div className="hist-quebra" style={{ marginTop: '12px' }}>
-        <h2 style={{ textAlign: 'center', fontSize: '10pt', fontWeight: 'bold', margin: '0 0 10px' }}>
+        <h2 style={{ textAlign: 'center', fontSize: '11pt', fontWeight: 'bold', margin: '0 0 10px' }}>
           COMPETÊNCIAS ADQUIRIDAS
         </h2>
 
-        <p style={{ fontSize: '8.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>GERAIS:</p>
-        <ul style={{ margin: '0 0 12px', paddingLeft: '18px', fontSize: '8.8pt', lineHeight: 1.5 }}>
+        <p style={{ fontSize: '9.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>GERAIS:</p>
+        <ul style={{ margin: '0 0 10px', paddingLeft: '18px', fontSize: '9.5pt', lineHeight: 1.35 }}>
           {modelo.competenciasGerais.map((c, i) => (
-            <li key={i} style={{ marginBottom: '2px', textAlign: 'justify' }}>{c}</li>
+            <li key={i} style={{ marginBottom: '1px', textAlign: 'justify' }}>{c}</li>
           ))}
         </ul>
 
-        <p style={{ fontSize: '8.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>ESPECÍFICAS:</p>
-        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '8.8pt', lineHeight: 1.5 }}>
+        <p style={{ fontSize: '9.5pt', fontWeight: 'bold', margin: '0 0 4px' }}>ESPECÍFICAS:</p>
+        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '9.5pt', lineHeight: 1.35 }}>
           {modelo.competenciasEspecificas.map((c, i) => (
-            <li key={i} style={{ marginBottom: '2px', textAlign: 'justify' }}>{c}</li>
+            <li key={i} style={{ marginBottom: '1px', textAlign: 'justify' }}>{c}</li>
           ))}
         </ul>
 
         {/* Assinaturas */}
         <div className="hist-nao-quebrar" style={{ marginTop: '1.4cm' }}>
-          <p style={{ fontSize: '9pt', margin: '0 0 1.4cm' }}>
+          <p style={{ fontSize: '10pt', margin: '0 0 1.4cm' }}>
             Goiânia, GO — {dataBr(dados.dataEmissao)}
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-around', gap: '40px' }}>
@@ -432,8 +441,8 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
             ].map((a, i) => (
               <div key={i} style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ borderTop: '0.5pt solid #000', paddingTop: '3px' }}>
-                  <p style={{ fontSize: '9pt', margin: 0, fontWeight: 'bold' }}>{a.nome}</p>
-                  <p style={{ fontSize: '8pt', margin: 0 }}>{a.cargo}</p>
+                  <p style={{ fontSize: '10pt', margin: 0, fontWeight: 'bold' }}>{a.nome}</p>
+                  <p style={{ fontSize: '9pt', margin: 0 }}>{a.cargo}</p>
                 </div>
               </div>
             ))}
