@@ -54,17 +54,21 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
     });
   };
 
-  const refreshData = () => {
-    const list = getCashRegisters();
+  /* PARTE 1 DA CONVERSÃO PARA O BANCO: as cinco chamadas de Caixa abaixo
+     agora esperam a resposta do Supabase (await), em vez de ler o navegador
+     na hora. É a única mudança que esta tela precisou — o resto do desenho
+     continua igual. */
+  const refreshData = async () => {
+    const list = await getCashRegisters();
     setRegisters(list);
-    setOpenCash(getOpenCashRegister());
+    setOpenCash(await getOpenCashRegister());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
-  const handleOpenCashSubmit = (e: React.FormEvent) => {
+  const handleOpenCashSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (openCash) {
       alert('Já existe um caixa ABERTO. É necessário fechar o caixa atual antes de abrir um novo.');
@@ -76,24 +80,29 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
       return;
     }
 
-    openCashRegister(currentUser, val, openNotes);
+    try {
+      await openCashRegister(currentUser, val, openNotes);
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível abrir o caixa.');
+      return;
+    }
     setShowOpenModal(false);
     setInitialBalance('0.00');
     setOpenNotes('');
-    refreshData();
+    void refreshData();
   };
 
-  const handleCloseCashSubmit = (e: React.FormEvent) => {
+  const handleCloseCashSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!openCash) return;
 
-    closeCashRegister(openCash.id, currentUser, closeNotes);
+    await closeCashRegister(openCash.id, currentUser, closeNotes);
     setShowCloseModal(false);
     setCloseNotes('');
-    refreshData();
+    void refreshData();
   };
 
-  const handleReopen = (regId: string) => {
+  const handleReopen = async (regId: string) => {
     if (!isAdmin) {
       alert('Apenas administradores possuem permissão para reabrir caixa.');
       return;
@@ -103,8 +112,8 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
       return;
     }
     if (confirm('Deseja realmente REABRIR este caixa? Esta operação será registrada no histórico de auditoria.')) {
-      reopenCashRegister(regId, currentUser);
-      refreshData();
+      await reopenCashRegister(regId, currentUser);
+      void refreshData();
     }
   };
 
