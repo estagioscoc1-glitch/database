@@ -184,7 +184,7 @@ export const CertificadoVerso: React.FC<PropsVerso> = ({ verso, cidadeData, nome
     <div
       className="dip-folha dip-folha-retrato"
       style={{
-        position: 'relative', width: '210mm', height: '297mm',
+        position: 'relative', width: '210mm', minHeight: '297mm',
         background: '#fff', fontFamily: serif, color: '#000',
         padding: '12mm', boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', gap: '0',
@@ -215,7 +215,8 @@ export const CertificadoVerso: React.FC<PropsVerso> = ({ verso, cidadeData, nome
           folha={verso.folha}
           localData={cidadeData}
           nomeSecretario={nomeSecretario}
-          largura="70mm"
+          largura="72mm"
+          compacto
         />
       </div>
     </div>

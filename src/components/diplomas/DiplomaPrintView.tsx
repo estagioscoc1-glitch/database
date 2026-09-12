@@ -308,7 +308,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
         }}>
           <div style={{ fontWeight: 'bold' }}>SISTEC - MEC</div>
           <div style={{ fontWeight: 'bold' }}>CÓDIGO DE AUTENTICAÇÃO</div>
-          <div style={{ color: '#c00000', fontWeight: 'bold', fontSize: '9.5pt', marginTop: '1mm' }}>
+          <div style={{ color: '#000', fontWeight: 'bold', fontSize: '9.5pt', marginTop: '1mm' }}>
             {verso.codigoAutenticacao || '\u00a0'}
           </div>
         </div>
@@ -331,7 +331,11 @@ export const DiplomaPrintView: React.FC<Props> = ({
     <div
       className="dip-folha dip-folha-retrato"
       style={{
-        position: 'relative', width: '210mm', height: '297mm',
+        /* minHeight, não height: com o carimbo grande dentro do rodapé, se o
+           conteúdo precisar de mais espaço a folha cresce (e imprime uma
+           página a mais), em vez de o navegador espremer tudo para caber e
+           os textos passarem um por cima do outro. */
+        position: 'relative', width: '210mm', minHeight: '297mm',
         background: '#fff', fontFamily: serif, color: '#000',
         padding: '12mm', boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column',
@@ -403,7 +407,8 @@ export const DiplomaPrintView: React.FC<Props> = ({
             folha={verso.folha}
             localData={dados.cidadeData}
             nomeSecretario={dados.nomeSecretario}
-            largura="100%"
+            largura="80mm"
+            compacto
           />
         </div>
         <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', borderLeft: 'none', flex: 1 }}>
