@@ -33,14 +33,6 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
   const [tipo, setTipo] = useState<TipoDiploma>('DIPLOMA');
   const [verso, setVerso] = useState<VersoDiploma>({ ...VERSO_VAZIO });
   const [imprimirVerso, setImprimirVerso] = useState(true);
-
-  /* DIPLOMA SEM COR.
-     A mesma folha de sempre, com a mesma arte do papel de segurança, só que
-     descolorida: a faixa vermelha da lateral sai preta e a logomarca sai em
-     cinza. Serve para impressora monocromática e para papel comum. Frente e
-     verso saem os dois assim. Só vale para o diploma técnico — os dois
-     certificados já são desenhados em preto. */
-  const [diplomaA4PB, setDiplomaA4PB] = useState(false);
   const [preview, setPreview] = useState<any | null>(null);
   // Notas do histórico do verso — só a Especialização Técnica usa.
   const [notasInstr, setNotasInstr] = useState<Record<string, string>>({});
@@ -68,18 +60,7 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
 
   const contexto = (a: any) => {
     const turma = classes.find(c => c.id === a?.classId);
-
-    /* O CURSO DA TURMA MANDA, E SÓ DEPOIS O DA FICHA.
-       O aluno guarda um curso na ficha dele e outro na turma em que está
-       matriculado. Quando os dois discordam — aluno que trocou de curso, ou
-       ficha antiga —, a busca anterior aceitava qualquer um dos dois e ficava
-       com o que aparecesse primeiro na lista de cursos. Bastava a ficha ainda
-       apontar Enfermagem para o sistema liberar o Certificado de Auxiliar a
-       um aluno de Segurança do Trabalho.
-
-       A turma é a fonte confiável: é nela que o aluno está cursando. */
-    const curso = courses.find(c => c.id === (turma as any)?.courseId)
-               ?? courses.find(c => c.id === (a as any)?.courseId);
+    const curso = courses.find(c => c.id === (turma as any)?.courseId || c.id === (a as any)?.courseId);
     return { turma, curso };
   };
   const { turma: turmaAluno, curso: cursoAluno } = aluno ? contexto(aluno) : { turma: null, curso: null };
@@ -310,24 +291,12 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
                          onChange={e => setImprimirVerso(e.target.checked)} />
                   <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Imprimir o verso junto</span>
                 </label>
-
-                {tipo === 'DIPLOMA' && (
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" checked={diplomaA4PB}
-                           onChange={e => setDiplomaA4PB(e.target.checked)} />
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      Diploma A4 em preto e branco
-                      <span className="block font-medium text-[11px] text-slate-400 mt-0.5">
-                        Mesma arte de sempre, sem cor: a faixa vermelha sai preta e a logomarca em cinza. Vale para a frente e o verso.
-                      </span>
-                    </span>
-                  </label>
-                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {([
                     ['cursoAnterior', 'Curso anterior'], ['unidadeEscolar', 'Unidade escolar'],
                     ['localDataConclusao', 'Local e data de conclusão'], ['registro', 'Registro nº'],
                     ['livro', 'Livro'], ['folha', 'Folha'],
+                    ['codigoAutenticacao', 'Código SISTEC/MEC'],
                   ] as const).map(([k, t]) => (
                     <div key={k}>
                       <label className={rotulo}>{t}</label>
@@ -348,13 +317,11 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
             <button type="button" disabled={!liberado}
                     onClick={() => setPreview({
                       modelo, dados: d, verso, imprimirVerso,
-                      versaoA4PB: tipo === 'DIPLOMA' && diplomaA4PB,
                       notasInstrumentacao: notasInstr, frequenciaInstrumentacao: freqInstr,
                       faltasInstrumentacao: faltasInstr,
                     })}
                     className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-black rounded-2xl text-xs">
               <Award className="h-4 w-4" /> Gerar {modelo.palavraDocumento}
-              {tipo === 'DIPLOMA' && diplomaA4PB && ' (A4 P&B)'}
             </button>
           </div>
         </>
@@ -366,7 +333,6 @@ export const DiplomasModule: React.FC<{ currentUser?: string }> = () => {
           dados={preview.dados}
           verso={preview.verso}
           imprimirVerso={preview.imprimirVerso}
-          versaoA4PB={(preview as any).versaoA4PB}
           notasInstrumentacao={preview.notasInstrumentacao}
           frequenciaInstrumentacao={preview.frequenciaInstrumentacao}
           faltasInstrumentacao={preview.faltasInstrumentacao}

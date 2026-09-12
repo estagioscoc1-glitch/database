@@ -61,14 +61,7 @@ interface Props {
 
 const CSS_IMPRESSAO = (ORIENTACAO: string) => `
   @media print {
-    /* MEDIDA EXATA, NÃO A PALAVRA "A4".
-       "A4 paisagem" e "297mm x 210mm" deveriam dar na mesma coisa, mas em
-       algumas versões do Chrome não dão — sobra uma fração de milímetro por
-       arredondamento interno, e o navegador reage encolhendo a folha para
-       caber, sozinho, sem avisar. Era por isso que a impressão saía em 80%
-       e era preciso digitar 100 na mão toda vez. Com o tamanho exato em
-       milímetros, não sobra o que arredondar. */
-    @page { size: ${ORIENTACAO === 'landscape' ? '297mm 210mm' : '210mm 297mm'}; margin: 0; }
+    @page { size: A4 ${ORIENTACAO}; margin: 0; }
     #root, .no-print { display: none !important; }
     html, body {
       background: #fff !important; margin: 0 !important; padding: 0 !important;
@@ -297,8 +290,11 @@ export const DiplomaPrintView: React.FC<Props> = ({
       }}>
         {verso.observacoes}
       </div>
-      {/* CARIMBO DE REGISTRO — canto inferior esquerdo, como no original. */}
-      <div style={{ position: 'absolute', left: '7%', top: '71%' }}>
+      {/* CARIMBO DE REGISTRO, com a caixinha do SISTEC/MEC do lado direito.
+          O carimbo grande já existia; o código do SISTEC é novo — muda de
+          aluno para aluno, por isso vem do formulário (verso.codigoAutenticacao),
+          nunca escrito fixo aqui. */}
+      <div style={{ position: 'absolute', left: '7%', top: '71%', display: 'flex', alignItems: 'flex-start', gap: '4mm' }}>
         <CarimboRegistro
           registro={verso.registro}
           livro={verso.livro}
@@ -306,6 +302,16 @@ export const DiplomaPrintView: React.FC<Props> = ({
           localData={dados.cidadeData}
           nomeSecretario={dados.nomeSecretario}
         />
+        <div style={{
+          width: '38mm', border: '0.4mm solid #000', padding: '2mm',
+          textAlign: 'center', fontFamily: serif, fontSize: '8.5pt', lineHeight: 1.3,
+        }}>
+          <div style={{ fontWeight: 'bold' }}>SISTEC - MEC</div>
+          <div style={{ fontWeight: 'bold' }}>CÓDIGO DE AUTENTICAÇÃO</div>
+          <div style={{ color: '#c00000', fontWeight: 'bold', fontSize: '9.5pt', marginTop: '1mm' }}>
+            {verso.codigoAutenticacao || '\u00a0'}
+          </div>
+        </div>
       </div>
     </div>
   );
