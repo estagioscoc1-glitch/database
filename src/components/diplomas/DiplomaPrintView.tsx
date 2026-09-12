@@ -391,13 +391,20 @@ export const DiplomaPrintView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Caixa do pé, dividida em REGISTRO e OBS. */}
-      <div style={{ display: 'flex', height: '52mm' }}>
-        {/* REGISTRO em branco, como no arquivo original da Instrumentação.
-            Aqui a caixa é preenchida à mão ou carimbada — o carimbo montado
-            só entra no verso dos diplomas dos cursos técnicos. */}
-        <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', flex: 1 }}>
-          <div>REGISTRO:</div>
+      {/* Caixa do pé, dividida em REGISTRO e OBS.
+          O lado do REGISTRO agora leva o carimbo grande de verdade — antes
+          ficava em branco, esperando carimbo físico de borracha; agora sai
+          já pronto, igual ao verso do diploma dos cursos técnicos. */}
+      <div style={{ display: 'flex', minHeight: '52mm' }}>
+        <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <CarimboRegistro
+            registro={verso.registro}
+            livro={verso.livro}
+            folha={verso.folha}
+            localData={dados.cidadeData}
+            nomeSecretario={dados.nomeSecretario}
+            largura="100%"
+          />
         </div>
         <div style={{ ...caixaI, borderBottom: '0.4mm solid #000', borderLeft: 'none', flex: 1 }}>
           <div>OBS.:</div>
@@ -419,7 +426,7 @@ export const DiplomaPrintView: React.FC<Props> = ({
   const VersoEscolhido = modelo.tipo === 'CERTIFICADO_ESPECIALIZACAO'
     ? VersoInstrumentacao
     : ehCertificadoRetrato
-      ? <CertificadoVerso verso={verso} />
+      ? <CertificadoVerso verso={verso} cidadeData={dados.cidadeData} nomeSecretario={dados.nomeSecretario} />
       : Verso;
 
   return createPortal(

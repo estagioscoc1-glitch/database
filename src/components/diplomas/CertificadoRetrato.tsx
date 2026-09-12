@@ -2,6 +2,7 @@ import React from 'react';
 import { BRASAO_REPUBLICA } from '../../lib/brasaoAsset';
 import { LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES } from '../../lib/imageAssets';
 import { REGISTRO_CABECALHO } from '../../lib/diplomaTextos';
+import { CarimboRegistro } from './CarimboRegistro';
 
 // ===========================================================================
 //  CERTIFICADO — Qualificação Técnica (Auxiliar) e Especialização (Instrumentação)
@@ -64,27 +65,12 @@ export const CertificadoFrente: React.FC<Props> = ({ dados, preencher }) => (
       alt=""
       aria-hidden
       style={{
-        /* CENTRALIZADA E MAIS CLARA.
-           Antes ficava em top 44% com opacidade 0.16 e caía exatamente em
-           cima da linha "Filho(a) de:", embaralhando o texto na impressão.
-           Agora é centrada de verdade na folha e clara o bastante para não
-           disputar com nada escrito por cima. */
-        position: 'absolute', left: '50%', top: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '74%', opacity: 0.08, pointerEvents: 'none',
+        position: 'absolute', left: '12%', right: '12%', top: '44%',
+        width: '76%', opacity: 0.16, pointerEvents: 'none',
       }}
     />
 
-    {/* CORPO EM COLUNA, COM FOLGA ELÁSTICA ANTES DO RODAPÉ.
-        Antes as distâncias do fim eram fixas (12mm da data, 18mm das
-        assinaturas, 14mm do concluinte). Com nome comprido, que ocupa duas
-        linhas, a soma passava da altura da folha e o "CONCLUINTE" saía
-        impresso FORA da moldura preta. Agora o miolo cresce e a folga se
-        ajusta sozinha: o rodapé fica sempre colado embaixo, dentro da borda. */}
-    <div style={{
-      position: 'relative', padding: '6mm 8mm', height: '100%',
-      boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
-    }}>
+    <div style={{ position: 'relative', padding: '6mm 8mm', height: '100%', boxSizing: 'border-box' }}>
 
       {/* Cabeçalho: brasão à esquerda, instituição à direita */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6mm' }}>
@@ -116,39 +102,18 @@ export const CertificadoFrente: React.FC<Props> = ({ dados, preencher }) => (
         {preencher(dados.textoLegal)}
       </p>
 
-      {/* NOME.
-          Nome muito comprido quebrava em duas linhas de 22pt e roubava a
-          altura do resto da folha. Passando de 38 letras, o corpo diminui —
-          continua sendo o maior texto da página, mas cabe. */}
-      <div style={{
-        textAlign: 'center', fontWeight: 'bold', margin: '7mm 0 4mm',
-        lineHeight: 1.15,
-        fontSize: dados.alunoNome.length > 38 ? '18pt' : '22pt',
-      }}>
+      {/* Nome */}
+      <div style={{ textAlign: 'center', fontSize: '22pt', fontWeight: 'bold', margin: '7mm 0 4mm' }}>
         {dados.alunoNome.toUpperCase()}
       </div>
 
-      {/* FILIAÇÃO.
-          O normal é vir preenchida do cadastro completo do aluno. A linha em
-          branco abaixo é só a rede de proteção para ficha incompleta: melhor
-          uma lacuna visível do que "Filho(a) de:" solto, que parecia defeito
-          do sistema. Com os dois nomes, o segundo desce alinhado ao primeiro. */}
-      <div style={{ fontSize: '12pt', lineHeight: 1.6 }}>
-        <span>Filho(a) de: </span>
-        {dados.filiacao ? (
-          <>
-            <strong>{dados.filiacao.split(' e ')[0]}</strong>
-            {dados.filiacao.includes(' e ') && (
-              <div style={{ paddingLeft: '6.2em' }}>
-                <strong>{dados.filiacao.split(' e ').slice(1).join(' e ')}</strong>
-              </div>
-            )}
-          </>
-        ) : (
-          <span style={{
-            display: 'inline-block', borderBottom: '0.3mm solid #000',
-            width: '60%', verticalAlign: 'baseline',
-          }} />
+      {/* Filiação — duas linhas, como no original */}
+      <div style={{ fontSize: '12pt', lineHeight: 1.5 }}>
+        Filho(a) de: <strong>{dados.filiacao.split(' e ')[0] || ''}</strong>
+        {dados.filiacao.includes(' e ') && (
+          <div style={{ paddingLeft: '7em' }}>
+            <strong>{dados.filiacao.split(' e ').slice(1).join(' e ')}</strong>
+          </div>
         )}
       </div>
 
@@ -167,16 +132,13 @@ export const CertificadoFrente: React.FC<Props> = ({ dados, preencher }) => (
         {dados.textoFecho}
       </p>
 
-      {/* A folga que sobra fica aqui, entre o texto e o rodapé. */}
-      <div style={{ flex: 1, minHeight: '8mm' }} />
-
       {/* Data */}
-      <div style={{ textAlign: 'center', fontSize: '12pt' }}>
+      <div style={{ textAlign: 'center', fontSize: '12pt', margin: '12mm 0 0' }}>
         {dados.cidadeData}
       </div>
 
       {/* Assinaturas */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14mm', margin: '16mm 0 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14mm', margin: '18mm 0 0' }}>
         {[
           { nome: dados.nomeSecretario, cargo: 'Secretário' },
           { nome: dados.nomeDirecao, cargo: 'Diretora' },
@@ -191,7 +153,7 @@ export const CertificadoFrente: React.FC<Props> = ({ dados, preencher }) => (
       </div>
 
       {/* Concluinte */}
-      <div style={{ margin: '10mm auto 0', width: '72%', textAlign: 'center' }}>
+      <div style={{ margin: '14mm auto 0', width: '72%', textAlign: 'center' }}>
         <div style={{ borderTop: '1px solid #000', paddingTop: '1mm', fontSize: '12pt', fontWeight: 'bold' }}>
           CONCLUINTE
         </div>
@@ -206,10 +168,15 @@ interface PropsVerso {
     unidadeEscolar: string;
     localDataConclusao: string;
     observacoes: string;
+    registro: string;
+    livro: string;
+    folha: string;
   };
+  cidadeData: string;
+  nomeSecretario: string;
 }
 
-export const CertificadoVerso: React.FC<PropsVerso> = ({ verso }) => {
+export const CertificadoVerso: React.FC<PropsVerso> = ({ verso, cidadeData, nomeSecretario }) => {
   const caixa: React.CSSProperties = {
     border: '0.4mm solid #000', padding: '2.5mm 3mm', fontSize: '12pt',
   };
@@ -237,11 +204,19 @@ export const CertificadoVerso: React.FC<PropsVerso> = ({ verso }) => {
         <strong>OBSERVAÇÕES:</strong> {verso.observacoes}
       </div>
 
-      {/* O QUADRADO DO PÉ DA FOLHA: uma caixa dividida em duas colunas,
-          "REGISTRO" à esquerda e a da direita em branco, para o carimbo. */}
-      <div style={{ display: 'flex', height: '32%' }}>
-        <div style={{ ...caixa, borderTop: 'none', flex: 1, fontWeight: 'bold' }}>REGISTRO</div>
-        <div style={{ ...caixa, borderTop: 'none', borderLeft: 'none', flex: 1 }} />
+      {/* O QUADRADO DO PÉ DA FOLHA — antes vinha em branco, esperando o
+          carimbo físico de borracha; agora leva o carimbo grande pronto,
+          igual ao verso do diploma dos cursos técnicos. */}
+      <div style={{ height: '32%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '0.4mm solid #000', borderTop: 'none' }}>
+        <CarimboRegistro
+          registro={verso.registro}
+          livro={verso.livro}
+          folha={verso.folha}
+          localData={cidadeData}
+          nomeSecretario={nomeSecretario}
+          largura="70mm"
+        />
       </div>
     </div>
   );
