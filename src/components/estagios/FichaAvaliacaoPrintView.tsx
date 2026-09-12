@@ -51,7 +51,7 @@ const CSS_IMPRESSAO = `
 `;
 
 const cel: React.CSSProperties = {
-  border: '0.4mm solid #000', padding: '2px 5px', fontSize: '8.5pt', verticalAlign: 'top',
+  border: '0.4mm solid #000', padding: '2px 5px', fontSize: '12pt', verticalAlign: 'top',
 };
 
 export const FichaAvaliacaoPrintView: React.FC<Props> = ({
@@ -166,10 +166,10 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
         <thead>
           <tr>
-            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontSize: '9pt' }}>
+            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontSize: '12pt' }}>
               ELEMENTOS DE COMPETÊNCIA
             </th>
-            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', width: '16%', fontSize: '9pt' }}>
+            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', width: '16%', fontSize: '12pt' }}>
               NOTAS
             </th>
           </tr>
@@ -190,7 +190,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
                   <div style={{ minHeight: '11mm' }} />
                 )}
               </td>
-              <td style={{ ...cel, textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '11pt' }}>
+              <td style={{ ...cel, textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '13pt' }}>
                 {b.nota === null || b.nota === undefined ? '' : b.nota.toFixed(1).replace('.', ',')}
               </td>
             </tr>
@@ -199,7 +199,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
               coluna da nota — não duas caixas separadas de resultado e
               média. */}
           <tr>
-            <td style={{ ...cel, background: '#d9d9d9', fontWeight: 'bold', fontSize: '10pt' }}>
+            <td style={{ ...cel, background: '#d9d9d9', fontWeight: 'bold', fontSize: '12pt' }}>
               RESULTADO FINAL {aluno.resultado === 'PENDENTE' ? '' : `— ${aluno.resultado}`}
             </td>
             <td style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
@@ -259,7 +259,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
       <div style={{ display: 'flex', justifyContent: 'space-around', gap: '20mm', marginTop: '14mm' }}>
         {['PROFESSOR / SUPERVISOR', 'COORDENAÇÃO DE CURSO'].map(t => (
           <div key={t} style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ borderTop: '0.5mm solid #000', paddingTop: '1mm', fontSize: '9pt', fontWeight: 'bold' }}>
+            <div style={{ borderTop: '0.5mm solid #000', paddingTop: '1mm', fontSize: '11pt', fontWeight: 'bold' }}>
               {t}
             </div>
           </div>
