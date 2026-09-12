@@ -33,10 +33,8 @@ interface Props {
 
 const CSS_IMPRESSAO = `
   @media print {
-    /* Medida exata em milímetros, não a palavra "A4" — evita o
-       arredondamento que fazia o Chrome encolher a folha sozinho. */
     @page {
-      size: 210mm 297mm;
+      size: A4 portrait;
       margin: 1.5cm 2cm;
     }
     #root, .no-print { display: none !important; }
@@ -117,7 +115,7 @@ export const DeclaracaoPrintView: React.FC<Props> = ({ modelo, dados, onClose })
       </h1>
 
       {/* Corpo */}
-      <div style={{ flex: 1, fontSize: '11.5pt', lineHeight: 1.75, textAlign: 'justify' }}>
+      <div style={{ flex: 1, fontSize: '13pt', lineHeight: 1.75, textAlign: 'justify' }}>
         {modelo.paragrafos.map((par, i) => (
           <p key={i} style={{ margin: '0 0 14px', textIndent: '2.5em' }}>
             {preencherDeclaracao(par, dados)}
