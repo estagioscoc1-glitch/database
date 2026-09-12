@@ -69,23 +69,23 @@ const CSS_IMPRESSAO = `
    NEGRITO ONDE O MODELO TEM. Conceito, faltas e carga horária saem em
    negrito; o nome do componente, não. É o contraste que faz a coluna de
    conceitos ser lida de relance. */
-const cel: React.CSSProperties = {
-  border: '0.5pt solid #000',
-  padding: '1.5px 4px',
-  fontSize: '9pt',
-  verticalAlign: 'middle',
-};
-const celCab: React.CSSProperties = {
-  ...cel, fontWeight: 'bold', textAlign: 'center',
-  fontSize: '9pt', lineHeight: 1.1,
-};
-const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
-/** Conceito, faltas e C.H. — os números que a secretaria confere primeiro. */
-const celNum: React.CSSProperties = { ...celC, fontWeight: 'bold' };
-const celIdent: React.CSSProperties = { ...cel, fontSize: '9.5pt' };
-/** Valor preenchido na faixa de identificação: nome, nascimento, filiação. */
-const celIdentValor: React.CSSProperties = { ...celIdent, fontWeight: 'bold' };
-const celDep: React.CSSProperties = { ...celC };
+/*
+   TAMANHO DA FONTE CALCULADO A PARTIR DO CURSO, NÃO FIXO.
+   Cada curso tem uma quantidade diferente de disciplinas — de 4
+   (Radiologia) a 19 (Segurança do Trabalho). Uma fonte fixa que cabe num
+   curso pequeno estoura num curso grande; foi assim que a Segurança do
+   Trabalho passou a sair em 3 folhas quando a fonte subiu para todo mundo
+   igual. Em vez de escolher um tamanho médio na base do chute — o que já
+   deu errado duas vezes —, a função abaixo calcula o tamanho a partir da
+   real quantidade de linhas do histórico que está sendo impresso.
+   Cursos pequenos ganham fonte maior, de graça; cursos grandes ficam um
+   pouco menores, mas sempre cabendo na folha. */
+function escalaPelaQuantidadeDeLinhas(totalLinhas: number) {
+  if (totalLinhas <= 10) return { corpo: 9.5, cabecalho: 9.5, identificacao: 10, padding: '1.6px 4px' };
+  if (totalLinhas <= 14) return { corpo: 9, cabecalho: 9, identificacao: 9.5, padding: '1.4px 4px' };
+  if (totalLinhas <= 18) return { corpo: 8.3, cabecalho: 8.3, identificacao: 9, padding: '1.1px 4px' };
+  return { corpo: 7.7, cabecalho: 7.7, identificacao: 8.5, padding: '0.9px 4px' };
+}
 
 /** Texto girado 90°, como a coluna "Mod." e o rótulo "DEPENDÊNCIA". */
 const girado: React.CSSProperties = {
@@ -120,6 +120,28 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
 
   const parcial = dados.tipo === 'PARCIAL';
   const totalLinhas = linhasPorModulo.reduce((t, m) => t + m.linhas.length, 0);
+
+  const escala = escalaPelaQuantidadeDeLinhas(totalLinhas);
+  const cel: React.CSSProperties = {
+    border: '0.5pt solid #000',
+    padding: escala.padding,
+    fontSize: `${escala.corpo}pt`,
+    verticalAlign: 'middle',
+  };
+  const celCab: React.CSSProperties = {
+    ...cel, fontWeight: 'bold', textAlign: 'center',
+    fontSize: `${escala.cabecalho}pt`, lineHeight: 1.1,
+  };
+  const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
+  /** Conceito, faltas e C.H. — os números que a secretaria confere primeiro. */
+  const celNum: React.CSSProperties = { ...celC, fontWeight: 'bold' };
+  const celIdent: React.CSSProperties = { ...cel, fontSize: `${escala.identificacao}pt` };
+  /** Valor preenchido na faixa de identificação: nome, nascimento, filiação. */
+  const celIdentValor: React.CSSProperties = { ...celIdent, fontWeight: 'bold' };
+  const celDep: React.CSSProperties = { ...celC };
+  /** O texto girado também acompanha a escala — em curso grande, a etiqueta
+      "APROVEITAMENTO DE ESTUDOS..." precisa de menos altura para caber. */
+  const fonteGirado = escala.corpo <= 8.3 ? 6.8 : escala.corpo <= 9 ? 7.2 : 7.6;
 
   /* FREQUÊNCIA OBTIDA — CALCULADA, NÃO DIGITADA.
      No modelo da secretaria ela é a carga horária total menos a soma das
@@ -232,7 +254,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                         lado a lado e viram duas linhas paralelas depois da
                         rotação — exatamente como na planilha, onde "MÓDULO I"
                         e "2025/2" aparecem um ao lado do outro. */}
-                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <div style={{ ...girado, fontSize: `${fonteGirado}pt`, display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       <div>{mod.nome}</div>
                       {mod.anoSemestre && <div>{mod.anoSemestre}</div>}
                     </div>
@@ -248,7 +270,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                     modelo impresso da escola. */}
                 {mi === 0 && li === 0 && (
                   <td rowSpan={totalLinhas} style={{ ...celC, padding: '2px 0' }}>
-                    <div style={{ ...girado, fontSize: '7.5pt', fontWeight: 'bold' }}>
+                    <div style={{ ...girado, fontSize: `${fonteGirado + 0.4}pt`, fontWeight: 'bold' }}>
                       APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA&nbsp;&nbsp;M.F.C
                     </div>
                   </td>
