@@ -15,6 +15,8 @@ import {
 import { ContratosModule } from '../contratos/ContratosModule';
 import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
 import { RequerimentoMatriculaModule } from './RequerimentoMatriculaModule';
+import { RequerimentoDiplomaPrintView } from './RequerimentoDiplomaPrintView';
+import { AditivosContratoModule } from './AditivosContratoModule';
 import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
 import { HistoricoEscolarModule } from '../historico/HistoricoEscolarModule';
 import { DiplomasModule } from '../diplomas/DiplomasModule';
@@ -52,8 +54,9 @@ interface Props {
 
 export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administração' }) => {
   const { users, classes, courses } = useApp();
+  const [fichaAberta, setFichaAberta] = useState<Requerimento | null>(null);
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'matricula' | 'contratos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'matricula' | 'contratos' | 'aditivos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -279,6 +282,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'tipos', rotulo: 'Tipos e Prazos', icone: Settings2 },
             { id: 'matricula', rotulo: 'Requerimento de Matrícula', icone: FileText },
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
+            { id: 'aditivos', rotulo: 'Aditivo de Contrato', icone: FileSignature },
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
             { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
             { id: 'historico', rotulo: 'Histórico Escolar', icone: ScrollText },
@@ -430,6 +434,15 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
                             <option key={s.valor} value={s.valor}>{s.rotulo}</option>
                           ))}
                         </select>
+
+                        <button
+                          type="button"
+                          onClick={() => setFichaAberta(p)}
+                          className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                          title="Imprimir a ficha do requerimento"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </button>
 
                         <button
                           type="button"
@@ -739,6 +752,8 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
 
       {aba === 'contratos' && <ContratosModule currentUser={currentUser} />}
 
+      {aba === 'aditivos' && <AditivosContratoModule currentUser={currentUser} />}
+
       {/* Declarações — os cinco modelos, incluindo os três que o aluno também
           emite sozinho pelo painel dele (Escolaridade, SETRANSP e Vacina). */}
       {aba === 'declaracoes' && <DeclaracoesModule currentUser={currentUser} />}
@@ -756,6 +771,18 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
       {/* Diplomas e certificados — desenhados por cima da digitalização do
           papel oficial. Tudo preenchido do cadastro e tudo editável. */}
       {aba === 'diplomas' && <DiplomasModule currentUser={currentUser} />}
+
+      {fichaAberta && (() => {
+        const aluno = users.find(u => u.id === fichaAberta.alunoId);
+        return (
+          <RequerimentoDiplomaPrintView
+            requerimento={fichaAberta}
+            estadoCivil={(aluno as any)?.maritalStatus}
+            telefone={(aluno as any)?.phone}
+            onClose={() => setFichaAberta(null)}
+          />
+        );
+      })()}
 
     </div>
   );
