@@ -206,8 +206,12 @@ export const CertificadoVerso: React.FC<PropsVerso> = ({ verso, cidadeData, nome
 
       {/* O QUADRADO DO PÉ DA FOLHA — antes vinha em branco, esperando o
           carimbo físico de borracha; agora leva o carimbo grande pronto,
-          igual ao verso do diploma dos cursos técnicos. */}
-      <div style={{ height: '32%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          igual ao verso do diploma dos cursos técnicos.
+          Ajustado: mais respiro entre a linha de cima e o carimbo (estava
+          colado nela), e alinhado à esquerda em vez de centralizado — como
+          no verso do diploma comum. */}
+      <div style={{ minHeight: '50mm', display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+                    padding: '4mm 0 3mm 8mm',
                     border: '0.4mm solid #000', borderTop: 'none' }}>
         <CarimboRegistro
           registro={verso.registro}
