@@ -15,6 +15,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { UserRole, Shift, CustomDashboardWidget, ClassSection } from '../types';
 import { getInstallments, getExpenses } from '../services/financeiroStorage';
+import { listarRequerimentos } from '../lib/supabaseRequerimentos';
 
 const COLORS = {
   primary: '#2563eb', // Blue
@@ -256,6 +257,17 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   const diplomasRequested = useMemo(() => {
     return filteredStudents.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
   }, [filteredStudents]);
+
+  /* DIPLOMA A4 SOLICITADO — vem da fila de Requerimentos, não do status do
+     aluno. Conta quantos pedidos do tipo "Diploma A4" existem, sem contar
+     os cancelados. Busca própria (listarRequerimentos), porque o Dashboard
+     não carrega a fila de Requerimentos por padrão. */
+  const [diplomaA4Requested, setDiplomaA4Requested] = useState(0);
+  useEffect(() => {
+    void listarRequerimentos().then(({ lista }) => {
+      setDiplomaA4Requested(lista.filter(r => r.tipoNome === 'Diploma A4' && r.situacao !== 'CANCELADO').length);
+    });
+  }, []);
 
   /**
    * DESISTENTES — de onde o número sai.
@@ -1046,6 +1058,18 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
             <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Diplomas Requeridos</p>
             <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">{diplomasRequested}</p>
             <p className="text-[10px] text-slate-400 mt-1">Concluintes aptos</p>
+          </div>
+
+          {/* KPI 7-B: Diploma A4 solicitado — pedido gratuito, contado à parte */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl group-hover:scale-110 transition-all">
+                <Award className="h-5 w-5" />
+              </span>
+            </div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Diploma A4 Solicitado</p>
+            <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">{diplomaA4Requested}</p>
+            <p className="text-[10px] text-slate-400 mt-1">Fila de Requerimentos</p>
           </div>
 
           {/* KPI 8: Desistências */}
