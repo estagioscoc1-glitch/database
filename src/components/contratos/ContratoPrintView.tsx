@@ -56,7 +56,7 @@ const CSS_IMPRESSAO = `
       overflow: visible !important;
       background: #fff !important;
     }
-    .contrato-doc { font-size: 10pt; }
+    .contrato-doc { font-size: 13pt; }
     .contrato-cab-cel img { max-height: 1.6cm; }
   }
 `;
@@ -201,7 +201,7 @@ export const ContratoPrintView: React.FC<Props> = ({ dados, clausulas, tituloDoc
             </div>
 
             {/* Qualificação do contratante */}
-            <div className="contrato-nao-quebrar" style={{ marginBottom: '10px', fontSize: '9.5pt' }}>
+            <div className="contrato-nao-quebrar" style={{ marginBottom: '10px', fontSize: '13pt' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span><strong>Contratante:</strong> {p('{{NOME}}')}</span>
                 <span><strong>Estado Civil:</strong> {p('{{ESTADO_CIVIL}}')}</span>
