@@ -69,29 +69,20 @@ const CSS_IMPRESSAO = `
    NEGRITO ONDE O MODELO TEM. Conceito, faltas e carga horária saem em
    negrito; o nome do componente, não. É o contraste que faz a coluna de
    conceitos ser lida de relance. */
-/*
-   10pt NO CORPO, A PEDIDO — MAS COM O PREENCHIMENTO VERTICAL MAIS MAGRO.
-   Segurança do Trabalho tem 19 disciplinas na grade — o dobro de cursos
-   como Radiologia — e já era o único curso raspando o limite de 2 páginas
-   antes desta mudança. Aumentar a fonte sem cortar de outro lado faria
-   exatamente esse curso estourar para 3. Por isso o padding vertical caiu
-   de 1.5px para 1px: a fonte maior ocupa quase a mesma altura de linha que
-   a fonte menor ocupava antes, e o ganho de legibilidade fica quase de
-   graça em espaço de página. */
 const cel: React.CSSProperties = {
   border: '0.5pt solid #000',
-  padding: '1px 4px',
-  fontSize: '10pt',
+  padding: '1.5px 4px',
+  fontSize: '9pt',
   verticalAlign: 'middle',
 };
 const celCab: React.CSSProperties = {
   ...cel, fontWeight: 'bold', textAlign: 'center',
-  fontSize: '10pt', lineHeight: 1.05,
+  fontSize: '9pt', lineHeight: 1.1,
 };
 const celC: React.CSSProperties = { ...cel, textAlign: 'center' };
 /** Conceito, faltas e C.H. — os números que a secretaria confere primeiro. */
 const celNum: React.CSSProperties = { ...celC, fontWeight: 'bold' };
-const celIdent: React.CSSProperties = { ...cel, fontSize: '10.5pt', padding: '1.5px 4px' };
+const celIdent: React.CSSProperties = { ...cel, fontSize: '9.5pt' };
 /** Valor preenchido na faixa de identificação: nome, nascimento, filiação. */
 const celIdentValor: React.CSSProperties = { ...celIdent, fontWeight: 'bold' };
 const celDep: React.CSSProperties = { ...celC };
@@ -167,7 +158,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
         </p>
       </div>
 
-      <h1 style={{ textAlign: 'center', fontSize: '12.5pt', fontWeight: 'bold', margin: '6px 0 6px', letterSpacing: '0.06em' }}>
+      <h1 style={{ textAlign: 'center', fontSize: '12.5pt', fontWeight: 'bold', margin: '9px 0 8px', letterSpacing: '0.06em' }}>
         {parcial ? modelo.titulo.replace('HISTÓRICO ESCOLAR', 'HISTÓRICO ESCOLAR PARCIAL') : modelo.titulo}
       </h1>
 
@@ -179,7 +170,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
 
           Agora é uma célula por informação, com o rótulo em negrito e o valor
           logo em seguida — do jeito que sai no Word. */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '3px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '6px' }}>
         <tbody>
           <tr>
             <td style={celIdent} colSpan={2}>
@@ -241,7 +232,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                         lado a lado e viram duas linhas paralelas depois da
                         rotação — exatamente como na planilha, onde "MÓDULO I"
                         e "2025/2" aparecem um ao lado do outro. */}
-                    <div style={{ ...girado, fontSize: '7.5pt', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <div style={{ ...girado, fontSize: '7pt', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       <div>{mod.nome}</div>
                       {mod.anoSemestre && <div>{mod.anoSemestre}</div>}
                     </div>
@@ -257,7 +248,7 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
                     modelo impresso da escola. */}
                 {mi === 0 && li === 0 && (
                   <td rowSpan={totalLinhas} style={{ ...celC, padding: '2px 0' }}>
-                    <div style={{ ...girado, fontSize: '8pt', fontWeight: 'bold' }}>
+                    <div style={{ ...girado, fontSize: '7.5pt', fontWeight: 'bold' }}>
                       APROVEITAMENTO DE ESTUDOS E/OU DEPENDÊNCIA&nbsp;&nbsp;M.F.C
                     </div>
                   </td>
@@ -374,9 +365,9 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           outro comprova que o documento foi entregue em mãos. */}
       {parcial ? (
         <div className="hist-quebra" style={{
-          position: 'relative', height: '25.5cm',
+          position: 'relative', height: '27.3cm',
           border: '0.4mm solid #000', boxSizing: 'border-box',
-          padding: '1.5cm', marginTop: '12px',
+          padding: '1.5cm', marginTop: '2px',
         }}>
           {/* Timbre em cinza claro, como no modelo */}
           <div style={{ textAlign: 'center' }}>
