@@ -282,52 +282,70 @@ export async function reopenCashRegister(registerId: string, user: string): Prom
   return true;
 }
 
-// --- PAYMENT METHODS ---
-export function getPaymentMethods(): PaymentMethodItem[] {
-  return getItemJSON<PaymentMethodItem[]>(STORAGE_KEYS.PAYMENT_METHODS, defaultPaymentMethods);
+// --- FORMAS DE PAGAMENTO (parte 2 já ligada ao banco) ---
+/*
+ * MESMA CONVERSÃO DA PARTE 1: nomes iguais, agora devolvendo Promise.
+ * A tabela financeiro_formas_pagamento já nasceu com as nove formas padrão
+ * (Dinheiro, PIX, Cartão de Crédito/Débito, Transferência, Depósito,
+ * Cheque, Convênio, Boleto) — foi o próprio SQL da Parte 1 que inseriu.
+ */
+function formaDoBanco(f: any): PaymentMethodItem {
+  return { id: f.id, name: f.nome, isSystemDefault: f.padrao_sistema, active: f.ativo };
 }
 
-export function savePaymentMethod(method: PaymentMethodItem, user: string): void {
-  const list = getPaymentMethods();
-  const idx = list.findIndex(m => m.id === method.id);
-  if (idx >= 0) {
-    list[idx] = method;
-  } else {
-    list.push(method);
-  }
-  setItemJSON(STORAGE_KEYS.PAYMENT_METHODS, list);
-  addFinancialAuditLog(user, 'FORMA_PAGAMENTO_SALVA', `Forma de pagamento ${method.name} configurada.`);
+export async function getPaymentMethods(): Promise<PaymentMethodItem[]> {
+  const { data, error } = await supabase.from('financeiro_formas_pagamento').select('*').order('nome');
+  if (error) { console.warn('[Financeiro] formas de pagamento:', explicarErroFinanceiro(error)); return defaultPaymentMethods; }
+  return (data ?? []).map(formaDoBanco);
 }
 
-export function addCustomPaymentMethod(name: string, user: string): PaymentMethodItem {
-  const list = getPaymentMethods();
-  const newItem: PaymentMethodItem = {
-    id: 'pm_' + Date.now(),
-    name: name.trim(),
-    isSystemDefault: false,
-    active: true
+export async function savePaymentMethod(method: PaymentMethodItem, user: string): Promise<void> {
+  const { error } = await supabase.from('financeiro_formas_pagamento').upsert({
+    id: method.id, nome: method.name, padrao_sistema: method.isSystemDefault, ativo: method.active,
+  });
+  if (error) { console.warn('[Financeiro] salvar forma de pagamento:', explicarErroFinanceiro(error)); return; }
+  await addFinancialAuditLog(user, 'FORMA_PAGAMENTO_SALVA', `Forma de pagamento ${method.name} configurada.`);
+}
+
+export async function addCustomPaymentMethod(name: string, user: string): Promise<PaymentMethodItem> {
+  const novoItem: PaymentMethodItem = { id: 'pm_' + Date.now(), name: name.trim(), isSystemDefault: false, active: true };
+  const { error } = await supabase.from('financeiro_formas_pagamento').insert({
+    id: novoItem.id, nome: novoItem.name, padrao_sistema: false, ativo: true,
+  });
+  if (error) throw new Error(explicarErroFinanceiro(error));
+  await addFinancialAuditLog(user, 'FORMA_PAGAMENTO_CRIADA', `Nova forma de pagamento criada: ${name.trim()}`);
+  return novoItem;
+}
+
+// --- PREÇOS POR CURSO (parte 2 já ligada ao banco) ---
+function precoCursoDoBanco(p: any): CoursePriceConfig {
+  return {
+    id: p.id, courseId: p.curso_id, courseName: p.curso_nome,
+    enrollmentPrice: Number(p.valor_matricula), reenrollmentPrice: Number(p.valor_rematricula),
+    monthlyPrice: Number(p.valor_mensalidade), dependencyPrice: Number(p.valor_dependencia),
+    maxInstallments: p.max_parcelas, discountPercent: Number(p.desconto_percent),
+    discountLimitDay: p.dia_limite_desconto, finePercent: Number(p.multa_percent),
+    dailyInterestPercent: Number(p.juros_diario_percent), notes: p.observacoes ?? undefined,
   };
-  list.push(newItem);
-  setItemJSON(STORAGE_KEYS.PAYMENT_METHODS, list);
-  addFinancialAuditLog(user, 'FORMA_PAGAMENTO_CRIADA', `Nova forma de pagamento criada: ${name.trim()}`);
-  return newItem;
 }
 
-// --- COURSE PRICE CONFIGS ---
-export function getCoursePriceConfigs(): CoursePriceConfig[] {
-  return getItemJSON<CoursePriceConfig[]>(STORAGE_KEYS.COURSE_PRICES, initialCoursePriceConfigs);
+export async function getCoursePriceConfigs(): Promise<CoursePriceConfig[]> {
+  const { data, error } = await supabase.from('financeiro_precos_curso').select('*').order('curso_nome');
+  if (error) { console.warn('[Financeiro] preços por curso:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(precoCursoDoBanco);
 }
 
-export function saveCoursePriceConfig(config: CoursePriceConfig, user: string): void {
-  const configs = getCoursePriceConfigs();
-  const idx = configs.findIndex(c => c.courseId === config.courseId);
-  if (idx >= 0) {
-    configs[idx] = config;
-  } else {
-    configs.push(config);
-  }
-  setItemJSON(STORAGE_KEYS.COURSE_PRICES, configs);
-  addFinancialAuditLog(user, 'VALOR_CURSO_ATUALIZADO', `Valores do curso ${config.courseName} salvos.`);
+export async function saveCoursePriceConfig(config: CoursePriceConfig, user: string): Promise<void> {
+  const { error } = await supabase.from('financeiro_precos_curso').upsert({
+    curso_id: config.courseId, curso_nome: config.courseName,
+    valor_matricula: config.enrollmentPrice, valor_rematricula: config.reenrollmentPrice,
+    valor_mensalidade: config.monthlyPrice, valor_dependencia: config.dependencyPrice,
+    max_parcelas: config.maxInstallments, desconto_percent: config.discountPercent,
+    dia_limite_desconto: config.discountLimitDay, multa_percent: config.finePercent,
+    juros_diario_percent: config.dailyInterestPercent, observacoes: config.notes || null,
+  }, { onConflict: 'curso_id' });
+  if (error) { console.warn('[Financeiro] salvar preço do curso:', explicarErroFinanceiro(error)); return; }
+  await addFinancialAuditLog(user, 'VALOR_CURSO_ATUALIZADO', `Valores do curso ${config.courseName} salvos.`);
 }
 
 // --- SCHOLARSHIPS (BOLSAS) ---
