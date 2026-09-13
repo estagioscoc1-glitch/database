@@ -90,20 +90,16 @@ export const RequerimentoDiplomaPrintView: React.FC<Props> = ({ requerimento, es
 
   const Documento = (
     <div style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000', fontSize: '11.5pt', lineHeight: 1.6 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: '0.4mm solid #000', marginBottom: '6mm' }}>
-        <tbody>
-          <tr>
-            <td style={{ padding: '3mm', width: '28mm', textAlign: 'center', verticalAlign: 'middle' }}>
-              <img src={LOGO_COLEGIO_OSWALDO_CRUZ} alt="Colégio Oswaldo Cruz" referrerPolicy="no-referrer"
-                   style={{ height: '18mm', width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
-            </td>
-            <td style={{ padding: '2mm 3mm', fontSize: '9pt', textAlign: 'center', borderLeft: '0.4mm solid #000' }}>
-              Rua 20 nº 796 - Centro Goiânia - Goiás CEP 74020-170 "Resolução CEE/GO nº 018/2022"<br />
-              Fone: (62) 3223.7602 www.colegiooswaldocruz.com.br
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      {/* Timbre — igual ao da declaração: só a logo, centralizada, sem
+          caixa nem endereço ao lado. */}
+      <div style={{ textAlign: 'center', marginBottom: '8mm' }}>
+        <img
+          src={LOGO_COLEGIO_OSWALDO_CRUZ}
+          alt="Colégio Oswaldo Cruz"
+          referrerPolicy="no-referrer"
+          style={{ display: 'block', margin: '0 auto', maxHeight: '2.4cm', maxWidth: '100%', objectFit: 'contain' }}
+        />
+      </div>
 
       <p style={{ fontWeight: 'bold', margin: '0 0 5mm' }}>
         DOCUMENTO DE Nº {requerimento.protocolo}
