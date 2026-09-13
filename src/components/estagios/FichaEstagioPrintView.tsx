@@ -200,7 +200,12 @@ export const FichaEstagioPrintView: React.FC<Props> = ({
       </div>
 
       {/* Vistos */}
-      <div className="ficha-nao-quebrar" style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginTop: '1.6cm' }}>
+      {/* Mesmo defeito do histórico escolar: quase 2cm de margem, só de
+          respiro, antes de um bloco marcado para nunca cortar ao meio.
+          Quando sobrava menos que isso no pé da página, o navegador jogava
+          o bloco inteiro para uma folha nova — quase em branco, só com as
+          três assinaturas. Encolhida a margem, cabe na folha que já tinha. */}
+      <div className="ficha-nao-quebrar" style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginTop: '0.6cm' }}>
         {[
           { rotulo: 'VISTO DA SECRETARIA:', nome: config.nomeSecretario, cargo: config.cargoSecretario },
           { rotulo: 'VISTO DA COORDENAÇÃO DE ESTÁGIO:', nome: config.nomeCoordenacao, cargo: config.cargoCoordenacao },
