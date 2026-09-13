@@ -55,6 +55,21 @@ function dataPorExtenso(iso: string): string {
   return `${d.getDate()} de ${meses[d.getMonth()].toUpperCase()} de ${d.getFullYear()}`;
 }
 
+/*
+   Por que o X não marcava nenhuma opção: a comparação era exata
+   (op === requerimento.tipoNome) — bastava o tipo cadastrado em "Tipos e
+   Prazos" ter uma letra maiúscula diferente, um espaço a mais, ou um
+   acento digitado de outro jeito, para nunca bater com nenhuma das
+   cinco strings fixas daqui. Normalizando os dois lados (sem acento,
+   minúsculo, sem espaço nas pontas) antes de comparar, essa diferença
+   de digitação deixa de importar.
+*/
+function normalizar(t: string): string {
+  return t
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().trim();
+}
+
 export const RequerimentoDiplomaPrintView: React.FC<Props> = ({ requerimento, estadoCivil, telefone, onClose }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
@@ -78,7 +93,11 @@ export const RequerimentoDiplomaPrintView: React.FC<Props> = ({ requerimento, es
       <table style={{ width: '100%', borderCollapse: 'collapse', border: '0.4mm solid #000', marginBottom: '6mm' }}>
         <tbody>
           <tr>
-            <td style={{ padding: '2mm 3mm', fontSize: '9pt', textAlign: 'center' }}>
+            <td style={{ padding: '3mm', width: '28mm', textAlign: 'center', verticalAlign: 'middle' }}>
+              <img src={LOGO_COLEGIO_OSWALDO_CRUZ} alt="Colégio Oswaldo Cruz" referrerPolicy="no-referrer"
+                   style={{ height: '18mm', width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+            </td>
+            <td style={{ padding: '2mm 3mm', fontSize: '9pt', textAlign: 'center', borderLeft: '0.4mm solid #000' }}>
               Rua 20 nº 796 - Centro Goiânia - Goiás CEP 74020-170 "Resolução CEE/GO nº 018/2022"<br />
               Fone: (62) 3223.7602 www.colegiooswaldocruz.com.br
             </td>
@@ -100,7 +119,7 @@ export const RequerimentoDiplomaPrintView: React.FC<Props> = ({ requerimento, es
       <div style={{ margin: '0 0 8mm' }}>
         {OPCOES.map(op => (
           <p key={op} style={{ margin: '0 0 2mm', fontStyle: 'italic' }}>
-            ( {op === requerimento.tipoNome ? 'X' : '\u00a0\u00a0'} ) {op}
+            ( {normalizar(op) === normalizar(requerimento.tipoNome) ? 'X' : '\u00a0\u00a0'} ) {op}
           </p>
         ))}
       </div>
