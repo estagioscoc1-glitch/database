@@ -38,7 +38,7 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
   // Active Subtab
   const [activeSubTab, setActiveTab] = useState<
     'DEFINICOES' | 'CAMPOS' | 'PROFESSORES' | 'CRONOGRAMA' | 'VAGAS' | 'LANCAMENTO_NOTAS' | 'RECIBOS'
-  >('VAGAS');
+  >('LANCAMENTO_NOTAS'); // A secretaria só usa este — abre direto nele.
 
   // Selecteds
   const [selectedVacancyId, setSelectedVacancyId] = useState<string>('');
@@ -409,6 +409,8 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
 
       {/* Sub-navegação das Telas de Estágio */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('VAGAS')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -419,7 +421,10 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <Briefcase className="h-4 w-4" /> Vagas e Alocação
         </button>
+        )}
 
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('CAMPOS')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -430,7 +435,10 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <Building2 className="h-4 w-4" /> Campos de Estágio ({fields.length})
         </button>
+        )}
 
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('PROFESSORES')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -441,7 +449,10 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <UserCheck className="h-4 w-4" /> Professores / Preceptores ({stageTeachers.length})
         </button>
+        )}
 
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('CRONOGRAMA')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -452,7 +463,10 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <Calendar className="h-4 w-4" /> Cronograma de Datas ({cronogramas.length})
         </button>
+        )}
 
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('DEFINICOES')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -463,6 +477,7 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <BookOpen className="h-4 w-4" /> Módulos / Disciplinas ({stageDefinitions.length})
         </button>
+        )}
 
         <button
           onClick={() => setActiveTab('LANCAMENTO_NOTAS')}
@@ -475,6 +490,8 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
           <Award className="h-4 w-4" /> Lançamento de Notas
         </button>
 
+        {/* Escondido — a secretaria só usa Lançamento de Notas aqui. */}
+        {false && (
         <button
           onClick={() => setActiveTab('RECIBOS')}
           className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer ${
@@ -485,6 +502,7 @@ export const EstagiosManager: React.FC<EstagiosManagerProps> = ({ currentUser })
         >
           <FileText className="h-4 w-4" /> Recibos do Professor
         </button>
+        )}
       </div>
 
       {/* TAB 1: CADASTRO DE MÓDULOS/DISCIPLINAS DE ESTÁGIO */}
