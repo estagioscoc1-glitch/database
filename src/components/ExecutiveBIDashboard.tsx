@@ -6,7 +6,7 @@ import {
   Award, CheckCircle2, XCircle, ChevronRight, Download, Maximize2, Minimize2,
   Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, UserCheck, Briefcase,
   Layers, ShieldAlert, PieChart as PieChartIcon, BarChart3, Activity, Sparkles,
-  HelpCircle, Eye, Printer, FileSpreadsheet, X, Sparkle, Building
+  HelpCircle, Eye, Printer, FileSpreadsheet, X, Sparkle, Building, MessageCircle
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -17,6 +17,7 @@ import { UserRole, Shift, CustomDashboardWidget, ClassSection } from '../types';
 import { getInstallments, getExpenses } from '../services/financeiroStorage';
 import { listarRequerimentos } from '../lib/supabaseRequerimentos';
 import { buscarVisitasDoSite, type VisitasDoSite } from '../lib/supabaseVisitasSite';
+import { buscarChatbotNovidades, type ChatbotNovidades } from '../lib/supabaseChatbotNovidades';
 
 const COLORS = {
   primary: '#2563eb', // Blue
@@ -275,6 +276,13 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   const [visitasSite, setVisitasSite] = useState<VisitasDoSite | null>(null);
   useEffect(() => {
     void buscarVisitasDoSite().then(setVisitasSite);
+  }, []);
+
+  /* CHATBOT DE ATENDIMENTO — mensagens novas ainda não respondidas, vindas
+     do Supabase do chatbot (projeto separado, feito no Lovable). */
+  const [chatbotNovidades, setChatbotNovidades] = useState<ChatbotNovidades | null>(null);
+  useEffect(() => {
+    void buscarChatbotNovidades().then(setChatbotNovidades);
   }, []);
 
   /**
@@ -1096,6 +1104,36 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
                   {visitasSite?.hoje?.visitantesUnicos ?? '—'}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">Visitantes únicos · colegiooswaldocruz.com.br</p>
+              </>
+            )}
+          </div>
+
+          {/* KPI 7-D: Chatbot de atendimento — mensagens novas não respondidas. */}
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group cursor-pointer"
+            onClick={() => window.open('https://atendimento-colegiooswaldocruz.lovable.app/admin', '_blank')}
+          >
+            <div className="flex items-center justify-between">
+              <span className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:scale-110 transition-all">
+                <MessageCircle className="h-5 w-5" />
+              </span>
+              {!!chatbotNovidades?.totalNaoLidas && (
+                <span className="inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 text-[10px] font-black text-white bg-emerald-500 rounded-full">
+                  {chatbotNovidades.totalNaoLidas}
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Chatbot · Mensagens Novas</p>
+            {chatbotNovidades?.erro ? (
+              <p className="text-[10px] text-rose-500 mt-1.5 leading-snug">{chatbotNovidades.erro}</p>
+            ) : (
+              <>
+                <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">
+                  {chatbotNovidades?.totalNaoLidas ?? '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {chatbotNovidades?.totalNaoLidas ? 'Clique para abrir o atendimento' : 'Nenhuma conversa pendente'}
+                </p>
               </>
             )}
           </div>
