@@ -51,7 +51,7 @@ const CSS_IMPRESSAO = `
 `;
 
 const cel: React.CSSProperties = {
-  border: '0.4mm solid #000', padding: '2px 5px', fontSize: '12pt', verticalAlign: 'top',
+  border: '0.4mm solid #000', padding: '2px 5px', fontSize: '11pt', verticalAlign: 'top',
 };
 
 export const FichaAvaliacaoPrintView: React.FC<Props> = ({
@@ -102,9 +102,9 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
     (soma, b) => soma + b.itens.reduce((s, t) => s + t.length, 0), 0
   );
   const fonteItens =
-    caracteresTotais <= 260 ? 12 :
-    caracteresTotais <= 420 ? 10.5 :
-    caracteresTotais <= 600 ? 9.5 : 8.5;
+    caracteresTotais <= 260 ? 11 :
+    caracteresTotais <= 420 ? 9.5 :
+    caracteresTotais <= 600 ? 8.5 : 7.5;
   const celItens: React.CSSProperties = { ...cel, fontSize: `${fonteItens}pt` };
 
   const Cabecalho = (
@@ -185,10 +185,10 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: 'none' }}>
         <thead>
           <tr>
-            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontSize: '12pt' }}>
+            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontSize: '11pt' }}>
               ELEMENTOS DE COMPETÊNCIA
             </th>
-            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', width: '16%', fontSize: '12pt' }}>
+            <th style={{ ...cel, background: '#d9d9d9', textAlign: 'center', width: '16%', fontSize: '11pt' }}>
               NOTAS
             </th>
           </tr>
@@ -209,7 +209,7 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
                   <div style={{ minHeight: '11mm' }} />
                 )}
               </td>
-              <td style={{ ...cel, textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '13pt' }}>
+              <td style={{ ...cel, textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '12pt' }}>
                 {b.nota === null || b.nota === undefined ? '' : b.nota.toFixed(1).replace('.', ',')}
               </td>
             </tr>
@@ -218,10 +218,10 @@ export const FichaAvaliacaoPrintView: React.FC<Props> = ({
               coluna da nota — não duas caixas separadas de resultado e
               média. */}
           <tr>
-            <td style={{ ...cel, background: '#d9d9d9', fontWeight: 'bold', fontSize: '12pt' }}>
+            <td style={{ ...cel, background: '#d9d9d9', fontWeight: 'bold', fontSize: '11pt' }}>
               RESULTADO FINAL {aluno.resultado === 'PENDENTE' ? '' : `— ${aluno.resultado}`}
             </td>
-            <td style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontWeight: 'bold', fontSize: '11pt' }}>
+            <td style={{ ...cel, background: '#d9d9d9', textAlign: 'center', fontWeight: 'bold', fontSize: '10pt' }}>
               {media === null ? '' : media.toFixed(1).replace('.', ',')}
             </td>
           </tr>
