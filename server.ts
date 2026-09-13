@@ -86,6 +86,63 @@ async function startServer() {
     message: { error: "Muitas perguntas em pouco tempo. Aguarde alguns minutos." },
   });
 
+  // Visitas do site institucional — mesmo número que aparece no painel do
+  // Cloudflare, na aba Overview do domínio colegiooswaldocruz.com.br.
+  // Espelha functions/api/site-visitas.ts (versão Cloudflare desta rota).
+  app.get("/api/site-visitas", async (_req: express.Request, res: express.Response) => {
+    const token = process.env.CF_ANALYTICS_TOKEN;
+    const zoneId = process.env.CF_ANALYTICS_ZONE_ID;
+    if (!token || !zoneId) {
+      return res.json({ erro: "CF_ANALYTICS_TOKEN ou CF_ANALYTICS_ZONE_ID não configurados no .env.local." });
+    }
+    const dataISO = (diasAtras: number) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - diasAtras);
+      return d.toISOString().split("T")[0];
+    };
+    const desde = dataISO(7);
+    const ate = dataISO(0);
+    const query = `
+      query VisitasDoSite($zoneTag: String!, $desde: Date!, $ate: Date!) {
+        viewer {
+          zones(filter: { zoneTag: $zoneTag }) {
+            httpRequests1dGroups(
+              limit: 10
+              filter: { date_geq: $desde, date_leq: $ate }
+              orderBy: [date_ASC]
+            ) {
+              dimensions { date }
+              uniq { uniques }
+              sum { requests, pageViews }
+            }
+          }
+        }
+      }
+    `;
+    try {
+      const resposta = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables: { zoneTag: zoneId, desde, ate } }),
+      });
+      const dados: any = await resposta.json();
+      if (!resposta.ok || dados.errors) {
+        return res.json({ erro: dados?.errors?.[0]?.message || `Cloudflare respondeu ${resposta.status}.` });
+      }
+      const grupos = dados?.data?.viewer?.zones?.[0]?.httpRequests1dGroups ?? [];
+      const porDia = grupos.map((g: any) => ({
+        data: g.dimensions.date,
+        visitantesUnicos: g.uniq?.uniques ?? 0,
+        visualizacoesPagina: g.sum?.pageViews ?? 0,
+        requisicoes: g.sum?.requests ?? 0,
+      }));
+      const hoje = porDia.find((d: any) => d.data === ate) ?? null;
+      return res.json({ hoje, porDia });
+    } catch (e: any) {
+      return res.json({ erro: e?.message || "Falha ao consultar o Cloudflare." });
+    }
+  });
+
   // Interactive Helper Bot AI route
   app.post("/api/helper-bot", limiteAssistente, async (req: express.Request, res: express.Response) => {
     const { message, role, userName } = req.body;
