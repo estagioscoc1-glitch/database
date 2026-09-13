@@ -29,7 +29,7 @@ import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuir
 const ABAS_VISIVEIS = {
   crm: true,                  // CRM
   cadastros: false,           // Cadastros
-  financeiro: true,           // Financeiro — PARTE 1: só o Caixa já fala com o banco de verdade
+  financeiro: false,          // Financeiro
   orientacao: true,           // Movimentação (só Estágios + Minicursos e Eventos aparecem)
   pesquisa: false,            // Pesquisa
   relatorios: false,          // Relatórios
@@ -43,7 +43,7 @@ const ABAS_VISIVEIS = {
   msg: true,                  // Mensagens & Avisos
   sec: true,                  // Backup & Segurança
   historico_completo: true,   // Histórico do Aluno
-  estagio: true,              // Estágios
+  estagio: true,              // Estágios — a tela agora só mostra Lançamento de Notas; a secretaria ainda usa essa parte
   acessos: true,              // Acessos e Presença
 };
 import { 
@@ -1350,6 +1350,7 @@ export const AdminDashboard: React.FC = () => {
             <ExternalLink className="h-4 w-4 text-white" />
             <span>Acesso Plataforma EAD</span>
           </a>
+          {ABAS_VISIVEIS.estagio && (
           <button
             type="button"
             onClick={() => setActiveTab('estagio')}
@@ -1360,8 +1361,9 @@ export const AdminDashboard: React.FC = () => {
             }`}
           >
             <Briefcase className="h-4.5 w-4.5 text-amber-500" />
-            <span>Gerenciar Estágios</span>
+            <span>Lançamento de Notas (Secretaria)</span>
           </button>
+          )}
           {currentUser?.role === UserRole.ADMIN && (
             <button
               type="button"
@@ -1417,10 +1419,7 @@ export const AdminDashboard: React.FC = () => {
           <span>Cadastros</span>
         </button>
         )}
-        {/* Só o administrador — de propósito, nem a secretaria por enquanto.
-            Diferente das outras abas, esta não passa pelo sistema geral de
-            permissões por funcionário; é uma trava à parte, fixa no código. */}
-        {ABAS_VISIVEIS.financeiro && currentUser?.role === UserRole.ADMIN && (
+        {ABAS_VISIVEIS.financeiro && (
         <button
           type="button"
           onClick={() => setActiveTab('financeiro')}
@@ -1575,6 +1574,10 @@ export const AdminDashboard: React.FC = () => {
           <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span>Histórico do Aluno</span>
         </button>
+        {/* Escondida de propósito — só o botão laranja "Lançamento de Notas
+            (Secretaria)" leva para essa tela agora, pra não ter duas
+            entradas diferentes pro mesmo lugar. */}
+        {false && (
         <button
           type="button"
           onClick={() => setActiveTab('estagio')}
@@ -1587,6 +1590,7 @@ export const AdminDashboard: React.FC = () => {
           <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <span>Estágios</span>
         </button>
+        )}
         {ABAS_VISIVEIS.acessos && (
         <button
           type="button"
@@ -1618,7 +1622,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Tab: Financeiro */}
-      {activeTab === 'financeiro' && currentUser?.role === UserRole.ADMIN && (
+      {activeTab === 'financeiro' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <FinanceiroModule 
             currentUser="Administração Financeira"
