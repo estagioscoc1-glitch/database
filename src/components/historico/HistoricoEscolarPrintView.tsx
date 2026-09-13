@@ -442,9 +442,18 @@ export const HistoricoEscolarPrintView: React.FC<Props> = ({
           ))}
         </ul>
 
-        {/* Assinaturas */}
-        <div className="hist-nao-quebrar" style={{ marginTop: '1.4cm' }}>
-          <p style={{ fontSize: '10pt', margin: '0 0 1.4cm' }}>
+        {/* Assinaturas.
+            O CULPADO DE VERDADE DA "3ª FOLHA": não era a lista de
+            competências — ela cabia com espaço de sobra. Era este bloco de
+            assinatura, marcado para nunca ser cortado ao meio
+            (break-inside: avoid), com quase 3cm de margem só de respiro
+            antes dele (1.4cm + 1.4cm). Quando sobrava menos que isso no pé
+            da página, o navegador não cortava o bloco — jogava ele INTEIRO
+            para a página seguinte, deixando a 2ª página com espaço vazio
+            embaixo e a 3ª quase em branco, só com a assinatura. Encolhendo
+            essa margem, o bloco passa a caber no espaço que já sobrava. */}
+        <div className="hist-nao-quebrar" style={{ marginTop: '0.5cm' }}>
+          <p style={{ fontSize: '10pt', margin: '0 0 0.6cm' }}>
             Goiânia, GO — {dataBr(dados.dataEmissao)}
           </p>
           <div style={{ display: 'flex', justifyContent: 'space-around', gap: '40px' }}>
