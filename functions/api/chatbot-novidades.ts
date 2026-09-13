@@ -134,3 +134,5 @@ export const onRequestOptions: PagesFunction<Env> = async () => {
     },
   });
 };
+
+// redeploy trigger: aplicar variaveis de ambiente do chatbot
