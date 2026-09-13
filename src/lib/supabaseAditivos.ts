@@ -20,11 +20,16 @@ export interface Aditivo {
   criadoPor?: string;
   criadoEm: string;
   totalAssinaturas?: number;
+  /** undefined = vale para todos os alunos. Preenchido = só para este aluno. */
+  destinatarioAlunoId?: string;
+  destinatarioAlunoNome?: string;
 }
 
 const aditivoDoBanco = (a: any): Aditivo => ({
   id: a.id, titulo: a.titulo, texto: a.texto, ativo: a.ativo,
   criadoPor: a.criado_por ?? undefined, criadoEm: a.criado_em,
+  destinatarioAlunoId: a.destinatario_aluno_id ?? undefined,
+  destinatarioAlunoNome: a.destinatario_aluno_nome ?? undefined,
 });
 
 /** Todos os aditivos, mais recentes primeiro — tela do admin. */
@@ -42,8 +47,15 @@ export async function listarTodosAditivos(): Promise<{ lista: Aditivo[]; erro?: 
   return { lista };
 }
 
-export async function criarAditivo(titulo: string, texto: string, quem: string): Promise<{ erro?: string }> {
-  const { error } = await supabase.from('contrato_aditivos').insert({ titulo, texto, criado_por: quem });
+export async function criarAditivo(
+  titulo: string, texto: string, quem: string,
+  destinatario?: { alunoId: string; alunoNome: string }
+): Promise<{ erro?: string }> {
+  const { error } = await supabase.from('contrato_aditivos').insert({
+    titulo, texto, criado_por: quem,
+    destinatario_aluno_id: destinatario?.alunoId || null,
+    destinatario_aluno_nome: destinatario?.alunoNome || null,
+  });
   return error ? { erro: explicar(error) } : {};
 }
 
@@ -54,8 +66,12 @@ export async function ativarDesativarAditivo(id: string, ativo: boolean): Promis
 
 /** Aditivos ativos que ESTE aluno ainda não assinou — para mostrar no painel dele. */
 export async function aditivosPendentesDoAluno(alunoId: string): Promise<Aditivo[]> {
+  // "or" traz os que valem para todos (destinatario_aluno_id vazio) JUNTO
+  // com os que foram endereçados a este aluno específico.
   const { data: ativos, error } = await supabase
-    .from('contrato_aditivos').select('*').eq('ativo', true).order('criado_em');
+    .from('contrato_aditivos').select('*').eq('ativo', true)
+    .or(`destinatario_aluno_id.is.null,destinatario_aluno_id.eq.${alunoId}`)
+    .order('criado_em');
   if (error || !ativos || ativos.length === 0) return [];
 
   const { data: assinados } = await supabase
