@@ -16,6 +16,7 @@ import { useApp } from '../context/AppContext';
 import { UserRole, Shift, CustomDashboardWidget, ClassSection } from '../types';
 import { getInstallments, getExpenses } from '../services/financeiroStorage';
 import { listarRequerimentos } from '../lib/supabaseRequerimentos';
+import { buscarVisitasDoSite, type VisitasDoSite } from '../lib/supabaseVisitasSite';
 
 const COLORS = {
   primary: '#2563eb', // Blue
@@ -267,6 +268,13 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
     void listarRequerimentos().then(({ lista }) => {
       setDiplomaA4Requested(lista.filter(r => r.tipoNome === 'Diploma A4' && r.situacao !== 'CANCELADO').length);
     });
+  }, []);
+
+  /* VISITAS DO SITE INSTITUCIONAL — puxa da function do Cloudflare, que é
+     quem tem a chave de leitura. Aqui só existe o número já pronto. */
+  const [visitasSite, setVisitasSite] = useState<VisitasDoSite | null>(null);
+  useEffect(() => {
+    void buscarVisitasDoSite().then(setVisitasSite);
   }, []);
 
   /**
@@ -1070,6 +1078,26 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
             <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Diploma A4 Solicitado</p>
             <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">{diplomaA4Requested}</p>
             <p className="text-[10px] text-slate-400 mt-1">Fila de Requerimentos</p>
+          </div>
+
+          {/* KPI 7-C: Visitas do site institucional — vem do Cloudflare, não do banco. */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between">
+              <span className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl group-hover:scale-110 transition-all">
+                <Eye className="h-5 w-5" />
+              </span>
+            </div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Visitas do Site Hoje</p>
+            {visitasSite?.erro ? (
+              <p className="text-[10px] text-rose-500 mt-1.5 leading-snug">{visitasSite.erro}</p>
+            ) : (
+              <>
+                <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">
+                  {visitasSite?.hoje?.visitantesUnicos ?? '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1">Visitantes únicos · colegiooswaldocruz.com.br</p>
+              </>
+            )}
           </div>
 
           {/* KPI 8: Desistências */}
