@@ -26,6 +26,7 @@ export const AditivosContratoModule: React.FC<Props> = ({ currentUser }) => {
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null);
   const [assinantesDe, setAssinantesDe] = useState<Aditivo | null>(null);
+  const [abrindoTexto, setAbrindoTexto] = useState<Aditivo | null>(null);
   const [assinantes, setAssinantes] = useState<{ alunoNome: string; assinadoEm: string }[]>([]);
 
   const carregar = async () => {
@@ -119,6 +120,10 @@ export const AditivosContratoModule: React.FC<Props> = ({ currentUser }) => {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{a.texto}</p>
+                  <button type="button" onClick={() => setAbrindoTexto(a)}
+                          className="text-[11px] font-black text-blue-600 hover:underline mt-1">
+                    Abrir texto completo
+                  </button>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button type="button" onClick={() => void abrirAssinantes(a)}
@@ -137,6 +142,25 @@ export const AditivosContratoModule: React.FC<Props> = ({ currentUser }) => {
           ))
         )}
       </div>
+
+      {/* Ler o texto inteiro do aditivo — o admin não tinha como reabrir
+          depois de publicado, só via o resumo cortado da lista. */}
+      {abrindoTexto && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 w-full max-w-lg max-h-[80vh] flex flex-col">
+            <h3 className="font-black text-sm mb-3">{abrindoTexto.titulo}</h3>
+            <div className="flex-1 overflow-y-auto">
+              <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {abrindoTexto.texto}
+              </p>
+            </div>
+            <button type="button" onClick={() => setAbrindoTexto(null)}
+                    className="mt-4 w-full py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-black flex-shrink-0">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quem já assinou */}
       {assinantesDe && (
