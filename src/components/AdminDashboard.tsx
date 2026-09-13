@@ -29,7 +29,7 @@ import { criarAcessoDeUmAluno, criarAcessoDeUmDocente, linkDoDocumento, atribuir
 const ABAS_VISIVEIS = {
   crm: true,                  // CRM
   cadastros: false,           // Cadastros
-  financeiro: false,          // Financeiro
+  financeiro: true,           // Financeiro — PARTE 1: só o Caixa já fala com o banco de verdade
   orientacao: true,           // Movimentação (só Estágios + Minicursos e Eventos aparecem)
   pesquisa: false,            // Pesquisa
   relatorios: false,          // Relatórios
@@ -1419,7 +1419,10 @@ export const AdminDashboard: React.FC = () => {
           <span>Cadastros</span>
         </button>
         )}
-        {ABAS_VISIVEIS.financeiro && (
+        {/* Só o administrador — de propósito, nem a secretaria por enquanto.
+            Diferente das outras abas, esta não passa pelo sistema geral de
+            permissões por funcionário; é uma trava à parte, fixa no código. */}
+        {ABAS_VISIVEIS.financeiro && currentUser?.role === UserRole.ADMIN && (
         <button
           type="button"
           onClick={() => setActiveTab('financeiro')}
@@ -1622,7 +1625,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Tab: Financeiro */}
-      {activeTab === 'financeiro' && (
+      {activeTab === 'financeiro' && currentUser?.role === UserRole.ADMIN && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
           <FinanceiroModule 
             currentUser="Administração Financeira"
