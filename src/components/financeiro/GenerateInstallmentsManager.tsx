@@ -43,8 +43,8 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
   const [successMessage, setSuccessMessage] = useState('');
 
   // Batch Form State
-  const [batchCourseId, setBatchCourseId] = useState('ENF');
-  const [batchClassName, setBatchClassName] = useState('TURMA ENF-2026/1');
+  const [batchCourseId, setBatchCourseId] = useState('');
+  const [batchClassId, setBatchClassId] = useState('');
   const [batchMonthlyValue, setBatchMonthlyValue] = useState('480.00');
   const [batchTotalInstallments, setBatchTotalInstallments] = useState(12);
   const [batchFirstDueDate, setBatchFirstDueDate] = useState(() => {
@@ -130,14 +130,28 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
       alert('Informe um valor de mensalidade válido.');
       return;
     }
+    if (!batchClassId) {
+      alert('Escolha a turma.');
+      return;
+    }
 
-    // Filter students belonging to this course/class or use sample list
-    const filteredStudents = allStudentUsers.filter((s: any) => 
-      s.courseId === batchCourseId || s.courseName?.includes(batchCourseId) || true
-    ).slice(0, 15);
+    const turma = classes.find((c: any) => c.id === batchClassId);
+
+    /*
+       O DEFEITO DE VERDADE: este filtro terminava em "|| true", que anula
+       a condição inteira — ele sempre pegava os primeiros 15 alunos do
+       sistema todo, nunca de fato os da turma escolhida. "Curso" também
+       era uma lista de três opções fixas no código (nem batia com os
+       cursos reais da escola), e "Turma Alvo" era campo de texto livre,
+       sem ligação nenhuma com uma turma de verdade — por isso não tinha
+       como filtrar direito. Agora os dois vêm da lista real de cursos e
+       turmas, e o filtro compara o classId de cada aluno com a turma
+       escolhida, sem "ou true" nenhum no meio.
+    */
+    const filteredStudents = allStudentUsers.filter((s: any) => s.classId === batchClassId);
 
     if (filteredStudents.length === 0) {
-      alert('Nenhum aluno encontrado para a turma selecionada.');
+      alert('Nenhum aluno encontrado nesta turma.');
       return;
     }
 
@@ -151,7 +165,7 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
       })),
       courseId: batchCourseId,
       courseName: cfg?.courseName || 'CURSO TÉCNICO',
-      className: batchClassName,
+      className: turma?.name || batchClassId,
       monthlyValue: monthlyVal,
       totalInstallments: Number(batchTotalInstallments),
       firstDueDate: batchFirstDueDate,
@@ -162,7 +176,7 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
       user: currentUser
     });
 
-    setSuccessMessage(`Geração em Lote Concluída! Total de ${count} alunos processados na turma ${batchClassName}.`);
+    setSuccessMessage(`Geração em Lote Concluída! Total de ${count} alunos processados na turma ${turma?.name || ''}.`);
     setTimeout(() => setSuccessMessage(''), 6000);
   };
 
@@ -412,25 +426,30 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
                 <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Curso (*)</label>
                 <select
                   value={batchCourseId}
-                  onChange={(e) => handleCourseChange(e.target.value, true)}
+                  onChange={(e) => { handleCourseChange(e.target.value, true); setBatchClassId(''); }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="ENF">TÉCNICO EM ENFERMAGEM</option>
-                  <option value="RAD">TÉCNICO EM RADIOLOGIA</option>
-                  <option value="ELE">TÉCNICO EM ELETROTÉCNICA</option>
+                  <option value="">Selecione o curso...</option>
+                  {courses.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Turma Alvo (*)</label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={batchClassName}
-                  onChange={(e) => setBatchClassName(e.target.value)}
-                  placeholder="Ex: TURMA ENF-2026/1"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500"
-                />
+                  value={batchClassId}
+                  onChange={(e) => setBatchClassId(e.target.value)}
+                  disabled={!batchCourseId}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  <option value="">{batchCourseId ? 'Selecione a turma...' : 'Escolha o curso primeiro'}</option>
+                  {classes.filter((cl: any) => cl.courseId === batchCourseId).map((cl: any) => (
+                    <option key={cl.id} value={cl.id}>{cl.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

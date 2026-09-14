@@ -221,14 +221,20 @@ export const IncomeTaxDeclarationManager: React.FC<IncomeTaxDeclarationManagerPr
               Brasília - DF, {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
             </div>
 
+            {/* As duas linhas ficavam em branco, sem nome nenhum — só a
+                legenda genérica "Carimbo e Assinatura". Os mesmos dois
+                nomes que já assinam o diploma, o histórico e a ficha de
+                estágio entram aqui também, para ficar igual ao original. */}
             <div className="grid grid-cols-2 gap-8 text-center text-xs pt-8">
               <div className="border-t border-slate-300 dark:border-slate-700 pt-2">
-                <p className="font-bold uppercase text-slate-900 dark:text-white">Departamento Financeiro</p>
+                <p className="italic text-slate-900 dark:text-white text-sm">Yan Neres da Silva</p>
+                <p className="font-bold uppercase text-slate-900 dark:text-white mt-0.5">Departamento Financeiro</p>
                 <p className="text-[10px] text-slate-400">Colégio Oswaldo Cruz</p>
               </div>
               <div className="border-t border-slate-300 dark:border-slate-700 pt-2">
-                <p className="font-bold uppercase text-slate-900 dark:text-white">Direção Geral</p>
-                <p className="text-[10px] text-slate-400">Carimbo e Assinatura</p>
+                <p className="italic text-slate-900 dark:text-white text-sm">Aldair Maia Santos dos Reis</p>
+                <p className="font-bold uppercase text-slate-900 dark:text-white mt-0.5">Direção Geral</p>
+                <p className="text-[10px] text-slate-400">Colégio Oswaldo Cruz</p>
               </div>
             </div>
           </div>

@@ -30,6 +30,26 @@ export const CoursePricesManager: React.FC<CoursePricesManagerProps> = ({
     setEditingConfig({ ...cfg });
   };
 
+  /*
+     O DEFEITO DE VERDADE ESTAVA AQUI.
+     Esta tela só sabia EDITAR uma configuração que já existisse em
+     "configs" — não tinha nenhum jeito de CRIAR a primeira, para um curso
+     que ainda não tivesse preço cadastrado. No navegador antigo, sempre
+     nascia com uma linha padrão pronta para cada curso; no banco de
+     verdade, a tabela começa vazia — e sem botão de criar, virava um beco
+     sem saída assim que o financeiro passou a usar o Supabase.
+  */
+  const handleCriarNovo = (curso: any) => {
+    setEditingConfig({
+      id: '', courseId: curso.id, courseName: curso.name,
+      enrollmentPrice: 0, reenrollmentPrice: 0, monthlyPrice: 0, dependencyPrice: 34,
+      maxInstallments: 18, discountPercent: 0, discountLimitDay: 10,
+      finePercent: 2, dailyInterestPercent: 0.033, notes: '',
+    });
+  };
+
+  const cursosSemPreco = courses.filter(c => !configs.some(cfg => cfg.courseId === c.id));
+
   const handleSaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingConfig) return;
@@ -58,6 +78,23 @@ export const CoursePricesManager: React.FC<CoursePricesManagerProps> = ({
         <div className="p-4 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 text-emerald-800 dark:text-emerald-200 text-xs font-extrabold flex items-center gap-2 rounded-2xl">
           <CheckCircle2 className="h-5 w-5 text-emerald-600" />
           <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Cursos que ainda não têm preço cadastrado — o que faltava. */}
+      {cursosSemPreco.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-3xl p-5 space-y-3">
+          <p className="text-xs font-black text-amber-800 dark:text-amber-300 uppercase tracking-wider">
+            Cursos sem tabela de preços ({cursosSemPreco.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {cursosSemPreco.map(c => (
+              <button key={c.id} type="button" onClick={() => handleCriarNovo(c)}
+                      className="px-4 py-2 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-extrabold text-xs rounded-xl hover:bg-amber-100 dark:hover:bg-amber-950 flex items-center gap-1.5">
+                <DollarSign className="h-3.5 w-3.5" /> Cadastrar preço — {c.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
