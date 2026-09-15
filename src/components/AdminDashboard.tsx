@@ -76,6 +76,7 @@ import { ExecutiveBIDashboard } from './ExecutiveBIDashboard';
 import { CRMModule } from './CRMModule';
 import { CadastrosModule } from './cadastros/CadastrosModule';
 import { FinanceiroModule } from './FinanceiroModule';
+import { getCoursePriceConfigs, generateStudentInstallments } from '../services/financeiroStorage';
 import { MovimentacaoModule } from './movimentacao/MovimentacaoModule';
 import { FinanceiroPlaceholder } from './placeholders/FinanceiroPlaceholder';
 import { OrientacaoPlaceholder } from './placeholders/OrientacaoPlaceholder';
@@ -391,6 +392,16 @@ export const AdminDashboard: React.FC = () => {
   const [selectedClassIdForStudents, setSelectedClassIdForStudents] = useState(classes[0]?.id || '');
   const [singleStudentEnrollment, setSingleStudentEnrollment] = useState('');
   const [singleStudentName, setSingleStudentName] = useState('');
+
+  /* Tipo de matrícula — decide qual cobrança nasce no financeiro.
+     NOVA: taxa de matrícula + as parcelas mensais do curso.
+     RENOVACAO: só a taxa de renovação, cobrança única, sem parcela nova.
+     DEPENDENCIA: taxa de dependência por disciplina, por alguns meses.
+     ESTAGIO: renovação de estágio, valor digitado na hora (sem valor fixo). */
+  const [tipoMatricula, setTipoMatricula] = useState<'NOVA' | 'RENOVACAO' | 'DEPENDENCIA' | 'ESTAGIO'>('NOVA');
+  const [disciplinaDependencia, setDisciplinaDependencia] = useState('');
+  const [mesesDependencia, setMesesDependencia] = useState('6');
+  const [valorEstagio, setValorEstagio] = useState('');
 
   // Messaging state
   const [messageRecipient, setMessageRecipient] = useState('ALL_TEACHERS');
@@ -1020,6 +1031,81 @@ export const AdminDashboard: React.FC = () => {
     };
 
     importStudents([newStudent], selectedClassIdForStudents);
+
+    /*
+       GERAÇÃO AUTOMÁTICA DE COBRANÇA NA MATRÍCULA DE VERDADE — quatro
+       tipos, cada um com um jeito diferente de cobrar. Até aqui esta tela
+       nunca gerava cobrança nenhuma; a automação vivia só numa tela antiga
+       (movimentacao/EnrollmentManager.tsx), escondida do menu porque
+       duplicava esta aqui.
+
+       Uma limitação honesta, para os quatro tipos: "importStudents" não
+       devolve o id de verdade do aluno recém-criado. Por isso a cobrança
+       nasce usando a MATRÍCULA como identificador também no campo de id —
+       o mesmo padrão de tolerância que várias outras telas do sistema já
+       usam (comparam por id OU por matrícula).
+    */
+    if (turmaDestino?.courseId) {
+      void (async () => {
+        const precos = await getCoursePriceConfigs();
+        const preco = precos.find(p => p.courseId === turmaDestino.courseId);
+        if (!preco) return;
+
+        const hoje = new Date();
+        const primeiroVencimento = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 10).toISOString().substring(0, 10);
+        const operador = currentUser?.name || 'Secretaria';
+
+        try {
+          if (tipoMatricula === 'NOVA' && preco.monthlyPrice > 0) {
+            await generateStudentInstallments({
+              studentId: enrollment, studentName: newStudent.name, enrollment,
+              courseName: turmaDestino.name, className: turmaDestino.name,
+              monthlyValue: preco.monthlyPrice, totalInstallments: preco.maxInstallments || 18,
+              firstDueDate: primeiroVencimento, user: operador,
+              notes: `Matrícula em ${turmaDestino.name} gerada em ${hoje.toLocaleDateString('pt-BR')}.`
+            });
+            if (preco.enrollmentPrice > 0) {
+              await generateStudentInstallments({
+                studentId: enrollment, studentName: newStudent.name, enrollment,
+                courseName: turmaDestino.name, className: turmaDestino.name,
+                monthlyValue: preco.enrollmentPrice, totalInstallments: 1,
+                firstDueDate: hoje.toISOString().substring(0, 10), user: operador,
+                notes: `Taxa de matrícula — ${turmaDestino.name}.`
+              });
+            }
+          } else if (tipoMatricula === 'RENOVACAO' && preco.reenrollmentPrice > 0) {
+            await generateStudentInstallments({
+              studentId: enrollment, studentName: newStudent.name, enrollment,
+              courseName: turmaDestino.name, className: turmaDestino.name,
+              monthlyValue: preco.reenrollmentPrice, totalInstallments: 1,
+              firstDueDate: hoje.toISOString().substring(0, 10), user: operador,
+              notes: `Renovação de matrícula — ${turmaDestino.name}.`
+            });
+          } else if (tipoMatricula === 'DEPENDENCIA' && preco.dependencyPrice > 0 && disciplinaDependencia.trim()) {
+            await generateStudentInstallments({
+              studentId: enrollment, studentName: newStudent.name, enrollment,
+              courseName: turmaDestino.name, className: `Dependência: ${disciplinaDependencia.trim()}`,
+              monthlyValue: preco.dependencyPrice, totalInstallments: Math.max(1, Number(mesesDependencia) || 6),
+              firstDueDate: primeiroVencimento, user: operador,
+              notes: `Taxa de dependência — ${disciplinaDependencia.trim()}.`
+            });
+          } else if (tipoMatricula === 'ESTAGIO') {
+            const valor = parseFloat(valorEstagio.replace(',', '.'));
+            if (!isNaN(valor) && valor > 0) {
+              await generateStudentInstallments({
+                studentId: enrollment, studentName: newStudent.name, enrollment,
+                courseName: turmaDestino.name, className: turmaDestino.name,
+                monthlyValue: valor, totalInstallments: 1,
+                firstDueDate: hoje.toISOString().substring(0, 10), user: operador,
+                notes: `Renovação de matrícula — Estágio.`
+              });
+            }
+          }
+        } catch (erro) {
+          console.warn('[Financeiro] Matrícula salva, mas não foi possível gerar a cobrança automaticamente:', erro);
+        }
+      })();
+    }
 
     // Aluno que já existia já tem conta. Tentar criar de novo devolveria erro
     // de login duplicado e assustaria a secretaria à toa — a matrícula nova
@@ -2537,6 +2623,53 @@ export const AdminDashboard: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Tipo de Matrícula
+                </label>
+                <select
+                  value={tipoMatricula}
+                  onChange={(e) => setTipoMatricula(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                >
+                  <option value="NOVA">Matrícula</option>
+                  <option value="RENOVACAO">Renovação de Matrícula</option>
+                  <option value="DEPENDENCIA">Matrícula com Dependência</option>
+                  <option value="ESTAGIO">Matrícula de Estágio</option>
+                </select>
+              </div>
+
+              {tipoMatricula === 'DEPENDENCIA' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                      Disciplina em Dependência
+                    </label>
+                    <input type="text" value={disciplinaDependencia} onChange={(e) => setDisciplinaDependencia(e.target.value)}
+                           placeholder="Ex: Farmacologia" required={tipoMatricula === 'DEPENDENCIA'}
+                           className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                      Quantidade de Meses
+                    </label>
+                    <input type="number" min={1} value={mesesDependencia} onChange={(e) => setMesesDependencia(e.target.value)}
+                           className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white" />
+                  </div>
+                </div>
+              )}
+
+              {tipoMatricula === 'ESTAGIO' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Valor da Renovação de Estágio (R$)
+                  </label>
+                  <input type="text" value={valorEstagio} onChange={(e) => setValorEstagio(e.target.value)}
+                         placeholder="Sem valor fixo — digite na hora" required={tipoMatricula === 'ESTAGIO'}
+                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white" />
+                </div>
+              )}
 
               <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/40 text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed">
                 ℹ️ <strong>Regra Acadêmica:</strong> Ao matricular, o aluno é vinculado a <strong>todos os diários e disciplinas</strong> desta sala/turma simultaneamente.
