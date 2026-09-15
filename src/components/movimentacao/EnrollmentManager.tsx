@@ -59,8 +59,10 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({ currentUse
 
   // Update default financial values when course changes
   useEffect(() => {
-    if (selectedCourseId) {
-      const priceConfigs = getCoursePriceConfigs();
+    // getCoursePriceConfigs já fala com o banco (Parte 2) — devolve Promise.
+    if (!selectedCourseId) return;
+    void (async () => {
+      const priceConfigs = await getCoursePriceConfigs();
       const course = courses.find(c => c.id === selectedCourseId);
       if (course) {
         const cfg = priceConfigs.find(p => p.courseName.toLowerCase() === course.name.toLowerCase());
@@ -70,7 +72,7 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({ currentUse
           setInstallmentValue(cfg.monthlyPrice || 350);
         }
       }
-    }
+    })();
   }, [selectedCourseId, courses]);
 
   // Available students (Role = UserRole.STUDENT)
@@ -87,7 +89,7 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({ currentUse
   const filteredClasses = classes.filter(c => c.courseId === selectedCourseId);
   const selectedClassObj = classes.find(c => c.id === selectedClassId) || filteredClasses[0];
 
-  const handleConfirmEnrollment = (e: React.FormEvent) => {
+  const handleConfirmEnrollment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
       setNotification({ type: 'error', message: 'Selecione o aluno para efetuar a matrícula.' });
@@ -133,20 +135,25 @@ export const EnrollmentManager: React.FC<EnrollmentManagerProps> = ({ currentUse
     saveEnrollment(newEnrollment, currentUser);
 
     // Generate financial installments automatically in Financeiro module!
+    // generateStudentInstallments já fala com o banco (Parte 3).
     const discountedMonthly = installmentValue * (1 - discountPercent / 100);
     const now = new Date();
-    generateStudentInstallments({
-      studentId: selectedStudent.id,
-      studentName: selectedStudent.name,
-      enrollment: enrollCode,
-      courseName: selectedCourse.name,
-      className: selectedClassObj?.code || 'Turma A',
-      monthlyValue: discountedMonthly,
-      totalInstallments: installmentsCount,
-      firstDueDate: new Date(now.getFullYear(), now.getMonth() + 1, 10).toISOString().substring(0, 10),
-      user: currentUser,
-      notes: `Matrícula oficial gerada em ${new Date().toLocaleDateString('pt-BR')}. Taxa Matrícula: R$ ${enrollmentFee.toFixed(2)}.`
-    });
+    try {
+      await generateStudentInstallments({
+        studentId: selectedStudent.id,
+        studentName: selectedStudent.name,
+        enrollment: enrollCode,
+        courseName: selectedCourse.name,
+        className: selectedClassObj?.code || 'Turma A',
+        monthlyValue: discountedMonthly,
+        totalInstallments: installmentsCount,
+        firstDueDate: new Date(now.getFullYear(), now.getMonth() + 1, 10).toISOString().substring(0, 10),
+        user: currentUser,
+        notes: `Matrícula oficial gerada em ${new Date().toLocaleDateString('pt-BR')}. Taxa Matrícula: R$ ${enrollmentFee.toFixed(2)}.`
+      });
+    } catch (erro: any) {
+      setNotification({ type: 'error', message: erro?.message || 'Matrícula salva, mas não foi possível gerar as parcelas. Gere manualmente em Financeiro.' });
+    }
 
     setEnrollments(getEnrollments());
     setNotification({ type: 'success', message: `Matrícula #${enrollCode} confirmada com sucesso! Contrato e Documentos Prontos.` });

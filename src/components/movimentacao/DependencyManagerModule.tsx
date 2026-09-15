@@ -49,7 +49,7 @@ export const DependencyManagerModule: React.FC<DependencyManagerModuleProps> = (
   const selectedSubject = subjects.find(s => s.id === selectedSubjectId);
   const selectedTeacher = teachers.find(t => t.id === selectedTeacherId);
 
-  const handleConfirmDependency = (e: React.FormEvent) => {
+  const handleConfirmDependency = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
       setNotification({ type: 'error', message: 'Selecione o aluno.' });
@@ -79,7 +79,8 @@ export const DependencyManagerModule: React.FC<DependencyManagerModuleProps> = (
       createdBy: currentUser
     };
 
-    saveDependency(dep, currentUser);
+    // saveDependency já fala com o banco (Parte 3) — devolve Promise.
+    await saveDependency(dep, currentUser);
     setDependencies(getDependencies());
     setNotification({
       type: 'success',
