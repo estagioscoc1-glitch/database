@@ -934,22 +934,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [studentDocuments, setStudentDocuments] = useState<StudentDocument[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_student_documents'), []);
-    return val || [];
+    return Array.isArray(val) ? val : [];
   });
 
   const [internships, setInternships] = useState<InternshipRecord[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_internships'), []);
-    return val || [];
+    return Array.isArray(val) ? val : [];
   });
 
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_staff_members'), []);
-    return val || [];
+    return Array.isArray(val) ? val : [];
   });
 
   const [dependencies, setDependencies] = useState<DependencyEnrollment[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_dependencies'), []);
-    return val || [];
+    return Array.isArray(val) ? val : [];
   });
 
   useEffect(() => {
