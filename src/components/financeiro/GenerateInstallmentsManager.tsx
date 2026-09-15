@@ -81,7 +81,7 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
     }
   };
 
-  const handleIndividualSubmit = (e: React.FormEvent) => {
+  const handleIndividualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
       alert('Por favor, busque e selecione um aluno.');
@@ -99,22 +99,27 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
     const cfg = courseConfigs.find(c => c.courseId === courseId);
     const courseNameStr = cfg?.courseName || 'CURSO TÉCNICO';
 
-    generateIndividualInstallments({
-      studentId: selectedStudent.id || '1',
-      studentName: selectedStudent.name || selectedStudent.studentName,
-      enrollment: selectedStudent.enrollment || 'ALU-001',
-      courseId,
-      courseName: courseNameStr,
-      monthlyValue: monthlyVal,
-      totalInstallments: Number(totalInstallments),
-      firstDueDate,
-      discountValue: isNaN(discVal) ? 0 : discVal,
-      discountLimitDay: Number(discountLimitDay),
-      finePercent: Number(finePercent),
-      dailyInterestPercent: Number(dailyInterestPercent),
-      notes,
-      user: currentUser
-    });
+    try {
+      await generateIndividualInstallments({
+        studentId: selectedStudent.id || '1',
+        studentName: selectedStudent.name || selectedStudent.studentName,
+        enrollment: selectedStudent.enrollment || 'ALU-001',
+        courseId,
+        courseName: courseNameStr,
+        monthlyValue: monthlyVal,
+        totalInstallments: Number(totalInstallments),
+        firstDueDate,
+        discountValue: isNaN(discVal) ? 0 : discVal,
+        discountLimitDay: Number(discountLimitDay),
+        finePercent: Number(finePercent),
+        dailyInterestPercent: Number(dailyInterestPercent),
+        notes,
+        user: currentUser
+      });
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível gerar as parcelas.');
+      return;
+    }
 
     setSuccessMessage(`Sucesso! ${totalInstallments} parcelas geradas com sucesso para o aluno ${selectedStudent.name}.`);
     setTimeout(() => setSuccessMessage(''), 5000);
@@ -123,7 +128,7 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
     setSearchStudentQuery('');
   };
 
-  const handleBatchSubmit = (e: React.FormEvent) => {
+  const handleBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const monthlyVal = parseFloat(batchMonthlyValue.replace(',', '.'));
     if (isNaN(monthlyVal) || monthlyVal <= 0) {
@@ -157,24 +162,30 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
 
     const cfg = courseConfigs.find(c => c.courseId === batchCourseId);
 
-    const count = generateBatchClassInstallments({
-      students: filteredStudents.map(s => ({
-        id: s.id || '1',
-        name: s.name || 'Aluno',
-        enrollment: s.enrollment || 'ALU-00'
-      })),
-      courseId: batchCourseId,
-      courseName: cfg?.courseName || 'CURSO TÉCNICO',
-      className: turma?.name || batchClassId,
-      monthlyValue: monthlyVal,
-      totalInstallments: Number(batchTotalInstallments),
-      firstDueDate: batchFirstDueDate,
-      discountValue: (monthlyVal * 0.1),
-      discountLimitDay: 10,
-      finePercent: 2,
-      dailyInterestPercent: 0.033,
-      user: currentUser
-    });
+    let count = 0;
+    try {
+      count = await generateBatchClassInstallments({
+        students: filteredStudents.map(s => ({
+          id: s.id || '1',
+          name: s.name || 'Aluno',
+          enrollment: s.enrollment || 'ALU-00'
+        })),
+        courseId: batchCourseId,
+        courseName: cfg?.courseName || 'CURSO TÉCNICO',
+        className: turma?.name || batchClassId,
+        monthlyValue: monthlyVal,
+        totalInstallments: Number(batchTotalInstallments),
+        firstDueDate: batchFirstDueDate,
+        discountValue: (monthlyVal * 0.1),
+        discountLimitDay: 10,
+        finePercent: 2,
+        dailyInterestPercent: 0.033,
+        user: currentUser
+      });
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível gerar as parcelas em lote.');
+      return;
+    }
 
     setSuccessMessage(`Geração em Lote Concluída! Total de ${count} alunos processados na turma ${turma?.name || ''}.`);
     setTimeout(() => setSuccessMessage(''), 6000);
