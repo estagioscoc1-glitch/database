@@ -6,7 +6,7 @@ import {
   Award, CheckCircle2, XCircle, ChevronRight, Download, Maximize2, Minimize2,
   Plus, Edit2, Trash2, ArrowUpRight, ArrowDownRight, UserCheck, Briefcase,
   Layers, ShieldAlert, PieChart as PieChartIcon, BarChart3, Activity, Sparkles,
-  HelpCircle, Eye, Printer, FileSpreadsheet, X, Sparkle, Building
+  HelpCircle, Eye, Printer, FileSpreadsheet, X, Sparkle, Building, MessageCircle
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -15,18 +15,9 @@ import {
 import { useApp } from '../context/AppContext';
 import { UserRole, Shift, CustomDashboardWidget, ClassSection } from '../types';
 import { getInstallments, getExpenses } from '../services/financeiroStorage';
-
-/*
-   PARTES 3 A 6: getInstallments e getExpenses agora falam com o banco de
-   verdade — passaram a devolver Promise. Os três cálculos que dependiam
-   delas (financialMetrics, monthlyFinancialSeries, courseRankings) viviam
-   dentro de useMemo, que precisa ser síncrono — não dá pra "esperar" dentro
-   dele. A solução: buscar os dados uma vez, guardar num estado comum
-   (installmentsData/expensesData), e os três useMemo passam a calcular em
-   cima desse estado, não mais chamando a função do banco direto.
-*/
 import { listarRequerimentos } from '../lib/supabaseRequerimentos';
 import { buscarVisitasDoSite, type VisitasDoSite } from '../lib/supabaseVisitasSite';
+import { buscarChatbotNovidades, type ChatbotNovidades } from '../lib/supabaseChatbotNovidades';
 
 const COLORS = {
   primary: '#2563eb', // Blue
@@ -275,33 +266,23 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
      não carrega a fila de Requerimentos por padrão. */
   const [diplomaA4Requested, setDiplomaA4Requested] = useState(0);
   useEffect(() => {
-    // Blindado: se a chamada falhar ou devolver algo inesperado, "lista"
-    // nunca vira algo diferente de um array — assim o .filter logo abaixo
-    // nunca quebra a tela, na pior das hipóteses o número fica 0.
-    void listarRequerimentos()
-      .then(({ lista }) => {
-        setDiplomaA4Requested((lista ?? []).filter(r => r.tipoNome === 'Diploma A4' && r.situacao !== 'CANCELADO').length);
-      })
-      .catch(() => setDiplomaA4Requested(0));
+    void listarRequerimentos().then(({ lista }) => {
+      setDiplomaA4Requested(lista.filter(r => r.tipoNome === 'Diploma A4' && r.situacao !== 'CANCELADO').length);
+    });
   }, []);
 
   /* VISITAS DO SITE INSTITUCIONAL — puxa da function do Cloudflare, que é
      quem tem a chave de leitura. Aqui só existe o número já pronto. */
   const [visitasSite, setVisitasSite] = useState<VisitasDoSite | null>(null);
   useEffect(() => {
-    void buscarVisitasDoSite().then(setVisitasSite).catch(() => setVisitasSite(null));
+    void buscarVisitasDoSite().then(setVisitasSite);
   }, []);
 
-  /* Parcelas e saídas — buscadas uma vez do banco, para alimentar os três
-     cálculos financeiros abaixo (financialMetrics, monthlyFinancialSeries,
-     courseRankings), que continuam em useMemo comum. */
-  const [installmentsData, setInstallmentsData] = useState<any[]>([]);
-  const [expensesData, setExpensesData] = useState<any[]>([]);
+  /* CHATBOT DE ATENDIMENTO — mensagens novas ainda não respondidas, vindas
+     do Supabase do chatbot (projeto separado, feito no Lovable). */
+  const [chatbotNovidades, setChatbotNovidades] = useState<ChatbotNovidades | null>(null);
   useEffect(() => {
-    // Blindado do mesmo jeito: nunca deixa installmentsData/expensesData
-    // virarem outra coisa que não seja array, mesmo se a busca falhar.
-    void getInstallments().then(r => setInstallmentsData(r ?? [])).catch(() => setInstallmentsData([]));
-    void getExpenses().then(r => setExpensesData(r ?? [])).catch(() => setExpensesData([]));
+    void buscarChatbotNovidades().then(setChatbotNovidades);
   }, []);
 
   /**
@@ -347,8 +328,8 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // Financial Indicators — dados reais vindos do Módulo Financeiro (parcelas e
   // despesas lançadas de verdade), não mais estimados por fórmula.
   const financialMetrics = useMemo(() => {
-    const installments = installmentsData;
-    const expenses = expensesData;
+    const installments = getInstallments();
+    const expenses = getExpenses();
     const now = new Date();
     const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
     const currentYearStr = String(now.getFullYear());
@@ -382,13 +363,15 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
       paidInstallments,
       openInstallments,
       overdueInstallments,
+      // O total do mês já era calculado aqui e nunca saía da função — por isso
+      // a tela recorria à contagem de alunos para preencher o rótulo.
       totalThisMonth,
       inadimplenciaRate,
       monthExpenses,
       yearExpenses,
       generalExpenses
     };
-  }, [installmentsData, expensesData]);
+  }, []);
 
   // Charts Data Generation — evolução real de matrículas por mês (ano atual),
   // contando a data de cadastro de cada aluno. "Canceladas" fica em 0 porque
@@ -472,22 +455,22 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // Receitas x despesas por mês — soma real das parcelas pagas (por
   // competência) e das despesas lançadas no Módulo Financeiro, ano atual.
   const monthlyFinancialSeries = useMemo(() => {
-    const installments = installmentsData;
-    const expenses = expensesData;
+    const installments = getInstallments();
+    const expenses = getExpenses();
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const year = new Date().getFullYear();
     return monthNames.map((mes, idx) => {
       const competencia = `${String(idx + 1).padStart(2, '0')}/${year}`;
       const monthStr = `${year}-${String(idx + 1).padStart(2, '0')}`;
       const receitas = installments
-        .filter((i: any) => i.status === 'PAGA' && i.competencia === competencia)
-        .reduce((s: number, i: any) => s + (i.paidValue ?? (i.originalValue - (i.discountValue || 0))), 0);
+        .filter(i => i.status === 'PAGA' && i.competencia === competencia)
+        .reduce((s, i) => s + (i.paidValue ?? (i.originalValue - (i.discountValue || 0))), 0);
       const despesas = expenses
-        .filter((e: any) => e.date && e.date.startsWith(monthStr))
-        .reduce((s: number, e: any) => s + e.value, 0);
+        .filter(e => e.date && e.date.startsWith(monthStr))
+        .reduce((s, e) => s + e.value, 0);
       return { mes, receitas, despesas, entradas: receitas, saidas: despesas, saldo: receitas - despesas };
     });
-  }, [installmentsData, expensesData]);
+  }, []);
   const revenueVsExpensesData = monthlyFinancialSeries;
   const monthlyCashflowData = monthlyFinancialSeries;
 
@@ -659,7 +642,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // de cada aluno do curso; inadimplência calculada a partir das parcelas
   // reais em atraso daquele curso no mês, não mais sorteada aleatoriamente.
   const courseRankings = useMemo(() => {
-    const installments = installmentsData;
+    const installments = getInstallments();
     const now = new Date();
     const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
@@ -684,7 +667,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
         inadimplencia
       };
     }).sort((a, b) => b.total - a.total);
-  }, [courses, filteredStudents, installmentsData]);
+  }, [courses, filteredStudents]);
 
   // Recent Activity Feed
   const recentActivityLogs = useMemo(() => {
@@ -1121,6 +1104,36 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
                   {visitasSite?.hoje?.visitantesUnicos ?? '—'}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">Visitantes únicos · colegiooswaldocruz.com.br</p>
+              </>
+            )}
+          </div>
+
+          {/* KPI 7-D: Chatbot de atendimento — mensagens novas não respondidas. */}
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group cursor-pointer"
+            onClick={() => window.open('https://atendimento-colegiooswaldocruz.lovable.app/admin', '_blank')}
+          >
+            <div className="flex items-center justify-between">
+              <span className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:scale-110 transition-all">
+                <MessageCircle className="h-5 w-5" />
+              </span>
+              {!!chatbotNovidades?.totalNaoLidas && (
+                <span className="inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1 text-[10px] font-black text-white bg-emerald-500 rounded-full">
+                  {chatbotNovidades.totalNaoLidas}
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Chatbot · Mensagens Novas</p>
+            {chatbotNovidades?.erro ? (
+              <p className="text-[10px] text-rose-500 mt-1.5 leading-snug">{chatbotNovidades.erro}</p>
+            ) : (
+              <>
+                <p className="text-2xl font-black text-slate-800 dark:text-white mt-0.5">
+                  {chatbotNovidades?.totalNaoLidas ?? '—'}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {chatbotNovidades?.totalNaoLidas ? 'Clique para abrir o atendimento' : 'Nenhuma conversa pendente'}
+                </p>
               </>
             )}
           </div>
