@@ -327,50 +327,74 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
 
   // Financial Indicators — dados reais vindos do Módulo Financeiro (parcelas e
   // despesas lançadas de verdade), não mais estimados por fórmula.
-  const financialMetrics = useMemo(() => {
-    const installments = getInstallments();
-    const expenses = getExpenses();
-    const now = new Date();
-    const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
-    const currentYearStr = String(now.getFullYear());
+  //
+  // getInstallments()/getExpenses() viraram funções ASSÍNCRONAS (buscam direto
+  // do Supabase) numa atualização anterior, mas este cálculo continuava
+  // chamando as duas sem "await" e tentando usar ".filter()" no Promise
+  // retornado — daí o erro "_.filter is not a function" que travava o
+  // Dashboard inteiro ao abrir. Agora a busca é feita de verdade dentro de um
+  // useEffect assíncrono, com um valor inicial zerado enquanto carrega.
+  const [financialMetrics, setFinancialMetrics] = useState({
+    monthReceived: 0,
+    yearReceived: 0,
+    generalReceived: 0,
+    paidInstallments: 0,
+    openInstallments: 0,
+    overdueInstallments: 0,
+    totalThisMonth: 0,
+    inadimplenciaRate: '0.0',
+    monthExpenses: 0,
+    yearExpenses: 0,
+    generalExpenses: 0,
+  });
 
-    const valorRecebido = (i: typeof installments[number]) =>
-      i.paidValue ?? (i.originalValue - (i.discountValue || 0));
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const installments = await getInstallments();
+      const expenses = await getExpenses();
+      const now = new Date();
+      const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+      const currentYearStr = String(now.getFullYear());
 
-    const paidThisMonth = installments.filter(i => i.status === 'PAGA' && i.competencia === currentMonthStr);
-    const paidThisYear = installments.filter(i => i.status === 'PAGA' && i.competencia?.endsWith(`/${currentYearStr}`));
-    const paidAllTime = installments.filter(i => i.status === 'PAGA');
+      const valorRecebido = (i: typeof installments[number]) =>
+        i.paidValue ?? (i.originalValue - (i.discountValue || 0));
 
-    const totalReceivedMonth = paidThisMonth.reduce((sum, i) => sum + valorRecebido(i), 0);
-    const totalReceivedYear = paidThisYear.reduce((sum, i) => sum + valorRecebido(i), 0);
-    const totalReceivedGeneral = paidAllTime.reduce((sum, i) => sum + valorRecebido(i), 0);
+      const paidThisMonth = installments.filter(i => i.status === 'PAGA' && i.competencia === currentMonthStr);
+      const paidThisYear = installments.filter(i => i.status === 'PAGA' && i.competencia?.endsWith(`/${currentYearStr}`));
+      const paidAllTime = installments.filter(i => i.status === 'PAGA');
 
-    const thisMonthInstallments = installments.filter(i => i.competencia === currentMonthStr);
-    const paidInstallments = thisMonthInstallments.filter(i => i.status === 'PAGA').length;
-    const openInstallments = thisMonthInstallments.filter(i => i.status === 'PENDENTE').length;
-    const overdueInstallments = thisMonthInstallments.filter(i => i.status === 'ATRASADA').length;
-    const totalThisMonth = thisMonthInstallments.length;
-    const inadimplenciaRate = totalThisMonth > 0 ? ((overdueInstallments / totalThisMonth) * 100).toFixed(1) : '0.0';
+      const totalReceivedMonth = paidThisMonth.reduce((sum, i) => sum + valorRecebido(i), 0);
+      const totalReceivedYear = paidThisYear.reduce((sum, i) => sum + valorRecebido(i), 0);
+      const totalReceivedGeneral = paidAllTime.reduce((sum, i) => sum + valorRecebido(i), 0);
 
-    const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(now.toISOString().slice(0, 7))).reduce((s, e) => s + e.value, 0);
-    const yearExpenses = expenses.filter(e => e.date && e.date.startsWith(currentYearStr)).reduce((s, e) => s + e.value, 0);
-    const generalExpenses = expenses.reduce((s, e) => s + e.value, 0);
+      const thisMonthInstallments = installments.filter(i => i.competencia === currentMonthStr);
+      const paidInstallments = thisMonthInstallments.filter(i => i.status === 'PAGA').length;
+      const openInstallments = thisMonthInstallments.filter(i => i.status === 'PENDENTE').length;
+      const overdueInstallments = thisMonthInstallments.filter(i => i.status === 'ATRASADA').length;
+      const totalThisMonth = thisMonthInstallments.length;
+      const inadimplenciaRate = totalThisMonth > 0 ? ((overdueInstallments / totalThisMonth) * 100).toFixed(1) : '0.0';
 
-    return {
-      monthReceived: totalReceivedMonth,
-      yearReceived: totalReceivedYear,
-      generalReceived: totalReceivedGeneral,
-      paidInstallments,
-      openInstallments,
-      overdueInstallments,
-      // O total do mês já era calculado aqui e nunca saía da função — por isso
-      // a tela recorria à contagem de alunos para preencher o rótulo.
-      totalThisMonth,
-      inadimplenciaRate,
-      monthExpenses,
-      yearExpenses,
-      generalExpenses
-    };
+      const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(now.toISOString().slice(0, 7))).reduce((s, e) => s + e.value, 0);
+      const yearExpenses = expenses.filter(e => e.date && e.date.startsWith(currentYearStr)).reduce((s, e) => s + e.value, 0);
+      const generalExpenses = expenses.reduce((s, e) => s + e.value, 0);
+
+      if (cancelado) return;
+      setFinancialMetrics({
+        monthReceived: totalReceivedMonth,
+        yearReceived: totalReceivedYear,
+        generalReceived: totalReceivedGeneral,
+        paidInstallments,
+        openInstallments,
+        overdueInstallments,
+        totalThisMonth,
+        inadimplenciaRate,
+        monthExpenses,
+        yearExpenses,
+        generalExpenses,
+      });
+    })();
+    return () => { cancelado = true; };
   }, []);
 
   // Charts Data Generation — evolução real de matrículas por mês (ano atual),
@@ -454,22 +478,35 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
 
   // Receitas x despesas por mês — soma real das parcelas pagas (por
   // competência) e das despesas lançadas no Módulo Financeiro, ano atual.
-  const monthlyFinancialSeries = useMemo(() => {
-    const installments = getInstallments();
-    const expenses = getExpenses();
-    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const year = new Date().getFullYear();
-    return monthNames.map((mes, idx) => {
-      const competencia = `${String(idx + 1).padStart(2, '0')}/${year}`;
-      const monthStr = `${year}-${String(idx + 1).padStart(2, '0')}`;
-      const receitas = installments
-        .filter(i => i.status === 'PAGA' && i.competencia === competencia)
-        .reduce((s, i) => s + (i.paidValue ?? (i.originalValue - (i.discountValue || 0))), 0);
-      const despesas = expenses
-        .filter(e => e.date && e.date.startsWith(monthStr))
-        .reduce((s, e) => s + e.value, 0);
-      return { mes, receitas, despesas, entradas: receitas, saidas: despesas, saldo: receitas - despesas };
-    });
+  //
+  // Mesmo problema do bloco acima: getInstallments()/getExpenses() são
+  // assíncronas agora, então a busca precisa de um useEffect de verdade.
+  const [monthlyFinancialSeries, setMonthlyFinancialSeries] = useState<
+    { mes: string; receitas: number; despesas: number; entradas: number; saidas: number; saldo: number }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const installments = await getInstallments();
+      const expenses = await getExpenses();
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const year = new Date().getFullYear();
+      const serie = monthNames.map((mes, idx) => {
+        const competencia = `${String(idx + 1).padStart(2, '0')}/${year}`;
+        const monthStr = `${year}-${String(idx + 1).padStart(2, '0')}`;
+        const receitas = installments
+          .filter(i => i.status === 'PAGA' && i.competencia === competencia)
+          .reduce((s, i) => s + (i.paidValue ?? (i.originalValue - (i.discountValue || 0))), 0);
+        const despesas = expenses
+          .filter(e => e.date && e.date.startsWith(monthStr))
+          .reduce((s, e) => s + e.value, 0);
+        return { mes, receitas, despesas, entradas: receitas, saidas: despesas, saldo: receitas - despesas };
+      });
+      if (cancelado) return;
+      setMonthlyFinancialSeries(serie);
+    })();
+    return () => { cancelado = true; };
   }, []);
   const revenueVsExpensesData = monthlyFinancialSeries;
   const monthlyCashflowData = monthlyFinancialSeries;
@@ -641,32 +678,46 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
   // Course Rankings — evasão e formandos calculados a partir do status real
   // de cada aluno do curso; inadimplência calculada a partir das parcelas
   // reais em atraso daquele curso no mês, não mais sorteada aleatoriamente.
-  const courseRankings = useMemo(() => {
-    const installments = getInstallments();
-    const now = new Date();
-    const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  //
+  // Mesmo problema de novo: getInstallments() é assíncrona, então o ranking
+  // é recalculado num useEffect assim que as parcelas chegam do Supabase.
+  const [courseRankings, setCourseRankings] = useState<
+    { id: string; name: string; total: number; evasaoRate: string; formandos: number; inadimplencia: string }[]
+  >([]);
 
-    return courses.map(c => {
-      const studentsInCourse = filteredStudents.filter(u => u.courseId === c.id);
-      const totalInCourse = studentsInCourse.length;
-      const dropouts = studentsInCourse.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length;
-      const grads = studentsInCourse.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      const installments = await getInstallments();
+      const now = new Date();
+      const currentMonthStr = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
-      const courseInstallmentsThisMonth = installments.filter(i => i.courseId === c.id && i.competencia === currentMonthStr);
-      const overdueInCourse = courseInstallmentsThisMonth.filter(i => i.status === 'ATRASADA').length;
-      const inadimplencia = courseInstallmentsThisMonth.length > 0
-        ? ((overdueInCourse / courseInstallmentsThisMonth.length) * 100).toFixed(1)
-        : '0.0';
+      const ranking = courses.map(c => {
+        const studentsInCourse = filteredStudents.filter(u => u.courseId === c.id);
+        const totalInCourse = studentsInCourse.length;
+        const dropouts = studentsInCourse.filter(u => u.status === 'DESISTENTE' || u.status === 'CANCELADO').length;
+        const grads = studentsInCourse.filter(u => u.status === 'FORMADO' || u.status === 'CONCLUÍDO').length;
 
-      return {
-        id: c.id,
-        name: c.name,
-        total: totalInCourse,
-        evasaoRate: totalInCourse > 0 ? ((dropouts / totalInCourse) * 100).toFixed(1) : '0.0',
-        formandos: grads,
-        inadimplencia
-      };
-    }).sort((a, b) => b.total - a.total);
+        const courseInstallmentsThisMonth = installments.filter(i => i.courseId === c.id && i.competencia === currentMonthStr);
+        const overdueInCourse = courseInstallmentsThisMonth.filter(i => i.status === 'ATRASADA').length;
+        const inadimplencia = courseInstallmentsThisMonth.length > 0
+          ? ((overdueInCourse / courseInstallmentsThisMonth.length) * 100).toFixed(1)
+          : '0.0';
+
+        return {
+          id: c.id,
+          name: c.name,
+          total: totalInCourse,
+          evasaoRate: totalInCourse > 0 ? ((dropouts / totalInCourse) * 100).toFixed(1) : '0.0',
+          formandos: grads,
+          inadimplencia
+        };
+      }).sort((a, b) => b.total - a.total);
+
+      if (cancelado) return;
+      setCourseRankings(ranking);
+    })();
+    return () => { cancelado = true; };
   }, [courses, filteredStudents]);
 
   // Recent Activity Feed
