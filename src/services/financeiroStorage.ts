@@ -415,264 +415,173 @@ function applyScholarshipToInstallments(scholarship: Scholarship, user: string):
   }
 }
 
-// --- MISC PAYMENT CATALOG & INCOMES ---
-export function getMiscPaymentCatalog(): MiscPaymentCatalog[] {
-  return getItemJSON<MiscPaymentCatalog[]>(STORAGE_KEYS.MISC_CATALOG, initialMiscCatalog);
+// --- CATÁLOGO DE PAGAMENTOS DIVERSOS (parte 5 já ligada ao banco) ---
+function itemCatalogoDoBanco(i: any): MiscPaymentCatalog {
+  return {
+    id: i.id, name: i.nome, category: i.categoria, defaultValue: Number(i.valor_padrao),
+    description: i.descricao ?? '', active: i.ativo, blockedActions: i.acoes_bloqueadas ?? [],
+  };
 }
 
-export function saveMiscPaymentCatalog(item: MiscPaymentCatalog, user: string): void {
-  const catalog = getMiscPaymentCatalog();
-  const idx = catalog.findIndex(c => c.id === item.id);
-  if (idx >= 0) {
-    catalog[idx] = item;
-  } else {
-    catalog.push(item);
-  }
-  setItemJSON(STORAGE_KEYS.MISC_CATALOG, catalog);
-  addFinancialAuditLog(user, 'PAGAMENTO_DIVERSO_CATALOGO', `Cobrança diversa ${item.name} cadastrada/atualizada.`);
+export async function getMiscPaymentCatalog(): Promise<MiscPaymentCatalog[]> {
+  const { data, error } = await supabase.from('financeiro_catalogo_diversos').select('*').order('nome');
+  if (error) { console.warn('[Financeiro] catálogo diverso:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(itemCatalogoDoBanco);
 }
 
-export function getMiscIncomes(): MiscIncome[] {
-  const seedIncomes: MiscIncome[] = [
-    {
-      id: 'minc_001',
-      studentId: '1',
-      studentName: 'Maria Silva de Oliveira',
-      enrollment: 'ALU202601',
-      chargeName: 'Apostila / Material Didático',
-      category: 'Material',
-      value: 120.00,
-      paidValue: 120.00,
-      paymentMethod: 'PIX',
-      cashRegisterId: 'cx_001',
-      paidAt: new Date(Date.now() - 86400000).toISOString(),
-      receiptNumber: 'REC-20260210-001',
-      user: 'Tesouraria',
-      status: 'PAGO'
-    }
-  ];
-  return getItemJSON<MiscIncome[]>(STORAGE_KEYS.MISC_INCOMES, []);
+/*
+   A tela de cadastro gera um id provisório tipo "cat_1699999999" para item
+   novo (antes de saber o id de verdade) — bom para o navegador reconhecer o
+   item na hora, mas essa string nunca é um UUID válido, e a coluna "id" da
+   tabela exige um UUID de verdade. Por isso: só reaproveita o id recebido
+   quando ele já É um UUID de verdade (ou seja, veio de uma edição, lido do
+   banco antes); qualquer outro formato vira um cadastro novo, com o banco
+   gerando o UUID sozinho.
+*/
+const pareceUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+export async function saveMiscPaymentCatalog(item: MiscPaymentCatalog, user: string): Promise<void> {
+  const linha: any = {
+    nome: item.name, categoria: item.category, valor_padrao: item.defaultValue,
+    descricao: item.description, ativo: item.active, acoes_bloqueadas: item.blockedActions ?? [],
+  };
+  if (pareceUUID(item.id)) linha.id = item.id;
+
+  const { error } = await supabase.from('financeiro_catalogo_diversos').upsert(linha);
+  if (error) { console.warn('[Financeiro] salvar catálogo diverso:', explicarErroFinanceiro(error)); return; }
+  await addFinancialAuditLog(user, 'PAGAMENTO_DIVERSO_CATALOGO', `Cobrança diversa ${item.name} cadastrada/atualizada.`);
 }
 
-export function payMiscIncome(
-  studentId: string,
-  studentName: string,
-  enrollment: string,
-  chargeName: string,
-  category: string,
-  value: number,
-  paymentMethod: string,
-  user: string,
-  blockedActions?: string[],
-  notes?: string
-): { income: MiscIncome; receipt: FinancialReceipt } {
-  const openCash = getOpenCashRegister();
+// --- ENTRADAS DIVERSAS (parte 5 já ligada ao banco) ---
+function miscIncomeDoBanco(m: any): MiscIncome {
+  return {
+    id: m.id, studentId: m.aluno_id, studentName: m.aluno_nome, enrollment: m.matricula ?? '',
+    chargeName: m.nome_cobranca, category: m.categoria, value: Number(m.valor),
+    paidValue: m.valor_pago != null ? Number(m.valor_pago) : Number(m.valor),
+    paymentMethod: m.forma_pagamento ?? '', cashRegisterId: m.caixa_id ?? undefined,
+    paidAt: m.pago_em ?? m.criado_em, receiptNumber: m.recibo_numero ?? '', user: m.usuario ?? '',
+    status: m.status, notes: m.observacoes ?? undefined, blockedActions: m.acoes_bloqueadas ?? undefined,
+    waivedAt: m.abonado_em ?? undefined, waivedBy: m.abonado_por ?? undefined, waiveReason: m.motivo_abono ?? undefined,
+  };
+}
+
+export async function getMiscIncomes(): Promise<MiscIncome[]> {
+  const { data, error } = await supabase
+    .from('financeiro_entradas_diversas').select('*').order('criado_em', { ascending: false });
+  if (error) { console.warn('[Financeiro] entradas diversas:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(miscIncomeDoBanco);
+}
+
+export async function payMiscIncome(
+  studentId: string, studentName: string, enrollment: string, chargeName: string, category: string,
+  value: number, paymentMethod: string, user: string, blockedActions?: string[], notes?: string
+): Promise<{ income: MiscIncome; receipt: FinancialReceipt }> {
+  const openCash = await getOpenCashRegister();
   const receiptNum = 'REC-' + new Date().getFullYear() + Math.floor(100000 + Math.random() * 900000);
 
-  const newIncome: MiscIncome = {
-    id: 'minc_' + Date.now(),
-    studentId,
-    studentName,
-    enrollment,
-    chargeName,
-    category,
-    value,
-    paidValue: value,
-    paymentMethod,
-    cashRegisterId: openCash?.id,
-    paidAt: new Date().toISOString(),
-    receiptNumber: receiptNum,
-    user,
-    status: 'PAGO',
-    blockedActions,
-    notes
-  };
+  const { data, error } = await supabase.from('financeiro_entradas_diversas').insert({
+    aluno_id: studentId, aluno_nome: studentName, matricula: enrollment, nome_cobranca: chargeName,
+    categoria: category, valor: value, valor_pago: value, forma_pagamento: paymentMethod,
+    caixa_id: openCash?.id ?? null, pago_em: new Date().toISOString(), recibo_numero: receiptNum,
+    usuario: user, status: 'PAGO', observacoes: notes ?? null, acoes_bloqueadas: blockedActions ?? [],
+  }).select('*').single();
+  if (error) throw new Error(explicarErroFinanceiro(error));
 
-  const incomes = getMiscIncomes();
-  incomes.unshift(newIncome);
-  setItemJSON(STORAGE_KEYS.MISC_INCOMES, incomes);
-
-  // Generate Receipt
   const receipt: FinancialReceipt = {
-    receiptNumber: receiptNum,
-    date: new Date().toISOString(),
-    studentId,
-    studentName,
-    enrollment,
-    description: `Recebimento Diverso: ${chargeName}`,
-    items: [{ title: chargeName, value }],
-    totalValue: value,
-    paymentMethod,
-    cashRegisterId: openCash?.id,
-    cashRegisterSeq: openCash?.seqNumber,
-    user,
-    status: 'VALIDO'
+    receiptNumber: receiptNum, date: new Date().toISOString(), studentId, studentName, enrollment,
+    description: `Recebimento Diverso: ${chargeName}`, items: [{ title: chargeName, value }],
+    totalValue: value, paymentMethod, cashRegisterId: openCash?.id, cashRegisterSeq: openCash?.seqNumber,
+    user, status: 'VALIDO',
   };
+  await saveReceipt(receipt);
+  await addFinancialAuditLog(user, 'RECEBIMENTO_DIVERSO', `Recebimento diverso de R$ ${value.toFixed(2)} (${chargeName}) do aluno ${studentName}. Recibo #${receiptNum}`);
 
-  saveReceipt(receipt);
-  addFinancialAuditLog(user, 'RECEBIMENTO_DIVERSO', `Recebimento diverso de R$ ${value.toFixed(2)} (${chargeName}) do aluno ${studentName}. Recibo #${receiptNum}`);
-
-  return { income: newIncome, receipt };
+  return { income: miscIncomeDoBanco(data), receipt };
 }
 
-export function waiveMiscIncome(
-  incomeId: string,
-  waivedBy: string,
-  waiveReason: string
-): boolean {
-  const incomes = getMiscIncomes();
-  const idx = incomes.findIndex(i => i.id === incomeId);
-  if (idx === -1) return false;
-
-  incomes[idx] = {
-    ...incomes[idx],
-    status: 'ABONADO',
-    waivedAt: new Date().toISOString(),
-    waivedBy,
-    waiveReason
-  };
-
-  setItemJSON(STORAGE_KEYS.MISC_INCOMES, incomes);
-  addFinancialAuditLog(waivedBy, 'ABONO_COBRANCA_DIVERSA', `Cobrança diversa ${incomes[idx].chargeName} abonada para o aluno ${incomes[idx].studentName}. Motivo: ${waiveReason}`);
+export async function waiveMiscIncome(incomeId: string, waivedBy: string, waiveReason: string): Promise<boolean> {
+  const { data, error } = await supabase.from('financeiro_entradas_diversas').update({
+    status: 'ABONADO', abonado_em: new Date().toISOString(), abonado_por: waivedBy, motivo_abono: waiveReason,
+  }).eq('id', incomeId).select('nome_cobranca, aluno_nome').single();
+  if (error || !data) return false;
+  await addFinancialAuditLog(waivedBy, 'ABONO_COBRANCA_DIVERSA', `Cobrança diversa ${data.nome_cobranca} abonada para o aluno ${data.aluno_nome}. Motivo: ${waiveReason}`);
   return true;
 }
 
-// --- EXPENSES (SAÍDAS) ---
-export function getExpenses(): Expense[] {
-  const seedExpenses: Expense[] = [
-    {
-      id: 'exp_001',
-      cashRegisterId: 'cx_001',
-      resourceOrigin: 'CAIXA_ABERTO',
-      category: 'MATERIAL',
-      description: 'Compra de papel A4 e suprimentos para secretaria',
-      value: 180.00,
-      paymentMethod: 'PIX',
-      beneficiary: 'Papelaria Central',
-      date: new Date().toISOString().split('T')[0],
-      user: 'Financeiro',
-      notes: 'Nota Fiscal nº 4920'
-    }
-  ];
-  return getItemJSON<Expense[]>(STORAGE_KEYS.EXPENSES, []);
-}
-
-export function addExpense(expenseData: Omit<Expense, 'id'>, user: string): Expense {
-  const openCash = getOpenCashRegister();
-  const newExp: Expense = {
-    ...expenseData,
-    id: 'exp_' + Date.now(),
-    cashRegisterId: expenseData.resourceOrigin === 'CAIXA_ABERTO' ? openCash?.id : undefined,
-    user
+// --- SAÍDAS (parte 6 já ligada ao banco) ---
+function expenseDoBanco(e: any): Expense {
+  return {
+    id: e.id, cashRegisterId: e.caixa_id ?? undefined, resourceOrigin: e.origem_recurso,
+    category: e.categoria, description: e.descricao, value: Number(e.valor),
+    paymentMethod: e.forma_pagamento, beneficiary: e.beneficiario ?? '', date: e.data,
+    user: e.usuario ?? '', notes: e.observacoes ?? undefined, voucher: e.comprovante ?? undefined,
   };
-
-  const expenses = getExpenses();
-  expenses.unshift(newExp);
-  setItemJSON(STORAGE_KEYS.EXPENSES, expenses);
-
-  addFinancialAuditLog(user, 'SAIDA_REGISTRADA', `Saída de R$ ${newExp.value.toFixed(2)} (${newExp.description}) para ${newExp.beneficiary}. Origem: ${newExp.resourceOrigin}`);
-  return newExp;
 }
 
-// --- INSTALLMENTS & INTEREST LOGIC ---
-export function getInstallments(): Installment[] {
-  const today = new Date().toISOString().split('T')[0];
-  const seedInstallments: Installment[] = [
-    {
-      id: 'inst_101',
-      studentId: '1',
-      studentName: 'Maria Silva de Oliveira',
-      enrollment: 'ALU202601',
-      courseId: 'ENF',
-      courseName: 'TÉCNICO EM ENFERMAGEM',
-      number: 1,
-      totalInstallments: 12,
-      competencia: '02/2026',
-      originalValue: 480.00,
-      discountValue: 48.00,
-      discountLimitDate: '2026-02-10',
-      dueDate: '2026-02-15',
-      interestStartDate: '2026-02-16',
-      finePercent: 2,
-      dailyInterestPercent: 0.033,
-      status: 'PAGA',
-      paidAt: '2026-02-08T10:30:00.000Z',
-      paidValue: 432.00,
-      paidMethod: 'PIX',
-      receiptNumber: 'REC-20260208-101',
-      cashRegisterId: 'cx_001'
-    },
-    {
-      id: 'inst_102',
-      studentId: '1',
-      studentName: 'Maria Silva de Oliveira',
-      enrollment: 'ALU202601',
-      courseId: 'ENF',
-      courseName: 'TÉCNICO EM ENFERMAGEM',
-      number: 2,
-      totalInstallments: 12,
-      competencia: '03/2026',
-      originalValue: 480.00,
-      discountValue: 48.00,
-      discountLimitDate: '2026-03-10',
-      dueDate: '2026-03-15',
-      interestStartDate: '2026-03-16',
-      finePercent: 2,
-      dailyInterestPercent: 0.033,
-      status: 'PENDENTE'
-    },
-    {
-      id: 'inst_103',
-      studentId: '1',
-      studentName: 'Maria Silva de Oliveira',
-      enrollment: 'ALU202601',
-      courseId: 'ENF',
-      courseName: 'TÉCNICO EM ENFERMAGEM',
-      number: 3,
-      totalInstallments: 12,
-      competencia: '04/2026',
-      originalValue: 480.00,
-      discountValue: 48.00,
-      discountLimitDate: '2026-04-10',
-      dueDate: '2026-04-15',
-      interestStartDate: '2026-04-16',
-      finePercent: 2,
-      dailyInterestPercent: 0.033,
-      status: 'PENDENTE'
-    }
-  ];
-  return getItemJSON<Installment[]>(STORAGE_KEYS.INSTALLMENTS, []);
+export async function getExpenses(): Promise<Expense[]> {
+  const { data, error } = await supabase.from('financeiro_saidas').select('*').order('data', { ascending: false });
+  if (error) { console.warn('[Financeiro] saídas:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(expenseDoBanco);
 }
 
-export function saveInstallment(inst: Installment): void {
-  const installments = getInstallments();
-  const idx = installments.findIndex(i => i.id === inst.id);
-  if (idx >= 0) {
-    installments[idx] = inst;
-  } else {
-    installments.push(inst);
-  }
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
+export async function addExpense(expenseData: Omit<Expense, 'id'>, user: string): Promise<Expense> {
+  const openCash = await getOpenCashRegister();
+  const { data, error } = await supabase.from('financeiro_saidas').insert({
+    caixa_id: expenseData.resourceOrigin === 'CAIXA_ABERTO' ? (openCash?.id ?? null) : null,
+    origem_recurso: expenseData.resourceOrigin, categoria: expenseData.category,
+    descricao: expenseData.description, valor: expenseData.value, forma_pagamento: expenseData.paymentMethod,
+    beneficiario: expenseData.beneficiary, data: expenseData.date, usuario: user,
+    observacoes: expenseData.notes ?? null, comprovante: expenseData.voucher ?? null,
+  }).select('*').single();
+  if (error) throw new Error(explicarErroFinanceiro(error));
+
+  await addFinancialAuditLog(user, 'SAIDA_REGISTRADA', `Saída de R$ ${expenseData.value.toFixed(2)} (${expenseData.description}) para ${expenseData.beneficiary}. Origem: ${expenseData.resourceOrigin}`);
+  return expenseDoBanco(data);
 }
 
-export function saveInstallments(list: Installment[]): void {
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, list);
+// --- PARCELAS (parte 3 e parte 4 já ligadas ao banco) ---
+function installmentDoBanco(p: any): Installment {
+  return {
+    id: p.id, studentId: p.aluno_id, studentName: p.aluno_nome, enrollment: p.matricula ?? '',
+    courseId: p.curso_id ?? undefined, courseName: p.curso_nome ?? undefined,
+    classId: p.turma_id ?? undefined, className: p.turma_nome ?? undefined,
+    number: p.numero, totalInstallments: p.total_parcelas, competencia: p.competencia ?? '',
+    originalValue: Number(p.valor_original), discountValue: Number(p.valor_desconto || 0),
+    discountLimitDate: p.data_limite_desconto ?? '', dueDate: p.vencimento,
+    interestStartDate: p.data_inicio_juros ?? p.vencimento, finePercent: Number(p.multa_percent),
+    dailyInterestPercent: Number(p.juros_diario_percent), status: p.status,
+    paidAt: p.pago_em ?? undefined, paidValue: p.valor_pago != null ? Number(p.valor_pago) : undefined,
+    paidMethod: p.forma_pagamento ?? undefined, receiptNumber: p.recibo_numero ?? undefined,
+    cashRegisterId: p.caixa_id ?? undefined, notes: p.observacoes ?? undefined,
+    scholarshipApplied: p.bolsa_aplicada ?? undefined, waivedAt: p.abonado_em ?? undefined,
+    waivedBy: p.abonado_por ?? undefined, waiveReason: p.motivo_abono ?? undefined,
+  };
 }
 
-export function generateStudentInstallments(params: {
-  studentId: string;
-  studentName: string;
-  enrollment: string;
-  courseName: string;
-  className?: string;
-  monthlyValue: number;
-  totalInstallments: number;
-  firstDueDate: string;
-  user: string;
-  notes?: string;
-}): Installment[] {
-  const installments = getInstallments();
-  const newInstallments: Installment[] = [];
+export async function getInstallments(): Promise<Installment[]> {
+  const { data, error } = await supabase
+    .from('financeiro_parcelas').select('*').order('vencimento', { ascending: true });
+  if (error) { console.warn('[Financeiro] parcelas:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(installmentDoBanco);
+}
+
+/** As duas funções abaixo (saveInstallment/saveInstallments) ficaram sem uso
+    real depois da conversão — cada gerador grava direto no banco agora. Mantidas
+    só para não quebrar um import esquecido em algum lugar; não fazem nada sozinhas. */
+export async function saveInstallment(_inst: Installment): Promise<void> {
+  console.warn('[Financeiro] saveInstallment não é mais usada — parcelas são geradas direto no banco.');
+}
+export async function saveInstallments(_list: Installment[]): Promise<void> {
+  console.warn('[Financeiro] saveInstallments não é mais usada — parcelas são geradas direto no banco.');
+}
+
+/** Geração simples, usada pela Matrícula (EnrollmentManager) — sem curso/turno
+    detalhado, sem desconto configurado. Grava tudo de uma vez, num lote só. */
+export async function generateStudentInstallments(params: {
+  studentId: string; studentName: string; enrollment: string; courseName: string; className?: string;
+  monthlyValue: number; totalInstallments: number; firstDueDate: string; user: string; notes?: string;
+}): Promise<Installment[]> {
+  const linhas: any[] = [];
   const startDate = new Date(params.firstDueDate || Date.now());
 
   for (let i = 1; i <= params.totalInstallments; i++) {
@@ -680,65 +589,39 @@ export function generateStudentInstallments(params: {
     const dueDateStr = dueDate.toISOString().substring(0, 10);
     const discLimit = new Date(dueDate.getFullYear(), dueDate.getMonth(), Math.min(10, dueDate.getDate())).toISOString().substring(0, 10);
     const mm = (dueDate.getMonth() + 1).toString().padStart(2, '0');
-    const yyyy = dueDate.getFullYear();
-
-    const inst: Installment = {
-      id: `inst_${params.studentId}_${i}_${Date.now()}`,
-      studentId: params.studentId,
-      studentName: params.studentName,
-      enrollment: params.enrollment,
-      courseName: params.courseName,
-      className: params.className,
-      number: i,
-      totalInstallments: params.totalInstallments,
-      competencia: `${mm}/${yyyy}`,
-      originalValue: params.monthlyValue,
-      discountValue: 0,
-      discountLimitDate: discLimit,
-      dueDate: dueDateStr,
-      interestStartDate: dueDateStr,
-      finePercent: 2,
-      dailyInterestPercent: 0.033,
-      status: 'PENDENTE',
-      notes: params.notes
-    };
-    newInstallments.push(inst);
-    installments.push(inst);
+    linhas.push({
+      aluno_id: params.studentId, aluno_nome: params.studentName, matricula: params.enrollment,
+      curso_nome: params.courseName, turma_nome: params.className ?? null,
+      numero: i, total_parcelas: params.totalInstallments, tipo: 'MENSALIDADE',
+      competencia: `${mm}/${dueDate.getFullYear()}`, valor_original: params.monthlyValue,
+      valor_desconto: 0, data_limite_desconto: discLimit, vencimento: dueDateStr,
+      data_inicio_juros: dueDateStr, multa_percent: 2, juros_diario_percent: 0.033,
+      status: 'PENDENTE', observacoes: params.notes ?? null,
+    });
   }
 
-  saveInstallments(installments);
-  addFinancialAuditLog(params.user, 'PARCELAS_GERADAS', `${params.totalInstallments} parcelas geradas para ${params.studentName}`);
-  return newInstallments;
+  const { data, error } = await supabase.from('financeiro_parcelas').insert(linhas).select('*');
+  if (error) throw new Error(explicarErroFinanceiro(error));
+
+  await addFinancialAuditLog(params.user, 'PARCELAS_GERADAS', `${params.totalInstallments} parcelas geradas para ${params.studentName}`);
+  return (data ?? []).map(installmentDoBanco);
 }
 
 export function calculateInstallmentAmountDue(inst: Installment, targetDateStr?: string): {
-  originalValue: number;
-  discountApplied: number;
-  fineValue: number;
-  interestValue: number;
-  finalTotal: number;
-  isDiscountEligible: boolean;
-  isOverdue: boolean;
-  daysOverdue: number;
+  originalValue: number; discountApplied: number; fineValue: number; interestValue: number;
+  finalTotal: number; isDiscountEligible: boolean; isOverdue: boolean; daysOverdue: number;
 } {
   const today = targetDateStr || new Date().toISOString().split('T')[0];
   const orig = inst.originalValue;
 
-  let discountApplied = 0;
-  let fineValue = 0;
-  let interestValue = 0;
-  let isDiscountEligible = false;
-  let isOverdue = false;
-  let daysOverdue = 0;
+  let discountApplied = 0, fineValue = 0, interestValue = 0, isDiscountEligible = false, isOverdue = false, daysOverdue = 0;
 
   if (today <= inst.discountLimitDate && inst.discountValue > 0) {
     isDiscountEligible = true;
     discountApplied = inst.discountValue;
   } else if (today > inst.dueDate) {
     isOverdue = true;
-    // Fine
     fineValue = (orig * (inst.finePercent || 2)) / 100;
-    // Interest
     const dueTime = new Date(inst.interestStartDate || inst.dueDate).getTime();
     const currTime = new Date(today).getTime();
     const diffDays = Math.max(0, Math.ceil((currTime - dueTime) / (1000 * 60 * 60 * 24)));
@@ -747,382 +630,246 @@ export function calculateInstallmentAmountDue(inst: Installment, targetDateStr?:
   }
 
   const finalTotal = Math.max(0, orig - discountApplied + fineValue + interestValue);
-
-  return {
-    originalValue: orig,
-    discountApplied,
-    fineValue,
-    interestValue,
-    finalTotal,
-    isDiscountEligible,
-    isOverdue,
-    daysOverdue
-  };
+  return { originalValue: orig, discountApplied, fineValue, interestValue, finalTotal, isDiscountEligible, isOverdue, daysOverdue };
 }
 
-export function payInstallment(
-  installmentId: string,
-  paymentMethod: string,
-  user: string,
-  overrideValue?: number,
-  notes?: string
-): { installment: Installment; receipt: FinancialReceipt } | null {
-  const installments = getInstallments();
-  const idx = installments.findIndex(i => i.id === installmentId);
-  if (idx === -1) return null;
+/** DAR BAIXA numa parcela — o coração da Parte 4. */
+export async function payInstallment(
+  installmentId: string, paymentMethod: string, user: string, overrideValue?: number, notes?: string
+): Promise<{ installment: Installment; receipt: FinancialReceipt } | null> {
+  const { data: linha, error: erroLer } = await supabase
+    .from('financeiro_parcelas').select('*').eq('id', installmentId).single();
+  if (erroLer || !linha) return null;
 
-  const inst = installments[idx];
+  const inst = installmentDoBanco(linha);
   const calc = calculateInstallmentAmountDue(inst);
-  const openCash = getOpenCashRegister();
+  const openCash = await getOpenCashRegister();
   const finalPaid = overrideValue !== undefined ? Number(overrideValue) : calc.finalTotal;
-
   const receiptNum = 'REC-' + new Date().getFullYear() + Math.floor(100000 + Math.random() * 900000);
 
-  installments[idx] = {
-    ...inst,
-    status: 'PAGA',
-    paidAt: new Date().toISOString(),
-    paidValue: finalPaid,
-    paidMethod: paymentMethod,
-    receiptNumber: receiptNum,
-    cashRegisterId: openCash?.id,
-    notes: notes ? `${inst.notes || ''} ${notes}`.trim() : inst.notes
-  };
+  const { data: atualizada, error: erroUpdate } = await supabase.from('financeiro_parcelas').update({
+    status: 'PAGA', pago_em: new Date().toISOString(), valor_pago: finalPaid, forma_pagamento: paymentMethod,
+    recibo_numero: receiptNum, caixa_id: openCash?.id ?? null,
+    observacoes: notes ? `${inst.notes || ''} ${notes}`.trim() : inst.notes,
+  }).eq('id', installmentId).select('*').single();
+  if (erroUpdate) throw new Error(explicarErroFinanceiro(erroUpdate));
 
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-
-  // Generate Receipt
   const receipt: FinancialReceipt = {
-    receiptNumber: receiptNum,
-    date: new Date().toISOString(),
-    studentId: inst.studentId,
-    studentName: inst.studentName,
-    enrollment: inst.enrollment,
-    courseName: inst.courseName,
+    receiptNumber: receiptNum, date: new Date().toISOString(), studentId: inst.studentId,
+    studentName: inst.studentName, enrollment: inst.enrollment, courseName: inst.courseName,
     description: `Quitação de Mensalidade - Parcela ${inst.number}/${inst.totalInstallments} (${inst.competencia})`,
     items: [
       { title: `Mensalidade ${inst.number}/${inst.totalInstallments} - Comp. ${inst.competencia}`, value: inst.originalValue },
       ...(calc.discountApplied > 0 ? [{ title: 'Desconto Pontualidade/Bolsa', value: -calc.discountApplied }] : []),
       ...(calc.fineValue > 0 ? [{ title: 'Multa por Atraso', value: calc.fineValue }] : []),
-      ...(calc.interestValue > 0 ? [{ title: 'Juros de Mora', value: calc.interestValue }] : [])
+      ...(calc.interestValue > 0 ? [{ title: 'Juros de Mora', value: calc.interestValue }] : []),
     ],
-    totalValue: finalPaid,
-    paymentMethod,
-    cashRegisterId: openCash?.id,
-    cashRegisterSeq: openCash?.seqNumber,
-    user,
-    status: 'VALIDO'
+    totalValue: finalPaid, paymentMethod, cashRegisterId: openCash?.id, cashRegisterSeq: openCash?.seqNumber,
+    user, status: 'VALIDO',
   };
+  await saveReceipt(receipt);
+  await addFinancialAuditLog(user, 'QUITACAO_PARCELA', `Parcela ${inst.number}/${inst.totalInstallments} do aluno ${inst.studentName} quitada por R$ ${finalPaid.toFixed(2)} (${paymentMethod}). Recibo #${receiptNum}`);
 
-  saveReceipt(receipt);
-  addFinancialAuditLog(user, 'QUITACAO_PARCELA', `Parcela ${inst.number}/${inst.totalInstallments} do aluno ${inst.studentName} quitada por R$ ${finalPaid.toFixed(2)} (${paymentMethod}). Recibo #${receiptNum}`);
-
-  return { installment: installments[idx], receipt };
+  return { installment: installmentDoBanco(atualizada), receipt };
 }
 
-export function updateInstallmentDueDate(
-  installmentId: string,
-  newDueDate: string,
-  newDiscountValue: number,
-  newDiscountLimitDate: string,
-  newInterestStartDate: string,
-  user: string,
-  reason: string
-): boolean {
-  const installments = getInstallments();
-  const idx = installments.findIndex(i => i.id === installmentId);
-  if (idx === -1) return false;
+export async function updateInstallmentDueDate(
+  installmentId: string, newDueDate: string, newDiscountValue: number, newDiscountLimitDate: string,
+  newInterestStartDate: string, user: string, reason: string
+): Promise<boolean> {
+  const { data: linha, error: erroLer } = await supabase
+    .from('financeiro_parcelas').select('*').eq('id', installmentId).single();
+  if (erroLer || !linha) return false;
 
-  const oldInst = installments[idx];
+  const { error } = await supabase.from('financeiro_parcelas').update({
+    vencimento: newDueDate, valor_desconto: newDiscountValue, data_limite_desconto: newDiscountLimitDate,
+    data_inicio_juros: newInterestStartDate,
+    observacoes: `${linha.observacoes || ''} | Vencimento alterado em ${new Date().toLocaleDateString('pt-BR')} por ${user}: ${reason}`.trim(),
+  }).eq('id', installmentId);
+  if (error) return false;
 
-  installments[idx] = {
-    ...oldInst,
-    dueDate: newDueDate,
-    discountValue: newDiscountValue,
-    discountLimitDate: newDiscountLimitDate,
-    interestStartDate: newInterestStartDate,
-    notes: `${oldInst.notes || ''} | Vencimento alterado em ${new Date().toLocaleDateString('pt-BR')} por ${user}: ${reason}`.trim()
-  };
-
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-  addFinancialAuditLog(user, 'ALTERACAO_VENCIMENTO', `Vencimento da Parcela ${oldInst.number}/${oldInst.totalInstallments} de ${oldInst.studentName} alterado para ${newDueDate}. Motivo: ${reason}`);
-
+  await addFinancialAuditLog(user, 'ALTERACAO_VENCIMENTO', `Vencimento da Parcela ${linha.numero}/${linha.total_parcelas} de ${linha.aluno_nome} alterado para ${newDueDate}. Motivo: ${reason}`);
   return true;
 }
 
-export function waiveInstallment(
-  installmentId: string,
-  user: string,
-  reason: string
-): boolean {
-  const installments = getInstallments();
-  const idx = installments.findIndex(i => i.id === installmentId);
-  if (idx === -1) return false;
+export async function waiveInstallment(installmentId: string, user: string, reason: string): Promise<boolean> {
+  const { data: linha, error } = await supabase.from('financeiro_parcelas').update({
+    status: 'ABONADA', abonado_em: new Date().toISOString(), abonado_por: user, motivo_abono: reason,
+  }).eq('id', installmentId).select('*').single();
+  if (error || !linha) return false;
 
-  const oldInst = installments[idx];
-
-  installments[idx] = {
-    ...oldInst,
-    status: 'ABONADA',
-    waivedAt: new Date().toISOString(),
-    waivedBy: user,
-    waiveReason: reason
-  };
-
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-  addFinancialAuditLog(user, 'ABONO_PARCELA', `Parcela ${oldInst.number}/${oldInst.totalInstallments} (${oldInst.competencia}) de ${oldInst.studentName} abonada. Motivo: ${reason}`);
-
+  await addFinancialAuditLog(user, 'ABONO_PARCELA', `Parcela ${linha.numero}/${linha.total_parcelas} (${linha.competencia}) de ${linha.aluno_nome} abonada. Motivo: ${reason}`);
   return true;
 }
 
-// Generate Individual Installments
-export function generateIndividualInstallments(params: {
-  studentId: string;
-  studentName: string;
-  enrollment: string;
-  courseId: string;
-  courseName: string;
-  monthlyValue: number;
-  totalInstallments: number;
-  firstDueDate: string; // YYYY-MM-DD
-  enrollmentValue?: number;
-  reenrollmentValue?: number;
-  dependencyValue?: number;
-  discountValue: number;
-  discountLimitDay: number;
-  interestStartDayOffset?: number;
-  finePercent: number;
-  dailyInterestPercent: number;
-  notes?: string;
-  user: string;
-}): Installment[] {
-  const newInstallments: Installment[] = [];
+/** Geração completa, usada pela tela Gerar Parcelas — com curso, desconto e
+    multa/juros configuráveis. */
+export async function generateIndividualInstallments(params: {
+  studentId: string; studentName: string; enrollment: string; courseId: string; courseName: string;
+  monthlyValue: number; totalInstallments: number; firstDueDate: string; enrollmentValue?: number;
+  reenrollmentValue?: number; dependencyValue?: number; discountValue: number; discountLimitDay: number;
+  interestStartDayOffset?: number; finePercent: number; dailyInterestPercent: number; notes?: string; user: string;
+}): Promise<Installment[]> {
+  const linhas: any[] = [];
   const startDt = new Date(params.firstDueDate + 'T12:00:00');
 
   for (let i = 1; i <= params.totalInstallments; i++) {
     const curDate = new Date(startDt);
     curDate.setMonth(startDt.getMonth() + (i - 1));
-
     const y = curDate.getFullYear();
     const m = (curDate.getMonth() + 1).toString().padStart(2, '0');
-    const compStr = `${m}/${y}`;
-
     const dueStr = curDate.toISOString().split('T')[0];
 
-    // Limit date for discount
     const discLimitDt = new Date(curDate);
     discLimitDt.setDate(Math.min(params.discountLimitDay || 10, 28));
     const discLimitStr = discLimitDt.toISOString().split('T')[0];
 
-    // Interest start date
     const interestStartDt = new Date(curDate);
     interestStartDt.setDate(interestStartDt.getDate() + 1);
-    const interestStartStr = interestStartDt.toISOString().split('T')[0];
 
-    const inst: Installment = {
-      id: 'inst_' + Date.now() + '_' + i,
-      studentId: params.studentId,
-      studentName: params.studentName,
-      enrollment: params.enrollment,
-      courseId: params.courseId,
-      courseName: params.courseName,
-      number: i,
-      totalInstallments: params.totalInstallments,
-      competencia: compStr,
-      originalValue: params.monthlyValue,
-      discountValue: params.discountValue,
-      discountLimitDate: discLimitStr,
-      dueDate: dueStr,
-      interestStartDate: interestStartStr,
-      finePercent: params.finePercent,
-      dailyInterestPercent: params.dailyInterestPercent,
-      status: 'PENDENTE',
-      notes: params.notes
-    };
-
-    newInstallments.push(inst);
-  }
-
-  // Save to storage
-  const existing = getInstallments();
-  const updated = [...existing, ...newInstallments];
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, updated);
-
-  addFinancialAuditLog(params.user, 'GERACAO_PARCELAS_INDIVIDUAL', `${params.totalInstallments} parcelas de R$ ${params.monthlyValue.toFixed(2)} geradas para o aluno ${params.studentName}`);
-
-  return newInstallments;
-}
-
-// Generate Batch Installments for Class
-export function generateBatchClassInstallments(params: {
-  students: { id: string; name: string; enrollment: string }[];
-  courseId: string;
-  courseName: string;
-  className: string;
-  monthlyValue: number;
-  totalInstallments: number;
-  firstDueDate: string;
-  discountValue: number;
-  discountLimitDay: number;
-  finePercent: number;
-  dailyInterestPercent: number;
-  user: string;
-}): number {
-  let count = 0;
-  params.students.forEach(st => {
-    generateIndividualInstallments({
-      studentId: st.id,
-      studentName: st.name,
-      enrollment: st.enrollment,
-      courseId: params.courseId,
-      courseName: params.courseName,
-      monthlyValue: params.monthlyValue,
-      totalInstallments: params.totalInstallments,
-      firstDueDate: params.firstDueDate,
-      discountValue: params.discountValue,
-      discountLimitDay: params.discountLimitDay,
-      finePercent: params.finePercent,
-      dailyInterestPercent: params.dailyInterestPercent,
-      notes: `Geração em Lote - Turma ${params.className}`,
-      user: params.user
+    linhas.push({
+      aluno_id: params.studentId, aluno_nome: params.studentName, matricula: params.enrollment,
+      curso_id: params.courseId, curso_nome: params.courseName, tipo: 'MENSALIDADE',
+      numero: i, total_parcelas: params.totalInstallments, competencia: `${m}/${y}`,
+      valor_original: params.monthlyValue, valor_desconto: params.discountValue,
+      data_limite_desconto: discLimitStr, vencimento: dueStr,
+      data_inicio_juros: interestStartDt.toISOString().split('T')[0],
+      multa_percent: params.finePercent, juros_diario_percent: params.dailyInterestPercent,
+      status: 'PENDENTE', observacoes: params.notes ?? null,
     });
-    count++;
-  });
+  }
 
-  addFinancialAuditLog(params.user, 'GERACAO_PARCELAS_LOTE', `Geração em lote concluída para ${count} alunos da turma ${params.className}`);
-  return count;
+  const { data, error } = await supabase.from('financeiro_parcelas').insert(linhas).select('*');
+  if (error) throw new Error(explicarErroFinanceiro(error));
+
+  await addFinancialAuditLog(params.user, 'GERACAO_PARCELAS_INDIVIDUAL', `${params.totalInstallments} parcelas de R$ ${params.monthlyValue.toFixed(2)} geradas para o aluno ${params.studentName}`);
+  return (data ?? []).map(installmentDoBanco);
 }
 
-// --- RECEIPTS & CANCELATIONS ---
-export function getReceipts(): FinancialReceipt[] {
-  const seedReceipts: FinancialReceipt[] = [
-    {
-      receiptNumber: 'REC-20260208-101',
-      date: '2026-02-08T10:30:00.000Z',
-      studentId: '1',
-      studentName: 'Maria Silva de Oliveira',
-      enrollment: 'ALU202601',
-      courseName: 'TÉCNICO EM ENFERMAGEM',
-      description: 'Quitação de Mensalidade - Parcela 1/12 (02/2026)',
-      items: [{ title: 'Mensalidade 1/12', value: 432.00 }],
-      totalValue: 432.00,
-      paymentMethod: 'PIX',
-      cashRegisterId: 'cx_001',
-      cashRegisterSeq: 1,
-      user: 'Tesouraria',
-      status: 'VALIDO'
+/** Geração em lote, para a turma toda de uma vez — um único insert no banco,
+    não um por aluno, para não fazer dezenas de viagens ao servidor. */
+export async function generateBatchClassInstallments(params: {
+  students: { id: string; name: string; enrollment: string }[]; courseId: string; courseName: string;
+  className: string; monthlyValue: number; totalInstallments: number; firstDueDate: string;
+  discountValue: number; discountLimitDay: number; finePercent: number; dailyInterestPercent: number; user: string;
+}): Promise<number> {
+  const todasAsLinhas: any[] = [];
+  const startDt = new Date(params.firstDueDate + 'T12:00:00');
+
+  for (const st of params.students) {
+    for (let i = 1; i <= params.totalInstallments; i++) {
+      const curDate = new Date(startDt);
+      curDate.setMonth(startDt.getMonth() + (i - 1));
+      const y = curDate.getFullYear();
+      const m = (curDate.getMonth() + 1).toString().padStart(2, '0');
+      const dueStr = curDate.toISOString().split('T')[0];
+
+      const discLimitDt = new Date(curDate);
+      discLimitDt.setDate(Math.min(params.discountLimitDay || 10, 28));
+
+      const interestStartDt = new Date(curDate);
+      interestStartDt.setDate(interestStartDt.getDate() + 1);
+
+      todasAsLinhas.push({
+        aluno_id: st.id, aluno_nome: st.name, matricula: st.enrollment,
+        curso_id: params.courseId, curso_nome: params.courseName, turma_nome: params.className,
+        tipo: 'MENSALIDADE', numero: i, total_parcelas: params.totalInstallments, competencia: `${m}/${y}`,
+        valor_original: params.monthlyValue, valor_desconto: params.discountValue,
+        data_limite_desconto: discLimitDt.toISOString().split('T')[0], vencimento: dueStr,
+        data_inicio_juros: interestStartDt.toISOString().split('T')[0],
+        multa_percent: params.finePercent, juros_diario_percent: params.dailyInterestPercent,
+        status: 'PENDENTE', observacoes: `Geração em Lote - Turma ${params.className}`,
+      });
     }
-  ];
-  return getItemJSON<FinancialReceipt[]>(STORAGE_KEYS.RECEIPTS, []);
-}
-
-export function saveReceipt(receipt: FinancialReceipt): void {
-  const receipts = getReceipts();
-  const idx = receipts.findIndex(r => r.receiptNumber === receipt.receiptNumber);
-  if (idx >= 0) {
-    receipts[idx] = receipt;
-  } else {
-    receipts.unshift(receipt);
   }
-  setItemJSON(STORAGE_KEYS.RECEIPTS, receipts);
+
+  const { error } = await supabase.from('financeiro_parcelas').insert(todasAsLinhas);
+  if (error) throw new Error(explicarErroFinanceiro(error));
+
+  await addFinancialAuditLog(params.user, 'GERACAO_PARCELAS_LOTE', `Geração em lote concluída para ${params.students.length} alunos da turma ${params.className}`);
+  return params.students.length;
 }
 
-export function cancelReceipt(receiptNumber: string, user: string, reason: string): boolean {
-  const receipts = getReceipts();
-  const idx = receipts.findIndex(r => r.receiptNumber === receiptNumber);
-  if (idx === -1) return false;
-
-  const rc = receipts[idx];
-  receipts[idx] = {
-    ...rc,
-    status: 'CANCELADO',
-    cancelledAt: new Date().toISOString(),
-    cancelledBy: user,
-    cancelReason: reason
+// --- RECIBOS E CANCELAMENTOS (parte 4 já ligada ao banco) ---
+function receiptDoBanco(r: any): FinancialReceipt {
+  return {
+    receiptNumber: r.numero_recibo, date: r.data, studentId: r.aluno_id ?? '',
+    studentName: r.aluno_nome ?? '', enrollment: r.matricula ?? '', cpf: r.cpf ?? undefined,
+    courseName: r.curso_nome ?? undefined, description: r.descricao ?? '', items: r.itens ?? [],
+    totalValue: Number(r.valor_total), paymentMethod: r.forma_pagamento ?? '',
+    cashRegisterId: r.caixa_id ?? undefined, cashRegisterSeq: r.caixa_seq ?? undefined,
+    user: r.usuario ?? '', status: r.status, cancelledAt: r.cancelado_em ?? undefined,
+    cancelledBy: r.cancelado_por ?? undefined, cancelReason: r.motivo_cancelamento ?? undefined,
   };
+}
 
-  setItemJSON(STORAGE_KEYS.RECEIPTS, receipts);
+export async function getReceipts(): Promise<FinancialReceipt[]> {
+  const { data, error } = await supabase.from('financeiro_recibos').select('*').order('data', { ascending: false });
+  if (error) { console.warn('[Financeiro] recibos:', explicarErroFinanceiro(error)); return []; }
+  return (data ?? []).map(receiptDoBanco);
+}
 
-  // Reopen associated installment if available
-  const installments = getInstallments();
-  const instIdx = installments.findIndex(i => i.receiptNumber === receiptNumber);
-  if (instIdx >= 0) {
-    installments[instIdx] = {
-      ...installments[instIdx],
-      status: 'PENDENTE',
-      paidAt: undefined,
-      paidValue: undefined,
-      paidMethod: undefined,
-      receiptNumber: undefined,
-      cashRegisterId: undefined,
-      notes: `${installments[instIdx].notes || ''} | Recibo #${receiptNumber} cancelado em ${new Date().toLocaleDateString('pt-BR')} por ${user}: ${reason}`.trim()
-    };
-    setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-  }
+export async function saveReceipt(receipt: FinancialReceipt): Promise<void> {
+  const { error } = await supabase.from('financeiro_recibos').upsert({
+    numero_recibo: receipt.receiptNumber, data: receipt.date, aluno_id: receipt.studentId || null,
+    aluno_nome: receipt.studentName || null, matricula: receipt.enrollment || null, cpf: receipt.cpf ?? null,
+    curso_nome: receipt.courseName ?? null, descricao: receipt.description, itens: receipt.items,
+    valor_total: receipt.totalValue, forma_pagamento: receipt.paymentMethod,
+    caixa_id: receipt.cashRegisterId ?? null, caixa_seq: receipt.cashRegisterSeq ?? null,
+    usuario: receipt.user, status: receipt.status,
+  });
+  if (error) console.warn('[Financeiro] salvar recibo:', explicarErroFinanceiro(error));
+}
 
-  // Reopen associated misc income if available
-  const miscIncomes = getMiscIncomes();
-  const mIdx = miscIncomes.findIndex(m => m.receiptNumber === receiptNumber);
-  if (mIdx >= 0) {
-    miscIncomes[mIdx] = {
-      ...miscIncomes[mIdx],
-      status: 'CANCELADO',
-      notes: `${miscIncomes[mIdx].notes || ''} | Cancelado por ${user}: ${reason}`.trim()
-    };
-    setItemJSON(STORAGE_KEYS.MISC_INCOMES, miscIncomes);
-  }
+export async function cancelReceipt(receiptNumber: string, user: string, reason: string): Promise<boolean> {
+  const { data: rc, error: erroLer } = await supabase
+    .from('financeiro_recibos').select('*').eq('numero_recibo', receiptNumber).single();
+  if (erroLer || !rc) return false;
 
-  addFinancialAuditLog(user, 'CANCELAMENTO_RECIBO', `Recibo #${receiptNumber} cancelado. Recebimento estornado e lançamento reaberto. Motivo: ${reason}`);
+  const { error } = await supabase.from('financeiro_recibos').update({
+    status: 'CANCELADO', cancelado_em: new Date().toISOString(), cancelado_por: user, motivo_cancelamento: reason,
+  }).eq('numero_recibo', receiptNumber);
+  if (error) return false;
+
+  // Reabre a parcela ligada a este recibo, se houver.
+  await supabase.from('financeiro_parcelas').update({
+    status: 'PENDENTE', pago_em: null, valor_pago: null, forma_pagamento: null,
+    recibo_numero: null, caixa_id: null,
+    observacoes: `Recibo #${receiptNumber} cancelado em ${new Date().toLocaleDateString('pt-BR')} por ${user}: ${reason}`,
+  }).eq('recibo_numero', receiptNumber);
+
+  // Marca a entrada diversa ligada a este recibo como cancelada, se houver.
+  await supabase.from('financeiro_entradas_diversas').update({
+    status: 'CANCELADO',
+    observacoes: `Cancelado por ${user}: ${reason}`,
+  }).eq('recibo_numero', receiptNumber);
+
+  await addFinancialAuditLog(user, 'CANCELAMENTO_RECIBO', `Recibo #${receiptNumber} cancelado. Recebimento estornado e lançamento reaberto. Motivo: ${reason}`);
   return true;
 }
 
-export function updateReceiptPaymentMethod(
-  receiptNumber: string,
-  newMethod: string,
-  user: string,
-  isAdmin: boolean
-): { success: boolean; message: string } {
-  const receipts = getReceipts();
-  const idx = receipts.findIndex(r => r.receiptNumber === receiptNumber);
-  if (idx === -1) return { success: false, message: 'Recibo não encontrado.' };
+export async function updateReceiptPaymentMethod(
+  receiptNumber: string, newMethod: string, user: string, isAdmin: boolean
+): Promise<{ success: boolean; message: string }> {
+  const { data: rc, error: erroLer } = await supabase
+    .from('financeiro_recibos').select('*').eq('numero_recibo', receiptNumber).single();
+  if (erroLer || !rc) return { success: false, message: 'Recibo não encontrado.' };
 
-  const rc = receipts[idx];
-
-  // Check if cash register is open
-  if (rc.cashRegisterId) {
-    const cashRegisters = getCashRegisters();
-    const c = cashRegisters.find(x => x.id === rc.cashRegisterId);
-    if (c && c.status === 'CLOSED' && !isAdmin) {
-      return { 
-        success: false, 
-        message: 'O caixa deste recebimento está FECHADO. Apenas o Administrador pode alterar a forma de pagamento.' 
-      };
+  if (rc.caixa_id) {
+    const { data: caixa } = await supabase.from('financeiro_caixas').select('status').eq('id', rc.caixa_id).single();
+    if (caixa?.status === 'CLOSED' && !isAdmin) {
+      return { success: false, message: 'O caixa deste recebimento está FECHADO. Apenas o Administrador pode alterar a forma de pagamento.' };
     }
   }
 
-  const oldMethod = rc.paymentMethod;
-  receipts[idx] = {
-    ...rc,
-    paymentMethod: newMethod
-  };
-  setItemJSON(STORAGE_KEYS.RECEIPTS, receipts);
+  const oldMethod = rc.forma_pagamento;
+  const { error } = await supabase.from('financeiro_recibos').update({ forma_pagamento: newMethod }).eq('numero_recibo', receiptNumber);
+  if (error) return { success: false, message: explicarErroFinanceiro(error) };
 
-  // Update in installment or misc income
-  const installments = getInstallments();
-  const instIdx = installments.findIndex(i => i.receiptNumber === receiptNumber);
-  if (instIdx >= 0) {
-    installments[instIdx].paidMethod = newMethod;
-    setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-  }
+  await supabase.from('financeiro_parcelas').update({ forma_pagamento: newMethod }).eq('recibo_numero', receiptNumber);
+  await supabase.from('financeiro_entradas_diversas').update({ forma_pagamento: newMethod }).eq('recibo_numero', receiptNumber);
 
-  const miscIncomes = getMiscIncomes();
-  const mIdx = miscIncomes.findIndex(m => m.receiptNumber === receiptNumber);
-  if (mIdx >= 0) {
-    miscIncomes[mIdx].paymentMethod = newMethod;
-    setItemJSON(STORAGE_KEYS.MISC_INCOMES, miscIncomes);
-  }
-
-  addFinancialAuditLog(user, 'ALTERACAO_FORMA_PAGAMENTO', `Forma de pagamento do recibo #${receiptNumber} alterada de ${oldMethod} para ${newMethod}.`);
+  await addFinancialAuditLog(user, 'ALTERACAO_FORMA_PAGAMENTO', `Forma de pagamento do recibo #${receiptNumber} alterada de ${oldMethod} para ${newMethod}.`);
   return { success: true, message: `Forma de pagamento alterada com sucesso de ${oldMethod} para ${newMethod}.` };
 }
 
@@ -1176,146 +923,102 @@ export function addFinancialNote(
 }
 
 // --- ACTION ENFORCEMENT (CONDICIONAR FUNCIONALIDADE AO PAGAMENTO) ---
-export function checkActionBlockedByFinance(studentId: string, actionType: string): { blocked: boolean; pendingCharges: string[] } {
-  const miscIncomes = getMiscIncomes().filter(m => m.studentId === studentId && m.status === 'PAGO'); // Paid ones don't block
-  const catalog = getMiscPaymentCatalog().filter(c => c.active && c.blockedActions.includes(actionType));
+// --- ACTION ENFORCEMENT (CONDICIONAR FUNCIONALIDADE AO PAGAMENTO) ---
+export async function checkActionBlockedByFinance(
+  studentId: string, actionType: string
+): Promise<{ blocked: boolean; pendingCharges: string[] }> {
+  const todasEntradas = await getMiscIncomes();
+  const naoPagas = todasEntradas.filter(m => m.studentId === studentId && m.status !== 'PAGO' && m.status !== 'ABONADO');
+  const bloqueando = naoPagas.filter(m => m.blockedActions && m.blockedActions.includes(actionType));
 
-  // Check if student has pending unpaid items in catalog or misc incomes
-  // Find all unpaid required charges
-  const allUnpaidIncomes = getMiscIncomes().filter(m => m.studentId === studentId && m.status !== 'PAGO' && m.status !== 'ABONADO');
-  
-  const blockingIncomes = allUnpaidIncomes.filter(m => m.blockedActions && m.blockedActions.includes(actionType));
-
-  if (blockingIncomes.length > 0) {
-    return {
-      blocked: true,
-      pendingCharges: blockingIncomes.map(i => i.chargeName)
-    };
+  if (bloqueando.length > 0) {
+    return { blocked: true, pendingCharges: bloqueando.map(i => i.chargeName) };
   }
-
   return { blocked: false, pendingCharges: [] };
 }
 
 // --- INCOME TAX DECLARATION (IRPF) ---
-export function generateIRPFStatementData(studentId: string, year: number): {
-  institutionName: string;
-  cnpj: string;
-  address: string;
-  studentName: string;
-  studentEnrollment: string;
-  studentCpf: string;
-  courseName: string;
-  baseYear: number;
+export async function generateIRPFStatementData(studentId: string, year: number): Promise<{
+  institutionName: string; cnpj: string; address: string; studentName: string; studentEnrollment: string;
+  studentCpf: string; courseName: string; baseYear: number;
   items: { date: string; description: string; receiptNumber: string; paymentMethod: string; value: number }[];
-  totalPaid: number;
-  issueDate: string;
-  validationCode: string;
-} {
-  const receipts = getReceipts().filter(r => 
-    r.studentId === studentId && 
-    r.status === 'VALIDO' && 
-    new Date(r.date).getFullYear() === year
-  );
+  totalPaid: number; issueDate: string; validationCode: string;
+}> {
+  const todos = await getReceipts();
+  const receipts = todos.filter(r => r.studentId === studentId && r.status === 'VALIDO' && new Date(r.date).getFullYear() === year);
 
   const items = receipts.map(r => ({
-    date: new Date(r.date).toLocaleDateString('pt-BR'),
-    description: r.description,
-    receiptNumber: r.receiptNumber,
-    paymentMethod: r.paymentMethod,
-    value: r.totalValue
+    date: new Date(r.date).toLocaleDateString('pt-BR'), description: r.description,
+    receiptNumber: r.receiptNumber, paymentMethod: r.paymentMethod, value: r.totalValue,
   }));
-
   const totalPaid = items.reduce((sum, i) => sum + i.value, 0);
   const student = receipts[0];
 
   return {
-    institutionName: 'COLÉGIO OSWALDO CRUZ DE BRASÍLIA',
-    cnpj: '01.234.567/0001-89',
+    institutionName: 'COLÉGIO OSWALDO CRUZ DE BRASÍLIA', cnpj: '01.234.567/0001-89',
     address: 'SGAN 608 Módulo B/C - Asa Norte, Brasília - DF',
-    studentName: student?.studentName || 'Aluno Selecionado',
-    studentEnrollment: student?.enrollment || 'ALU-2026',
-    studentCpf: student?.cpf || '000.000.000-00',
-    courseName: student?.courseName || 'Curso Técnico',
-    baseYear: year,
-    items,
-    totalPaid,
-    issueDate: new Date().toLocaleDateString('pt-BR'),
-    validationCode: 'IRPF-' + Math.random().toString(36).substring(2, 10).toUpperCase()
+    studentName: student?.studentName || 'Aluno Selecionado', studentEnrollment: student?.enrollment || 'ALU-2026',
+    studentCpf: student?.cpf || '000.000.000-00', courseName: student?.courseName || 'Curso Técnico',
+    baseYear: year, items, totalPaid, issueDate: new Date().toLocaleDateString('pt-BR'),
+    validationCode: 'IRPF-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
   };
 }
 
-export function getStudentPaidYearTotal(studentIdOrEnrollment: string, year: number): { receipts: any[]; totalValue: number } {
-  const receipts = getReceipts().filter(r => 
-    (r.studentId === studentIdOrEnrollment || r.enrollment === studentIdOrEnrollment) && 
-    r.status === 'VALIDO' && 
-    new Date(r.date).getFullYear() === year
+export async function getStudentPaidYearTotal(
+  studentIdOrEnrollment: string, year: number
+): Promise<{ receipts: any[]; totalValue: number }> {
+  const todos = await getReceipts();
+  const receipts = todos.filter(r =>
+    (r.studentId === studentIdOrEnrollment || r.enrollment === studentIdOrEnrollment) &&
+    r.status === 'VALIDO' && new Date(r.date).getFullYear() === year
   );
-
   const totalValue = receipts.reduce((sum, r) => sum + (r.totalValue || 0), 0);
   return { receipts, totalValue };
 }
 
-// --- EXEMPTIONS / ABONOS ---
 export function getExemptions(): ExemptionItem[] {
   return getItemJSON<ExemptionItem[]>('gestao_fin_exemptions_v1', []);
 }
 
-export function applyExemption(
-  installmentId: string,
-  type: 'TOTAL' | 'PARTIAL',
-  waivedValue: number,
-  reason: string,
-  authorizer: string,
-  user: string
-): boolean {
-  const installments = getInstallments();
-  const idx = installments.findIndex(i => i.id === installmentId);
-  if (idx === -1) return false;
+export async function applyExemption(
+  installmentId: string, type: 'TOTAL' | 'PARTIAL', waivedValue: number,
+  reason: string, authorizer: string, user: string
+): Promise<boolean> {
+  // getInstallments (Parte 3) já fala com o banco — esta função dependia
+  // dela por dentro (lia e regravava a lista inteira), por isso também
+  // precisou virar assíncrona, mesmo sendo parte do Abono (peça futura).
+  const { data: linha, error: erroLer } = await supabase
+    .from('financeiro_parcelas').select('*').eq('id', installmentId).single();
+  if (erroLer || !linha) return false;
 
-  const inst = installments[idx];
+  const inst = installmentDoBanco(linha);
   const actualWaived = type === 'TOTAL' ? inst.originalValue : Math.min(waivedValue, inst.originalValue);
 
-  if (type === 'TOTAL') {
-    installments[idx] = {
-      ...inst,
-      status: 'ABONADA',
-      waivedAt: new Date().toISOString(),
-      waivedBy: user,
-      waiveReason: `${reason} (Autorizado por: ${authorizer})`
-    };
-  } else {
-    const newOrig = Math.max(0, inst.originalValue - actualWaived);
-    installments[idx] = {
-      ...inst,
-      originalValue: newOrig,
-      status: newOrig === 0 ? 'ABONADA' : inst.status,
-      notes: `${inst.notes || ''} | Abono parcial de R$ ${actualWaived.toFixed(2)} por ${user}: ${reason} (${authorizer})`.trim()
-    };
-  }
+  const atualizacao: any = type === 'TOTAL'
+    ? { status: 'ABONADA', abonado_em: new Date().toISOString(), abonado_por: user, motivo_abono: `${reason} (Autorizado por: ${authorizer})` }
+    : (() => {
+        const newOrig = Math.max(0, inst.originalValue - actualWaived);
+        return {
+          valor_original: newOrig,
+          status: newOrig === 0 ? 'ABONADA' : inst.status,
+          observacoes: `${inst.notes || ''} | Abono parcial de R$ ${actualWaived.toFixed(2)} por ${user}: ${reason} (${authorizer})`.trim(),
+        };
+      })();
 
-  setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
+  const { error } = await supabase.from('financeiro_parcelas').update(atualizacao).eq('id', installmentId);
+  if (error) return false;
 
   const newExemption: ExemptionItem = {
-    id: 'ex_' + Date.now(),
-    installmentId,
-    studentId: inst.studentId,
-    studentName: inst.studentName,
-    enrollment: inst.enrollment,
-    competencia: inst.competencia,
-    type,
-    originalValue: inst.originalValue,
-    waivedValue: actualWaived,
-    reason,
-    authorizer,
-    date: new Date().toISOString(),
-    user
+    id: 'ex_' + Date.now(), installmentId, studentId: inst.studentId, studentName: inst.studentName,
+    enrollment: inst.enrollment, competencia: inst.competencia, type,
+    originalValue: inst.originalValue, waivedValue: actualWaived, reason, authorizer,
+    date: new Date().toISOString(), user,
   };
-
   const exemptions = getExemptions();
   exemptions.unshift(newExemption);
   setItemJSON('gestao_fin_exemptions_v1', exemptions);
 
-  addFinancialAuditLog(user, 'CONCESSAO_ABONO', `Abono (${type}) de R$ ${actualWaived.toFixed(2)} concedido na parcela ${inst.number}/${inst.totalInstallments} (${inst.competencia}) do aluno ${inst.studentName}. Autorizado por: ${authorizer}`);
+  await addFinancialAuditLog(user, 'CONCESSAO_ABONO', `Abono (${type}) de R$ ${actualWaived.toFixed(2)} concedido na parcela ${inst.number}/${inst.totalInstallments} (${inst.competencia}) do aluno ${inst.studentName}. Autorizado por: ${authorizer}`);
   return true;
 }
 
