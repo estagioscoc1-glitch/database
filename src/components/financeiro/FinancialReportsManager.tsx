@@ -45,11 +45,13 @@ export const FinancialReportsManager: React.FC<FinancialReportsManagerProps> = (
   const [printModalData, setPrintModalData] = useState<FinancialPrintData | null>(null);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
-  const loadData = () => {
-    const regs = getCashRegisters();
+  // getCashRegisters já fala com o banco (Parte 1) — devolve Promise.
+  // As outras quatro continuam no navegador até as próximas partes.
+  const loadData = async () => {
+    const regs = await getCashRegisters();
     setCashRegisters(regs);
     if (regs.length > 0 && !selectedCashId) setSelectedCashId(regs[0].id);
 
@@ -178,19 +180,19 @@ export const FinancialReportsManager: React.FC<FinancialReportsManagerProps> = (
     setFileDataUrl('');
     setNewTplName('');
     setNewTplDescription('');
-    loadData();
+    void loadData();
   };
 
   const handleDeleteTemplate = (id: string, name: string) => {
     if (window.confirm(`Tem certeza que deseja excluir o modelo "${name}"?`)) {
       deleteReportTemplate(id, currentUser);
-      loadData();
+      void loadData();
     }
   };
 
   const handleSetActive = (id: string, category: string) => {
     setActiveReportTemplate(id, category, currentUser);
-    loadData();
+    void loadData();
   };
 
   const filteredTemplates = templates.filter(t => {

@@ -26,7 +26,7 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
   // Individual Form State
   const [searchStudentQuery, setSearchStudentQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
-  const [courseId, setCourseId] = useState('ENF');
+  const [courseId, setCourseId] = useState('');
   const [monthlyValue, setMonthlyValue] = useState('480.00');
   const [totalInstallments, setTotalInstallments] = useState(12);
   const [firstDueDate, setFirstDueDate] = useState(() => {
@@ -291,9 +291,10 @@ export const GenerateInstallmentsManager: React.FC<GenerateInstallmentsManagerPr
                   onChange={(e) => handleCourseChange(e.target.value, false)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="ENF">TÉCNICO EM ENFERMAGEM</option>
-                  <option value="RAD">TÉCNICO EM RADIOLOGIA</option>
-                  <option value="ELE">TÉCNICO EM ELETROTÉCNICA</option>
+                  <option value="">Selecione o curso...</option>
+                  {courses.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 
