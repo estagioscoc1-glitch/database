@@ -70,6 +70,13 @@ const SECOES: Secao[] = [
     ],
   },
   {
+    titulo: 'Calendário Escolar (Administrador)',
+    itens: [
+      { titulo: 'Preencher o calendário', texto: 'Escolha o ano e o semestre, clique num dia do quadrinho do mês pra marcá-lo (verde = início das aulas, laranja = feriado/destaque, cinza = avaliação), preencha os dias letivos de cada mês e adicione as anotações gerais. "Salvar calendário" grava tudo em rascunho.' },
+      { titulo: 'Mostrar para o Coordenador', texto: 'Botão "Oculto do coordenador" / "Visível para o coordenador": decide se o calendário aparece no Painel Docente do coordenador. Fica oculto até você ligar, e dá pra desligar de novo a qualquer momento.' },
+    ],
+  },
+  {
     titulo: 'Estágio (Secretaria de Estágios)',
     itens: [
       { titulo: 'Lançar nota de estágio', texto: 'Busca o aluno e mostra a grade de componentes curriculares de estágio do curso dele — carga horária, local, professor e nota, com botão "Lançar" em cada um. Mostra automaticamente o que já foi feito e o que está pendente.' },
