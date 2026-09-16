@@ -114,6 +114,24 @@ módulos já cursados, com opção de imprimir o Histórico Completo oficial.
 
 ---
 
+## Calendário Escolar (aba do Administrador)
+Tela pra preencher o calendário do semestre inteiro — os mesmos meses,
+dias marcados (início das aulas, feriados, avaliações/DEP) e anotações
+do modelo em PDF que a secretaria já usa.
+
+Escolha o ano e o semestre no topo (cria um calendário novo em branco se
+ainda não existir). Clique num dia do quadrinho do mês pra marcá-lo
+(verde = início das aulas, laranja = feriado/destaque, cinza = avaliação),
+preencha os dias letivos de cada mês e adicione as anotações gerais.
+
+"Salvar calendário" grava tudo em rascunho — só quem está nesta tela
+enxerga. O botão "Oculto do coordenador" / "Visível para o coordenador"
+é quem decide se o Johnny passa a ver o calendário no Painel Docente
+dele. Fica oculto até você ligar, e pode ser desligado de novo a
+qualquer momento.
+
+---
+
 ## Estágio (Secretaria de Estágios)
 Busca o aluno e mostra a grade de componentes curriculares de estágio do
 curso dele — carga horária, local, professor e nota, com botão "Lançar"
