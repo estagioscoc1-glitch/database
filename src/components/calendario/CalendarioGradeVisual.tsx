@@ -7,6 +7,13 @@ import { NOMES_MESES, type DiaMarcadoCalendario } from '../../lib/calendarioEsco
 //  caixinha cinza ao lado do número, na mesma linha da semana, igual ao
 //  original).
 //
+//  IMPORTANTE: é um único CSS grid de 8 colunas (7 dias + 1 rótulo) para o
+//  cabeçalho e TODAS as semanas — assim as 7 colunas de dias sempre têm a
+//  mesma largura, mesmo em semanas sem rótulo. Antes cada semana tinha seu
+//  próprio grid de 7 colunas ao lado de uma caixinha "shrink", e como o
+//  espaço sobrando variava semana a semana, os quadradinhos (aspect-square)
+//  saíam de tamanhos diferentes e desalinhados — foi isso que ficou torto.
+//
 //  Usada em três lugares:
 //   - CalendarioEscolarModule (editor): clicável, `onSelecionarDia` abre o
 //     painel de edição do dia.
@@ -51,8 +58,6 @@ export const CalendarioGradeVisual: React.FC<Props> = ({
   // completa a última linha com espaços em branco
   while (celulas.length % 7 !== 0) celulas.push(null);
 
-  // Quebra em semanas (linhas de 7) — cada linha pode ter sua própria
-  // caixinha de rótulo (DEP) do lado direito, igual ao modelo original.
   const semanas: Array<Array<number | null>> = [];
   for (let i = 0; i < celulas.length; i += 7) semanas.push(celulas.slice(i, i + 7));
 
@@ -60,30 +65,38 @@ export const CalendarioGradeVisual: React.FC<Props> = ({
     .filter(m => m.legenda)
     .sort((a, b) => a.dia - b.dia);
 
+  const gridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, 1fr) auto',
+    columnGap: '2px',
+    rowGap: '2px',
+    alignItems: 'stretch',
+  };
+
   return (
     <div className={compacto ? 'text-[10px]' : 'text-xs'}>
       <h4 className="font-black uppercase tracking-wide text-slate-700 dark:text-slate-200 mb-1.5">
         {NOMES_MESES[mes]}
       </h4>
 
-      <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+      <div style={gridStyle}>
+        {/* Cabeçalho — 7 letras dos dias da semana + coluna vazia do rótulo */}
         {DIAS_SEMANA.map((letra, i) => (
-          <div key={i} className="text-center font-bold text-slate-400 dark:text-slate-500">
+          <div key={`h${i}`} className="text-center font-bold text-slate-400 dark:text-slate-500">
             {letra}
           </div>
         ))}
-      </div>
+        <div />
 
-      {semanas.map((semana, sIndex) => {
-        // Rótulos (ex: "DEP") de qualquer dia marcado nesta semana, na ordem dos dias.
-        const rotulosDaSemana = semana
-          .filter((dia): dia is number => dia !== null)
-          .map(dia => marcaPorDia.get(dia)?.rotulo)
-          .filter((r): r is string => Boolean(r));
+        {/* Semanas — 7 dias + 1 rótulo por linha, no MESMO grid do cabeçalho */}
+        {semanas.map((semana, sIndex) => {
+          const rotulosDaSemana = semana
+            .filter((dia): dia is number => dia !== null)
+            .map(dia => marcaPorDia.get(dia)?.rotulo)
+            .filter((r): r is string => Boolean(r));
 
-        return (
-          <div key={sIndex} className="flex items-center gap-1 mb-0.5">
-            <div className="grid grid-cols-7 gap-0.5 flex-1">
+          return (
+            <React.Fragment key={sIndex}>
               {semana.map((dia, i) => {
                 if (dia === null) return <div key={i} />;
                 const marca = marcaPorDia.get(dia);
@@ -97,7 +110,7 @@ export const CalendarioGradeVisual: React.FC<Props> = ({
                     disabled={!clicavel}
                     onClick={() => onSelecionarDia?.(dia)}
                     className={[
-                      'aspect-square rounded-md flex items-center justify-center leading-none font-bold',
+                      'aspect-square w-full rounded-md flex items-center justify-center leading-none font-bold',
                       marca ? CORES[marca.tipo] : 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300',
                       clicavel ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : 'cursor-default',
                       selecionado ? 'ring-2 ring-blue-600' : '',
@@ -108,22 +121,30 @@ export const CalendarioGradeVisual: React.FC<Props> = ({
                   </button>
                 );
               })}
-            </div>
 
-            {/* Caixinha do rótulo (DEP etc.), do lado da semana — igual ao original */}
-            {rotulosDaSemana.length > 0 && (
-              <span className="shrink-0 px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-black uppercase text-[8px] leading-none whitespace-nowrap">
-                {rotulosDaSemana.join(' ')}
-              </span>
-            )}
-          </div>
-        );
-      })}
+              {/* Caixinha do rótulo (DEP etc.) — sempre na mesma 8ª coluna */}
+              <div className="flex items-center justify-start">
+                {rotulosDaSemana.length > 0 && (
+                  <span className="shrink-0 px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-black uppercase text-[8px] leading-none whitespace-nowrap">
+                    {rotulosDaSemana.join(' ')}
+                  </span>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
 
       {notasDeRodape.length > 0 && (
-        <div className="mt-1 space-y-0.5">
+        <div className="mt-1.5">
           {notasDeRodape.map((n, i) => (
-            <p key={i} className="text-slate-500 dark:text-slate-400 leading-snug">
+            <p
+              key={i}
+              className={[
+                'text-slate-500 dark:text-slate-400 leading-snug py-0.5',
+                i < notasDeRodape.length - 1 ? 'border-b border-slate-150 dark:border-slate-800' : '',
+              ].join(' ')}
+            >
               <span className="font-bold">{n.dia}</span> – {n.legenda}
             </p>
           ))}

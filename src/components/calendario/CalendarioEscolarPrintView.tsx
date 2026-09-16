@@ -77,63 +77,80 @@ export const CalendarioEscolarPrintView: React.FC<Props> = ({ registro, onClose 
   const Documento = (
     <div style={{ fontFamily: FONTE_DOCUMENTOS, color: '#000' }}>
       {/* Cabeçalho */}
-      <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '0.4cm', marginBottom: '0.5cm', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '0.25cm', marginBottom: '0.35cm', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <img
           src={LOGO_COLEGIO_OSWALDO_CRUZ}
           alt="Colégio Oswaldo Cruz"
           referrerPolicy="no-referrer"
-          style={{ maxHeight: '1.6cm', objectFit: 'contain' }}
+          style={{ maxHeight: '1.3cm', objectFit: 'contain' }}
         />
-        <h1 style={{ fontSize: '15pt', fontWeight: 'bold', margin: 0, textAlign: 'right' }}>
+        <h1 style={{ fontSize: '13pt', fontWeight: 'bold', margin: 0, textAlign: 'right' }}>
           Calendário Escolar {registro.ano}/{registro.semestre}
         </h1>
       </div>
 
       {/* Meses + Anotações/Dias letivos lado a lado */}
-      <div style={{ display: 'flex', gap: '0.6cm' }}>
-        <div style={{ flex: '1.4', display: 'flex', flexDirection: 'column', gap: '0.35cm' }}>
+      <div style={{ display: 'flex', gap: '0.5cm' }}>
+        <div
+          style={{
+            flex: '1.5',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            columnGap: '0.3cm',
+            rowGap: '0.25cm',
+            alignContent: 'start',
+          }}
+        >
           {registro.dados.meses.map(m => (
-            <div key={m.mes} className="cal-mes" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.3cm' }}>
+            <div key={m.mes} className="cal-mes" style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.2cm' }}>
               <CalendarioGradeVisual ano={m.ano} mes={m.mes} diasMarcados={m.diasMarcados} compacto />
             </div>
           ))}
         </div>
 
-        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '0.4cm' }}>
+        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '0.3cm' }}>
           {registro.dados.anotacoes.length > 0 && (
-            <div style={{ border: '1px solid #cbd5e1', borderRadius: '10px', padding: '0.35cm' }}>
-              <h4 style={{ fontSize: '9.5pt', fontWeight: 'bold', margin: '0 0 0.2cm', textTransform: 'uppercase', color: '#1e3a8a' }}>
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.3cm' }}>
+              <h4 style={{ fontSize: '9pt', fontWeight: 'bold', margin: '0 0 0.15cm', textTransform: 'uppercase', color: '#1e3a8a' }}>
                 Anotações
               </h4>
-              <ul style={{ margin: 0, paddingLeft: '0.4cm', fontSize: '8.5pt', lineHeight: 1.6 }}>
+              <div style={{ margin: 0, fontSize: '7.8pt', lineHeight: 1.35 }}>
                 {registro.dados.anotacoes.map((a, i) => (
-                  <li key={i}>{a.texto}</li>
+                  <div
+                    key={i}
+                    style={{
+                      padding: '0.12cm 0',
+                      borderBottom: i < registro.dados.anotacoes.length - 1 ? '1px solid #e2e8f0' : 'none',
+                    }}
+                  >
+                    {a.texto}
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
-          <div style={{ border: '1px solid #0f172a', borderRadius: '10px', overflow: 'hidden', fontSize: '9pt' }}>
-            <div style={{ background: '#0f172a', color: '#fff', padding: '0.2cm 0.35cm', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8.5pt' }}>
+          <div style={{ border: '1px solid #0f172a', borderRadius: '8px', overflow: 'hidden', fontSize: '8.5pt' }}>
+            <div style={{ background: '#0f172a', color: '#fff', padding: '0.15cm 0.3cm', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '8pt' }}>
               Orientações e dias letivos
             </div>
             {registro.dados.meses.map(m => (
               <div
                 key={m.mes}
-                style={{ display: 'flex', justifyContent: 'space-between', padding: '0.15cm 0.35cm', borderBottom: '1px solid #e2e8f0' }}
+                style={{ display: 'flex', justifyContent: 'space-between', padding: '0.1cm 0.3cm', borderBottom: '1px solid #e2e8f0' }}
               >
                 <span style={{ fontWeight: 'bold' }}>{NOMES_MESES[m.mes]}</span>
                 <span>{m.diasLetivos} Dias</span>
               </div>
             ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2cm 0.35cm', background: '#f1f5f9', fontWeight: 'bold' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.15cm 0.3cm', background: '#f1f5f9', fontWeight: 'bold' }}>
               <span>Total</span>
               <span>{totalDiasLetivos(registro.dados)} Dias</span>
             </div>
           </div>
 
           {registro.dados.fraseRodape && (
-            <p style={{ fontSize: '8.5pt', fontStyle: 'italic', color: '#475569', textAlign: 'center', margin: 0 }}>
+            <p style={{ fontSize: '8pt', fontStyle: 'italic', color: '#475569', textAlign: 'center', margin: 0 }}>
               {registro.dados.fraseRodape}
             </p>
           )}
@@ -141,7 +158,7 @@ export const CalendarioEscolarPrintView: React.FC<Props> = ({ registro, onClose 
       </div>
 
       {/* Rodapé institucional — mesmo texto usado nas declarações */}
-      <div style={{ marginTop: '0.6cm', paddingTop: '0.3cm', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '7.5pt', color: '#444', lineHeight: 1.5 }}>
+      <div style={{ marginTop: '0.4cm', paddingTop: '0.2cm', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '7pt', color: '#444', lineHeight: 1.4 }}>
         <p style={{ margin: 0 }}>Rua 20, 796 – Centro Goiânia Goiás</p>
         <p style={{ margin: 0 }}>CEP – 74020-170 – Fone e Whatsapp (62) 3223-7602</p>
         <p style={{ margin: 0 }}>www.colegiooswaldocruz.com.br / E-mail: cocruz@terra.com.br</p>

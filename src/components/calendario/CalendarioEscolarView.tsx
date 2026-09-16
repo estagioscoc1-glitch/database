@@ -48,9 +48,9 @@ export const CalendarioEscolarView: React.FC<Props> = ({ registro, onClose }) =>
           {registro.dados.anotacoes.length > 0 && (
             <div className="border border-slate-150 dark:border-slate-800 rounded-2xl p-4">
               <h4 className="text-xs font-black text-blue-900 dark:text-blue-300 uppercase mb-2">Anotações</h4>
-              <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+              <ul className="text-xs text-slate-600 dark:text-slate-300 divide-y divide-slate-100 dark:divide-slate-800">
                 {registro.dados.anotacoes.map((a, i) => (
-                  <li key={i}>{a.texto}</li>
+                  <li key={i} className="py-1.5 list-none">{a.texto}</li>
                 ))}
               </ul>
             </div>
