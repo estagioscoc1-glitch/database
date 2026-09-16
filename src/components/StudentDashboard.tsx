@@ -28,6 +28,7 @@ import { MovimentacaoDocumentPrintModal } from './movimentacao/MovimentacaoDocum
 import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'lucide-react';
 
 import { AditivoPendenteAviso } from './AditivoPendenteAviso';
+import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -398,6 +399,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
             return (
               <div className="space-y-5 animate-fade-in">
+                {/* Calendário Escolar — só aparece quando a direção publica algum. */}
+                <div className="flex justify-end">
+                  <CalendarioEscolarAcessoRapido />
+                </div>
+
                 {/* Cronograma de estágio. Só aparece quando a coordenação
                     publica um — sem cronograma publicado, nada é mostrado. */}
                 <CronogramaDoAluno />

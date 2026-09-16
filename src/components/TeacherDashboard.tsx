@@ -21,8 +21,7 @@ import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
 import { SupervisorEstagioModule } from './estagios/SupervisorEstagioModule';
 import { meuCadastroSupervisor } from '../lib/supabaseEstagioModulo';
-import { carregarCalendarioPublicado, type CalendarioEscolarRegistro } from '../lib/calendarioEscolar';
-import { CalendarioEscolarView } from './calendario/CalendarioEscolarView';
+import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
 
 export const TeacherDashboard: React.FC = () => {
   const { 
@@ -90,9 +89,6 @@ export const TeacherDashboard: React.FC = () => {
   const [isHistoricoWindowMaximized, setIsHistoricoWindowMaximized] = useState<boolean>(false);
   const [acessosWindowOpen, setAcessosWindowOpen] = useState<boolean>(false);
   const [isAcessosWindowMaximized, setIsAcessosWindowMaximized] = useState<boolean>(false);
-  // Calendário Escolar: só existe algo pra mostrar se a direção publicou.
-  const [calendarioPublicado, setCalendarioPublicado] = useState<CalendarioEscolarRegistro | null>(null);
-  const [calendarioWindowOpen, setCalendarioWindowOpen] = useState<boolean>(false);
   const [isContentWindowMaximized, setIsContentWindowMaximized] = useState<boolean>(false);
   const [isAttendanceWindowMaximized, setIsAttendanceWindowMaximized] = useState<boolean>(false);
   // Guarda a assinatura do aviso de prazo que o professor já dispensou nesta sessão.
@@ -179,12 +175,6 @@ export const TeacherDashboard: React.FC = () => {
       setActiveClassId(selectedClass.id);
     }
   }, [selectedClass, activeClassId, setActiveClassId]);
-
-  // Calendário Escolar: busca o publicado (se houver) uma vez, ao abrir o painel.
-  // Fica em silêncio se não houver nenhum — o botão simplesmente não aparece.
-  React.useEffect(() => {
-    carregarCalendarioPublicado().then(setCalendarioPublicado);
-  }, []);
 
   React.useEffect(() => {
     if (selectedSubject && selectedSubject.id !== activeSubjectId) {
@@ -445,16 +435,7 @@ export const TeacherDashboard: React.FC = () => {
             </button>
           )}
           {/* Calendário Escolar: só aparece quando a direção publicou algum. */}
-          {calendarioPublicado && (
-            <button
-              type="button"
-              onClick={() => setCalendarioWindowOpen(true)}
-              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide"
-            >
-              <FileText className="h-4 w-4" />
-              <span>Calendário Escolar</span>
-            </button>
-          )}
+          <CalendarioEscolarAcessoRapido />
           <a
             href="https://col-gio-oswaldo-cruz-carreira-ia-199284089949.us-east1.run.app"
             target="_blank"
@@ -1256,11 +1237,6 @@ export const TeacherDashboard: React.FC = () => {
         </>
       )}
 
-      {/* Calendário Escolar — visualização simples (o próprio componente já
-          traz seu overlay), só aparece se a direção publicou algum. */}
-      {calendarioWindowOpen && calendarioPublicado && (
-        <CalendarioEscolarView registro={calendarioPublicado} onClose={() => setCalendarioWindowOpen(false)} />
-      )}
 
       {(gradeWindowState === 'open' || gradeWindowState === 'minimized') && (
         <>
