@@ -20,10 +20,25 @@ export const IncomeTaxDeclarationManager: React.FC<IncomeTaxDeclarationManagerPr
   const [showPrintModal, setShowPrintModal] = useState(false);
 
   useEffect(() => {
+    let cancelado = false;
     if (selectedStudent) {
-      const data = getStudentPaidYearTotal(selectedStudent.id || selectedStudent.enrollment, parseInt(taxYear));
-      setDeclData(data);
+      // getStudentPaidYearTotal é assíncrona (fala com o banco) — faltava o
+      // await aqui. Sem ele, "data" era a Promise em si, não o resultado, e
+      // declData.receipts virava undefined na hora de desenhar a tela ou
+      // montar o payload de impressão (era isso que quebrava a busca).
+      getStudentPaidYearTotal(selectedStudent.id || selectedStudent.enrollment, parseInt(taxYear))
+        .then(data => {
+          if (!cancelado) setDeclData(data);
+        })
+        .catch(() => {
+          if (!cancelado) setDeclData({ receipts: [], totalValue: 0 });
+        });
+    } else {
+      setDeclData({ receipts: [], totalValue: 0 });
     }
+    return () => {
+      cancelado = true;
+    };
   }, [selectedStudent, taxYear]);
 
   const filteredStudents = (query: string) => {

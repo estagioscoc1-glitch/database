@@ -5,7 +5,7 @@ import {
   FileText, ShieldCheck, Download, CheckCircle2, DollarSign, Wallet
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { LOGO_COLEGIO_OSWALDO_CRUZ } from '../../lib/imageAssets';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_DIRETORA } from '../../lib/imageAssets';
 import { CashRegister, FinancialReceipt, Expense, Installment } from '../../types/financeiro';
 
 export interface FinancialPrintData {
@@ -599,18 +599,34 @@ export const FinancialPrintModal: React.FC<FinancialPrintModalProps> = ({ data, 
               {renderDocumentBody()}
 
               {/* Official Signatures Block */}
-              <div className="pt-10 grid grid-cols-2 gap-8 text-center text-xs font-bold text-slate-900 border-t border-slate-300">
-                <div>
-                  <div className="border-b border-slate-900 mx-auto w-48 mb-1"></div>
-                  <p className="uppercase">{data.user || 'Operador Responsável'}</p>
-                  <p className="text-[9px] font-normal text-slate-500">Tesouraria / Operador de Caixa</p>
+              {data.type === 'IRPF_DECLARACAO' ? (
+                // Declaração para Imposto de Renda: assinatura da direção (documento com validade fiscal).
+                <div className="pt-10 flex justify-center text-center text-xs font-bold text-slate-900 border-t border-slate-300">
+                  <div>
+                    <img
+                      src={ASSINATURA_DIRETORA}
+                      alt="Assinatura da Direção"
+                      referrerPolicy="no-referrer"
+                      className="mx-auto h-16 object-contain"
+                    />
+                    <p className="uppercase mt-1">Aldair Maia Santos dos Reis</p>
+                    <p className="text-[9px] font-normal text-slate-500">Diretora</p>
+                  </div>
                 </div>
-                <div>
-                  <div className="border-b border-slate-900 mx-auto w-48 mb-1"></div>
-                  <p className="uppercase">Gerência Financeira</p>
-                  <p className="text-[9px] font-normal text-slate-500">Visto de Conferência & Homologação</p>
+              ) : (
+                <div className="pt-10 grid grid-cols-2 gap-8 text-center text-xs font-bold text-slate-900 border-t border-slate-300">
+                  <div>
+                    <div className="border-b border-slate-900 mx-auto w-48 mb-1"></div>
+                    <p className="uppercase">{data.user || 'Operador Responsável'}</p>
+                    <p className="text-[9px] font-normal text-slate-500">Tesouraria / Operador de Caixa</p>
+                  </div>
+                  <div>
+                    <div className="border-b border-slate-900 mx-auto w-48 mb-1"></div>
+                    <p className="uppercase">Gerência Financeira</p>
+                    <p className="text-[9px] font-normal text-slate-500">Visto de Conferência & Homologação</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Document Footer Metadata */}
               <div className="pt-4 text-center text-[9px] font-mono text-slate-400 border-t border-slate-100 flex justify-between">
