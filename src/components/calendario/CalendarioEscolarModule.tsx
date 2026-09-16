@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  CalendarDays, Plus, Trash2, Save, Eye, EyeOff, ArrowUp, ArrowDown, X, Loader2, CheckCircle2,
+  CalendarDays, Plus, Trash2, Save, Eye, EyeOff, ArrowUp, ArrowDown, X, Loader2, CheckCircle2, Printer,
 } from 'lucide-react';
 import {
   type CalendarioEscolarRegistro,
@@ -15,6 +15,7 @@ import {
   totalDiasLetivos,
 } from '../../lib/calendarioEscolar';
 import { CalendarioGradeVisual } from './CalendarioGradeVisual';
+import { CalendarioEscolarPrintView } from './CalendarioEscolarPrintView';
 
 // ===========================================================================
 //  CALENDÁRIO ESCOLAR — tela de edição (só direção/secretaria)
@@ -45,6 +46,7 @@ export const CalendarioEscolarModule: React.FC = () => {
   const [novoMes, setNovoMes] = useState<number>(1);
   const [diaEditando, setDiaEditando] = useState<{ mes: number; dia: number } | null>(null);
   const [novaAnotacao, setNovaAnotacao] = useState('');
+  const [mostrarImpressao, setMostrarImpressao] = useState(false);
 
   const carregar = useCallback(async (anoAlvo: number, semestreAlvo: 1 | 2) => {
     setCarregando(true);
@@ -251,6 +253,14 @@ export const CalendarioEscolarModule: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setMostrarImpressao(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-xl text-xs uppercase tracking-wide"
+          >
+            <Printer className="h-3.5 w-3.5" /> Imprimir / Baixar PDF
+          </button>
+
+          <button
+            type="button"
             onClick={alternarPublicacao}
             disabled={publicando}
             className={`flex items-center gap-1.5 px-4 py-2.5 disabled:opacity-40 font-black rounded-xl text-xs uppercase tracking-wide ${
@@ -407,6 +417,10 @@ export const CalendarioEscolarModule: React.FC = () => {
           )}
         </div>
       </div>
+
+      {mostrarImpressao && (
+        <CalendarioEscolarPrintView registro={registro} onClose={() => setMostrarImpressao(false)} />
+      )}
     </div>
   );
 };
