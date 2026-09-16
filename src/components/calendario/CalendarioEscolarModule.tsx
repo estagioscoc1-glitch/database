@@ -22,8 +22,8 @@ import { CalendarioEscolarPrintView } from './CalendarioEscolarPrintView';
 //
 //  Preenche o calendário de um ano/semestre inteiro no mesmo formato do
 //  modelo em PDF (meses, dias marcados, anotações, dias letivos), guarda no
-//  banco em rascunho e só mostra pro coordenador quando "Mostrar para o
-//  Coordenador" é ligado.
+//  banco em rascunho e só mostra pra escola toda (professores e alunos)
+//  quando "Mostrar para a Escola" é ligado.
 // ===========================================================================
 
 function anoESemestreAtuais(): { ano: number; semestre: 1 | 2 } {
@@ -191,7 +191,7 @@ export const CalendarioEscolarModule: React.FC = () => {
             <div>
               <h2 className="text-lg font-black text-slate-800 dark:text-white">Calendário Escolar</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Preencha o semestre inteiro. Fica só com você até ligar "Mostrar para o Coordenador".
+                Preencha o semestre inteiro. Fica só com você até ligar "Mostrar para a Escola".
               </p>
             </div>
           </div>
@@ -276,7 +276,7 @@ export const CalendarioEscolarModule: React.FC = () => {
             ) : (
               <EyeOff className="h-3.5 w-3.5" />
             )}
-            {registro.publicado ? 'Visível para o coordenador' : 'Oculto do coordenador'}
+            {registro.publicado ? 'Visível para toda a Escola' : 'Oculto da Escola'}
           </button>
 
           {avisoSalvo && (
