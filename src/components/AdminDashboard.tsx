@@ -45,6 +45,7 @@ const ABAS_VISIVEIS = {
   historico_completo: true,   // Histórico do Aluno
   estagio: true,              // Estágios — a tela agora só mostra Lançamento de Notas; a secretaria ainda usa essa parte
   acessos: true,              // Acessos e Presença
+  calendario: true,           // Calendário Escolar — só o Admin edita; o coordenador só vê quando publicado
 };
 import { 
   Users, UserCheck, GraduationCap, School, BookOpen, FileCheck, CheckCircle2, 
@@ -76,6 +77,7 @@ import { ExecutiveBIDashboard } from './ExecutiveBIDashboard';
 import { CRMModule } from './CRMModule';
 import { CadastrosModule } from './cadastros/CadastrosModule';
 import { FinanceiroModule } from './FinanceiroModule';
+import { CalendarioEscolarModule } from './calendario/CalendarioEscolarModule';
 import { getCoursePriceConfigs, generateStudentInstallments } from '../services/financeiroStorage';
 import { MovimentacaoModule } from './movimentacao/MovimentacaoModule';
 import { FinanceiroPlaceholder } from './placeholders/FinanceiroPlaceholder';
@@ -158,7 +160,7 @@ export const AdminDashboard: React.FC = () => {
     currentUser, verComoUsuario, acessos, recarregarAcessos, apagarPessoaPorCompleto
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'requerimentos' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>(
+  const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'requerimentos' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'acessos' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas' | 'calendario'>(
     // A aba inicial precisa ser uma que esteja VISÍVEL. Antes era 'crm' — que
     // agora está oculta; abrir nela deixaria o painel sem conteúdo nenhum.
     ABAS_VISIVEIS.crm ? 'crm' : 'reg'
@@ -1521,6 +1523,20 @@ export const AdminDashboard: React.FC = () => {
           <span>Financeiro</span>
         </button>
         )}
+        {/* Mesma trava do Financeiro: só o administrador preenche o calendário. */}
+        {ABAS_VISIVEIS.calendario && currentUser?.role === UserRole.ADMIN && (
+        <button
+          type="button"
+          onClick={() => setActiveTab('calendario')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'calendario'
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black'
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Calendário Escolar</span>
+        </button>
+        )}
         {ABAS_VISIVEIS.orientacao && (
         <button
           type="button"
@@ -1722,6 +1738,14 @@ export const AdminDashboard: React.FC = () => {
           />
         </motion.div>
       )}
+
+      {/* Tab: Calendário Escolar */}
+      {activeTab === 'calendario' && currentUser?.role === UserRole.ADMIN && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <CalendarioEscolarModule />
+        </motion.div>
+      )}
+
 
       {/* Tab: Movimentação (Gestão Acadêmica Integrada) */}
       {activeTab === 'orientacao' && (
