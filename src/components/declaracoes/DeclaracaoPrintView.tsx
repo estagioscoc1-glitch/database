@@ -54,7 +54,16 @@ const CSS_IMPRESSAO = `
       overflow: visible !important;
       background: #fff !important;
     }
-    .decl-folha { min-height: auto !important; }
+    /*
+      Antes: min-height: auto — isso encolhia a folha ao tamanho do
+      conteúdo na impressão, então a margin-top:auto do rodapé não tinha
+      espaço sobrando para empurrar e ele saía colado embaixo da
+      assinatura, em vez de no rodapé da página.
+      Agora: mesma altura útil da página (@page acima: A4 29,7cm menos
+      1,5cm de margem em cima e embaixo = 26,7cm), então a folha ocupa
+      a página inteira e o rodapé é empurrado até o fim de verdade.
+    */
+    .decl-folha { min-height: 26.7cm !important; }
   }
 `;
 
