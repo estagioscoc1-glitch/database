@@ -136,15 +136,9 @@ export const CalendarioGradeVisual: React.FC<Props> = ({
       </div>
 
       {notasDeRodape.length > 0 && (
-        <div className="mt-1.5">
+        <div className="mt-1.5 space-y-0.5">
           {notasDeRodape.map((n, i) => (
-            <p
-              key={i}
-              className={[
-                'text-slate-500 dark:text-slate-400 leading-snug py-0.5',
-                i < notasDeRodape.length - 1 ? 'border-b border-slate-150 dark:border-slate-800' : '',
-              ].join(' ')}
-            >
+            <p key={i} className="text-slate-500 dark:text-slate-400 leading-snug">
               <span className="font-bold">{n.dia}</span> – {n.legenda}
             </p>
           ))}
