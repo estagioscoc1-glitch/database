@@ -149,14 +149,24 @@ export function montarLinhasPagamento(parcelas: Installment[]): { linhas: string
   return { linhas, totalGeral };
 }
 
-/** Filtra as parcelas de UM aluno, pagas, dentro de um ano letivo (competência "MM/AAAA"). */
+/**
+ * Filtra as parcelas de UM aluno, pagas, dentro de um ano letivo (competência "MM/AAAA").
+ *
+ * Recebe mais de um identificador possível porque o Financeiro nem sempre
+ * grava a mesma coisa em `studentId` — em alguns lançamentos antigos é o id
+ * interno do aluno, em outros é a matrícula (é o mesmo "ou" que a tela de
+ * IRPF antiga já usava: `selectedStudent.id || selectedStudent.enrollment`).
+ * Passando os dois aqui, a busca acha a parcela de qualquer jeito que ela
+ * tenha sido gravada.
+ */
 export function parcelasDoAlunoNoAno(
   todas: Installment[],
-  studentId: string,
+  identificadores: Array<string | undefined | null>,
   ano: string
 ): Installment[] {
   const anoLimpo = ano.trim();
+  const ids = new Set(identificadores.filter((v): v is string => !!v));
   return todas.filter(
-    p => p.studentId === studentId && p.status === 'PAGA' && (p.competencia || '').endsWith(`/${anoLimpo}`)
+    p => ids.has(p.studentId) && p.status === 'PAGA' && (p.competencia || '').endsWith(`/${anoLimpo}`)
   );
 }
