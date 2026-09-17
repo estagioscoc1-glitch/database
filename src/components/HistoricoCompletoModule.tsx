@@ -215,7 +215,14 @@ export const HistoricoCompletoModule: React.FC = () => {
             // acontece no Histórico Escolar Completo impresso.
             const studentGradesVisiveis = studentGrades.filter(g => !g.hiddenFromHistory);
             const uniqueClassIds = Array.from(new Set(studentGradesVisiveis.map(g => g.classId)));
-            if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
+            // Não força de volta a turma atual do cadastro (`classId`) se
+            // ela já foi cancelada por completo (todas as notas ocultas) —
+            // senão vira uma caixa vazia na tela, sinal de que o cadastro do
+            // aluno ficou apontando pra turma antiga depois de uma
+            // transferência que não atualizou o `classId` dele.
+            const gradesDaTurmaAtual = studentGrades.filter(g => g.classId === targetStudent.classId);
+            const turmaAtualFoiCancelada = gradesDaTurmaAtual.length > 0 && gradesDaTurmaAtual.every(g => g.hiddenFromHistory);
+            if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId) && !turmaAtualFoiCancelada) {
               uniqueClassIds.push(targetStudent.classId);
             }
             const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));

@@ -1732,7 +1732,17 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   // ali. A exibição já sabe mostrar "Pendente"/"0.0" quando
                   // não há nota (veja abaixo); só faltava a turma entrar na
                   // lista para começar.
-                  if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
+                  //
+                  // EXCETO quando essa "turma atual" já foi cancelada —
+                  // acontece quando o cadastro do aluno (`classId`) ficou
+                  // apontando pra turma antiga depois de uma transferência
+                  // malfeita. Sem esta checagem, a turma cancelada era
+                  // forçada de volta na lista mesmo com toda disciplina
+                  // oculta, e aparecia como uma caixa vazia no histórico —
+                  // confuso pra quem está lendo.
+                  const gradesDaTurmaAtual = studentGradesTodas.filter(g => g.classId === targetStudent.classId);
+                  const turmaAtualFoiCancelada = gradesDaTurmaAtual.length > 0 && gradesDaTurmaAtual.every(g => g.hiddenFromHistory);
+                  if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId) && !turmaAtualFoiCancelada) {
                     uniqueClassIds.push(targetStudent.classId);
                   }
                   const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
