@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, FileText, AlertTriangle } from 'lucide-react';
-import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO } from '../../lib/imageAssets';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO, ASSINATURA_PAGAMENTO_IR, LOGO_30_ANOS } from '../../lib/imageAssets';
 import { FONTE_DOCUMENTOS } from '../../lib/documentoEstilo';
 import { preencherDeclaracao, dataPorExtenso } from '../../lib/supabaseDeclaracoes';
 import type { DadosDeclaracao } from '../../lib/supabaseDeclaracoes';
@@ -101,15 +101,33 @@ export const DeclaracaoPrintView: React.FC<Props> = ({ modelo, dados, onClose })
         minHeight: '24cm',
       }}
     >
-      {/* Timbre */}
-      <div style={{ textAlign: 'center', marginBottom: '1.6cm' }}>
-        <img
-          src={LOGO_COLEGIO_OSWALDO_CRUZ}
-          alt="Colégio Oswaldo Cruz"
-          referrerPolicy="no-referrer"
-          style={{ display: 'block', margin: '0 auto', maxHeight: '2.2cm', maxWidth: '100%', objectFit: 'contain' }}
-        />
-      </div>
+      {/* Timbre — logo único centralizado (padrão), ou logo + selo "30 anos"
+          lado a lado quando o modelo pede (Declaração de Pagamento/IR). */}
+      {modelo.logoDuplo ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8cm' }}>
+          <img
+            src={LOGO_COLEGIO_OSWALDO_CRUZ}
+            alt="Colégio Oswaldo Cruz"
+            referrerPolicy="no-referrer"
+            style={{ maxHeight: '1.8cm', maxWidth: '55%', objectFit: 'contain' }}
+          />
+          <img
+            src={LOGO_30_ANOS}
+            alt="30 anos"
+            referrerPolicy="no-referrer"
+            style={{ maxHeight: '2cm', maxWidth: '25%', objectFit: 'contain' }}
+          />
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', marginBottom: '1.6cm' }}>
+          <img
+            src={LOGO_COLEGIO_OSWALDO_CRUZ}
+            alt="Colégio Oswaldo Cruz"
+            referrerPolicy="no-referrer"
+            style={{ display: 'block', margin: '0 auto', maxHeight: '2.2cm', maxWidth: '100%', objectFit: 'contain' }}
+          />
+        </div>
+      )}
 
       {/* Título */}
       <h1
@@ -118,6 +136,8 @@ export const DeclaracaoPrintView: React.FC<Props> = ({ modelo, dados, onClose })
           fontSize: '17pt',
           fontWeight: 'bold',
           margin: '0 0 1.4cm',
+          letterSpacing: modelo.tituloSublinhado ? '0.05em' : undefined,
+          textDecoration: modelo.tituloSublinhado ? 'underline' : undefined,
         }}
       >
         {modelo.titulo}
@@ -125,28 +145,72 @@ export const DeclaracaoPrintView: React.FC<Props> = ({ modelo, dados, onClose })
 
       {/* Corpo */}
       <div style={{ flex: 1, fontSize: '13pt', lineHeight: 1.75, textAlign: 'justify' }}>
-        {modelo.paragrafos.map((par, i) => (
-          <p key={i} style={{ margin: '0 0 14px', textIndent: '2.5em' }}>
-            {preencherDeclaracao(par, dados)}
-          </p>
-        ))}
+        {modelo.corpoComParcelas ? (
+          <>
+            {/* Os dois primeiros parágrafos são o texto fixo (intro + "o
+                pagamento foi efetuado conforme a seguir:"), com recuo igual
+                às outras declarações. */}
+            {modelo.paragrafos.slice(0, 2).map((par, i) => (
+              <p key={i} style={{ margin: '0 0 14px', textIndent: '2.5em' }}>
+                {preencherDeclaracao(par, dados)}
+              </p>
+            ))}
+            {/* Lista de parcelas pagas, calculada a partir do Financeiro —
+                sem recuo de primeira linha, igual ao modelo em papel. */}
+            {(dados.parcelasLinhas ?? []).map((linha, i) => (
+              <p key={`p${i}`} style={{ margin: '0 0 14px' }}>{linha}</p>
+            ))}
+            {/* Restante dos parágrafos (ex.: "Por ser verdade..."), também sem recuo. */}
+            {modelo.paragrafos.slice(2).map((par, i) => (
+              <p key={`r${i}`} style={{ margin: '0 0 14px' }}>
+                {preencherDeclaracao(par, dados)}
+              </p>
+            ))}
+          </>
+        ) : (
+          modelo.paragrafos.map((par, i) => (
+            <p key={i} style={{ margin: '0 0 14px', textIndent: '2.5em' }}>
+              {preencherDeclaracao(par, dados)}
+            </p>
+          ))
+        )}
       </div>
 
       {/* Data */}
       <div style={{ textAlign: 'right', margin: '1.4cm 1cm 0 0', fontSize: '11.5pt' }}>
-        Goiânia, {dataPorExtenso(dados.dataEmissao)}
+        {modelo.dataComEstado ? 'Goiânia-GO, ' : 'Goiânia, '}
+        {dataPorExtenso(dados.dataEmissao)}
+        {modelo.dataComEstado ? '.' : ''}
       </div>
 
       {/* Assinatura */}
       {modelo.mostrarAssinatura && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.8cm' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: modelo.assinaturaPagamentoIR ? '0.9cm' : '1.8cm' }}>
           <div style={{ textAlign: 'center' }}>
             <img
-              src={ASSINATURA_SECRETARIO}
-              alt="Assinatura do Secretário"
+              src={modelo.assinaturaPagamentoIR ? ASSINATURA_PAGAMENTO_IR : ASSINATURA_SECRETARIO}
+              alt="Assinatura"
               referrerPolicy="no-referrer"
-              style={{ display: 'block', margin: '0 auto', width: '5.5cm', height: 'auto', objectFit: 'contain' }}
+              style={{
+                display: 'block',
+                margin: '0 auto',
+                width: modelo.assinaturaPagamentoIR ? '4.2cm' : '5.5cm',
+                height: 'auto',
+                objectFit: 'contain',
+              }}
             />
+            {/* Razão social + CNPJ logo abaixo da assinatura — só na
+                Declaração de Pagamento (IR), igual ao modelo em papel. */}
+            {modelo.mostrarRazaoSocialAposAssinatura && (
+              <div style={{ marginTop: '0.15cm' }}>
+                <p style={{ margin: 0, fontStyle: 'italic', fontWeight: 'bold', fontSize: '11pt' }}>
+                  COLÉGIO OSWALDO CRUZ LTDA
+                </p>
+                <p style={{ margin: 0, fontStyle: 'italic', fontSize: '10pt' }}>
+                  CNPJ (MF) 37.653.128/0001-64
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

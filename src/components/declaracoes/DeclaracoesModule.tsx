@@ -8,6 +8,8 @@ import {
   carregarModelo, salvarModelo, restaurarModeloPadrao, registrarDeclaracao,
   type DadosDeclaracao,
 } from '../../lib/supabaseDeclaracoes';
+import { getInstallments } from '../../services/financeiroStorage';
+import { parcelasDoAlunoNoAno, montarLinhasPagamento } from '../../lib/declaracaoPagamento';
 import {
   FileText, Search, X, Save, RotateCcw, AlertTriangle, CheckCircle2,
   Pencil, Plus, Trash2, Info, Stamp, Lock,
@@ -16,9 +18,10 @@ import {
 // ===========================================================================
 //  DECLARAÇÕES — gerar e editar
 //
-//  CINCO MODELOS, TODOS EDITÁVEIS:
-//  Conclusão, Auxiliar de Enfermagem, Escolaridade, SETRANSP e Vacina.
-//  Os três últimos são os mesmos que o aluno emite sozinho pelo painel dele.
+//  SEIS MODELOS, TODOS EDITÁVEIS:
+//  Conclusão, Auxiliar de Enfermagem, Escolaridade, SETRANSP, Vacina e
+//  Pagamento (Imposto de Renda). Os três do meio são os mesmos que o aluno
+//  emite sozinho pelo painel dele.
 //
 //  DE ONDE VÊM OS DADOS:
 //  Nome, matrícula, filiação, nascimento e naturalidade saem da ficha do
@@ -26,7 +29,13 @@ import {
 //  O que não existe em lugar nenhum do cadastro — a data em que concluiu o
 //  curso, por exemplo — aparece como caixa para preencher à mão, porque
 //  inventar data em declaração assinada não é opção.
+//
+//  PAGAMENTO_IR é diferente das outras cinco: o trecho com as parcelas
+//  pagas não vem de {{CAMPOS}} nenhum — é buscado direto no Financeiro
+//  (getInstallments) e calculado por declaracaoPagamento.ts, filtrando pelo
+//  aluno e pelo {{ANO_LETIVO}} que a secretaria digita.
 // ===========================================================================
+
 
 const campo = 'w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-sm text-slate-800 dark:text-white';
 const rotulo = 'block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1';
@@ -138,6 +147,29 @@ export const DeclaracoesModule: React.FC<Props> = ({ currentUser = 'Administraç
     setGerando(true);
     const { modelo } = await carregarModelo(tipo);
     const dados = montarDados();
+
+    // PAGAMENTO_IR precisa das parcelas pagas do Financeiro antes de abrir
+    // a pré-visualização — sem isso o texto sai com o trecho de valores em
+    // branco, e essa é uma declaração para o Imposto de Renda: não dá para
+    // deixar passar incompleta.
+    if (tipo === 'PAGAMENTO_IR') {
+      const ano = (manuais.ANO_LETIVO || '').trim();
+      if (!ano) {
+        mostrar('erro', 'Informe o ano letivo para buscar os pagamentos no Financeiro.');
+        setGerando(false);
+        return;
+      }
+      const todas = await getInstallments();
+      const doAluno = parcelasDoAlunoNoAno(todas, aluno.id, ano);
+      if (doAluno.length === 0) {
+        mostrar('erro', `Nenhuma parcela paga encontrada para ${aluno.name} em ${ano}.`);
+        setGerando(false);
+        return;
+      }
+      const { linhas } = montarLinhasPagamento(doAluno);
+      dados.parcelasLinhas = linhas;
+    }
+
     setPreview({ modelo, dados });
     void registrarDeclaracao(tipo, dados, currentUser);
     setGerando(false);
