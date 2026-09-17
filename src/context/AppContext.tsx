@@ -4951,14 +4951,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prev => prev.map(g => {
       if (g.studentId !== studentId || g.classId !== classId) return g;
       if (desistente) {
-        const merged = { ...g, result: 'DESISTENTE' as const, concept: (g.concept === 'E' || !g.concept ? 'DES' : g.concept) };
+        // Cancelar a matrícula nesta turma também tira o aluno do diário do
+        // professor e do histórico oficial dela pra frente — sem isso a
+        // matrícula errada/duplicada (ex: aluno transferido de módulo)
+        // continuava aparecendo pro professor lançar nota e saía impressa
+        // no histórico como se fosse um período reprovado de verdade.
+        const merged = { ...g, result: 'DESISTENTE' as const, concept: (g.concept === 'E' || !g.concept ? 'DES' : g.concept), hiddenFromHistory: true };
         return computeCalculatedGrade(merged, true);
       }
-      // Desmarcar: tira o "congelamento" e deixa a nota recalcular sozinha
-      // pelo que já está lançado (nota + frequência), do jeito normal —
-      // `computeCalculatedGrade` só preserva DISPENSADO/DESISTENTE; qualquer
-      // outro valor de partida é recalculado do zero.
-      const merged = { ...g, result: 'Pendente' as GradeRecord['result'] };
+      // Desmarcar: tira o "congelamento" e o "oculto", e deixa a nota
+      // recalcular sozinha pelo que já está lançado (nota + frequência), do
+      // jeito normal — `computeCalculatedGrade` só preserva
+      // DISPENSADO/DESISTENTE; qualquer outro valor de partida é
+      // recalculado do zero.
+      const merged = { ...g, result: 'Pendente' as GradeRecord['result'], hiddenFromHistory: false };
       return computeCalculatedGrade(merged, true);
     }));
     return quantos;
