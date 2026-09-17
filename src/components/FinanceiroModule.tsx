@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Wallet, TrendingUp, TrendingDown, Layers, Lock, Award, GraduationCap, 
-  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, FileCheck2, 
+  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, 
   ShieldAlert, History, Printer 
 } from 'lucide-react';
 
@@ -18,7 +18,6 @@ import { FinancialReportsManager } from './financeiro/FinancialReportsManager';
 import { CancelationsManager } from './financeiro/CancelationsManager';
 import { DueDateManager } from './financeiro/DueDateManager';
 import { ExemptionsManager } from './financeiro/ExemptionsManager';
-import { IncomeTaxDeclarationManager } from './financeiro/IncomeTaxDeclarationManager';
 import { ReprintReceiptsManager } from './financeiro/ReprintReceiptsManager';
 import { getFinancialAuditLogs } from '../services/financeiroStorage';
 import { FinancialAuditLog } from '../types/financeiro';
@@ -56,7 +55,6 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
     { id: 11, label: 'Cancelamentos', icon: XCircle, desc: 'Estornos e alteração de forma' },
     { id: 12, label: 'Alteração Vencimentos', icon: Calendar, desc: 'Repactuação de datas' },
     { id: 13, label: 'Abonos', icon: ShieldCheck, desc: 'Concessão de abonos parciais/totais' },
-    { id: 14, label: 'Declaração IRPF', icon: FileCheck2, desc: 'Comprovante anual para imposto de renda' },
     { id: 15, label: 'Reimprimir Recibo', icon: Printer, desc: 'Reimpressão de 2ª via de recibos dados baixa' },
   ];
 
@@ -132,7 +130,10 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
         {activeSubMenu === 11 && <CancelationsManager currentUser={currentUser} isAdmin={isAdmin} />}
         {activeSubMenu === 12 && <DueDateManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 13 && <ExemptionsManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
-        {activeSubMenu === 14 && <IncomeTaxDeclarationManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
+        {/* Declaração IRPF removida daqui: essa versão tinha dados errados
+            (escola de Brasília, CNPJ errado). A Declaração de Pagamento
+            (Imposto de Renda) certa fica em Declarações, já puxando as
+            parcelas pagas do Financeiro sozinha. */}
         {activeSubMenu === 15 && <ReprintReceiptsManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
       </div>
 
