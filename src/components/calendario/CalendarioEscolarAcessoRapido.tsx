@@ -15,7 +15,20 @@ export const CalendarioEscolarAcessoRapido: React.FC = () => {
   const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
-    carregarCalendarioPublicado().then(setRegistro);
+    // Trava de segurança: se o banco não responder (ex.: projeto Supabase
+    // "dormindo" e acordando), desiste depois de 15s em vez de deixar uma
+    // busca pendurada para sempre — sem isso o botão simplesmente nunca
+    // aparecia, sem nenhum aviso, e parecia que o recurso tinha sumido.
+    let cancelado = false;
+    Promise.race([
+      carregarCalendarioPublicado(),
+      new Promise<null>(resolve => window.setTimeout(() => resolve(null), 15000)),
+    ]).then(r => {
+      if (!cancelado) setRegistro(r);
+    });
+    return () => {
+      cancelado = true;
+    };
   }, []);
 
   if (!registro) return null;

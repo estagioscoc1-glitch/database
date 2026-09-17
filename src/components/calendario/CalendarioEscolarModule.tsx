@@ -52,16 +52,41 @@ export const CalendarioEscolarModule: React.FC = () => {
     setCarregando(true);
     setErro(null);
     setDiaEditando(null);
-    const existente = await carregarCalendarioEscolar(anoAlvo, semestreAlvo);
-    setRegistro(
-      existente ?? {
-        ano: anoAlvo,
-        semestre: semestreAlvo,
-        dados: calendarioEmBranco(anoAlvo, semestreAlvo),
-        publicado: false,
-      }
-    );
-    setCarregando(false);
+    try {
+      // Trava de segurança: se o banco não responder em 15s (comum quando o
+      // Supabase gratuito "dormiu" por inatividade e está acordando), desiste
+      // de esperar e mostra um erro com botão de tentar de novo — em vez de
+      // ficar girando pra sempre, que foi o que aconteceu antes desta trava.
+      const existente = await Promise.race([
+        carregarCalendarioEscolar(anoAlvo, semestreAlvo),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error('tempo esgotado')), 15000)
+        ),
+      ]);
+      setRegistro(
+        existente ?? {
+          ano: anoAlvo,
+          semestre: semestreAlvo,
+          dados: calendarioEmBranco(anoAlvo, semestreAlvo),
+          publicado: false,
+        }
+      );
+    } catch {
+      setErro(
+        'Não foi possível carregar o calendário agora — o banco demorou demais para responder ' +
+        '(costuma acontecer quando ele ficou um tempo sem uso e está "acordando"). Clique em "Tentar de novo".'
+      );
+      setRegistro(r =>
+        r ?? {
+          ano: anoAlvo,
+          semestre: semestreAlvo,
+          dados: calendarioEmBranco(anoAlvo, semestreAlvo),
+          publicado: false,
+        }
+      );
+    } finally {
+      setCarregando(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -181,6 +206,18 @@ export const CalendarioEscolarModule: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {erro && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-rose-200 bg-rose-50">
+          <span className="text-rose-700 text-xs font-bold">{erro}</span>
+          <button
+            type="button"
+            onClick={() => carregar(ano, semestre)}
+            className="flex-shrink-0 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-[11px]"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
       {/* Cabeçalho + seletor de ano/semestre + publicação */}
       <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
