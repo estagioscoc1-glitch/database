@@ -79,44 +79,41 @@ export const CalendarioEscolarPrintView: React.FC<Props> = ({ registro, onClose 
       style={{
         fontFamily: FONTE_DOCUMENTOS,
         color: '#000',
-        minHeight: '25.3cm',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
       {/* Cabeçalho */}
-      <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '0.3cm', marginBottom: '0.6cm', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '0.3cm', marginBottom: '0.5cm', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <img
           src={LOGO_COLEGIO_OSWALDO_CRUZ}
           alt="Colégio Oswaldo Cruz"
           referrerPolicy="no-referrer"
-          style={{ maxHeight: '1.6cm', objectFit: 'contain' }}
+          style={{ maxHeight: '1.5cm', objectFit: 'contain' }}
         />
-        <h1 style={{ fontSize: '16pt', fontWeight: 'bold', margin: 0, textAlign: 'right' }}>
+        <h1 style={{ fontSize: '15pt', fontWeight: 'bold', margin: 0, textAlign: 'right' }}>
           Calendário Escolar {registro.ano}/{registro.semestre}
         </h1>
       </div>
 
       {/* Meses + Anotações/Dias letivos lado a lado */}
-      <div style={{ display: 'flex', gap: '0.7cm', flex: 1, alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: '0.6cm' }}>
         <div
           style={{
             flex: '1.5',
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
-            columnGap: '0.5cm',
-            rowGap: '0.5cm',
-            alignContent: 'space-between',
+            columnGap: '0.4cm',
+            rowGap: '0.35cm',
+            alignContent: 'start',
           }}
         >
           {registro.dados.meses.map(m => (
-            <div key={m.mes} className="cal-mes" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.4cm' }}>
+            <div key={m.mes} className="cal-mes" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.35cm' }}>
               <CalendarioGradeVisual ano={m.ano} mes={m.mes} diasMarcados={m.diasMarcados} />
             </div>
           ))}
         </div>
 
-        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '0.5cm' }}>
+        <div style={{ flex: '1', display: 'flex', flexDirection: 'column', gap: '0.4cm' }}>
           {registro.dados.anotacoes.length > 0 && (
             <div style={{ border: '1px solid #cbd5e1', borderRadius: '10px', padding: '0.45cm' }}>
               <h4 style={{ fontSize: '11pt', fontWeight: 'bold', margin: '0 0 0.25cm', textTransform: 'uppercase', color: '#1e3a8a' }}>
