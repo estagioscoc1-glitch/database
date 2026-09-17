@@ -16,7 +16,8 @@ export type TipoDeclaracao =
   | 'AUXILIAR_ENFERMAGEM'
   | 'ESCOLARIDADE'
   | 'SETRANSP'
-  | 'VACINA';
+  | 'VACINA'
+  | 'PAGAMENTO_IR';
 
 export interface ModeloDeclaracao {
   tipo: TipoDeclaracao;
@@ -30,7 +31,7 @@ export interface ModeloDeclaracao {
   paragrafos: string[];
   /** Mostra o rodapé com endereço e telefone da escola. */
   mostrarRodape: boolean;
-  /** Mostra a assinatura do secretário. */
+  /** Mostra a assinatura. */
   mostrarAssinatura: boolean;
   /**
    * Campos que esta declaração pede à mão porque não existem no cadastro
@@ -48,6 +49,28 @@ export interface ModeloDeclaracao {
    * Vazio ou ausente = serve para todos os cursos.
    */
   cursosPermitidos?: string[];
+
+  // --- Flags de layout usadas SÓ pela Declaração de Pagamento (IR) até
+  //     agora — o padrão (undefined/false) mantém as outras 5 declarações
+  //     exatamente como sempre foram. ---
+  /** Timbre com o logo do colégio à esquerda + selo "30 anos" à direita, em vez do logo único centralizado. */
+  logoDuplo?: boolean;
+  /** Sublinha o título (o modelo em papel usa "D E C L A R A Ç Ã O" sublinhado). */
+  tituloSublinhado?: boolean;
+  /** "Goiânia-GO," em vez de "Goiânia," antes da data. */
+  dataComEstado?: boolean;
+  /** Depois da assinatura, imprime "COLÉGIO OSWALDO CRUZ LTDA" e o CNPJ — como no modelo em papel. */
+  mostrarRazaoSocialAposAssinatura?: boolean;
+  /** Usa a assinatura própria da Declaração de Pagamento (ASSINATURA_PAGAMENTO_IR), não a do secretário. */
+  assinaturaPagamentoIR?: boolean;
+  /**
+   * Este modelo tem um trecho com a lista de parcelas pagas, calculado a
+   * partir do Financeiro (não vem de {{CAMPOS}}). Quando true, o
+   * DeclaracaoPrintView insere `dados.parcelasLinhas` logo depois do 2º
+   * parágrafo, sem recuo de primeira linha — e o restante dos parágrafos
+   * (a partir do 3º) também sai sem recuo, encostado nessa lista.
+   */
+  corpoComParcelas?: boolean;
 }
 
 /** Confere se o curso do aluno permite gerar aquele modelo. */
@@ -132,6 +155,28 @@ export const MODELOS_PADRAO: ModeloDeclaracao[] = [
     mostrarAssinatura: true,
     camposManuais: [
       { chave: 'SEMESTRE', rotulo: 'Semestre (ex.: 2º semestre de 2026)', tipo: 'texto' },
+    ],
+  },
+  {
+    tipo: 'PAGAMENTO_IR',
+    nome: 'Declaração de Pagamento (Imposto de Renda)',
+    explica: 'Para o responsável usar na declaração de IR. Busca sozinha as parcelas já pagas no Financeiro — só peça o ano letivo.',
+    titulo: 'D E C L A R A Ç Ã O',
+    paragrafos: [
+      'Declaro a quem possa interessar que {{ALUNO}} CPF (MF) nº {{CPF}}, efetuou pagamento de despesas referentes ao curso {{CURSO}} no ano letivo de {{ANO_LETIVO}}, na unidade do Colégio Oswaldo Cruz Ltda, situado a Rua 20 nº 796 Setor Central no município de Goiânia Estado de Goiás, Inscrito no CNPJ (MF) sob o nº 37.653.128/0001-64.',
+      'O pagamento das mensalidades foi efetuado conforme a seguir:',
+      'Por ser verdade, firmo a presente declaração.',
+    ],
+    mostrarRodape: true,
+    mostrarAssinatura: true,
+    logoDuplo: true,
+    tituloSublinhado: true,
+    dataComEstado: true,
+    mostrarRazaoSocialAposAssinatura: true,
+    assinaturaPagamentoIR: true,
+    corpoComParcelas: true,
+    camposManuais: [
+      { chave: 'ANO_LETIVO', rotulo: 'Ano letivo (para buscar os pagamentos no Financeiro)', tipo: 'texto' },
     ],
   },
 ];

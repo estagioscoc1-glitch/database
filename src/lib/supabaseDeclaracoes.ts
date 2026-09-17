@@ -28,6 +28,13 @@ export interface DadosDeclaracao {
   /** Preenchidos à mão: datas de conclusão, semestre etc. */
   manuais: Record<string, string>;
   dataEmissao: string;       // AAAA-MM-DD
+  /**
+   * SÓ para a Declaração de Pagamento (IR): as linhas já prontas com as
+   * parcelas pagas (uma por grupo + a linha de total), montadas por
+   * montarLinhasPagamento em declaracaoPagamento.ts a partir do Financeiro.
+   * Não passa por {{CAMPOS}} — é texto finalizado.
+   */
+  parcelasLinhas?: string[];
 }
 
 const MESES = [
