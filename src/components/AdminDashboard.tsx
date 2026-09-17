@@ -5349,7 +5349,7 @@ export const AdminDashboard: React.FC = () => {
                   >
                     <option value="">Selecione um Aluno...</option>
                     {users
-                      .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
+                      .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory)))
                       .map(std => (
                         <option key={std.id} value={std.id}>{std.name} ({std.enrollment || 'Sem matrícula'})</option>
                       ))}
@@ -5360,11 +5360,11 @@ export const AdminDashboard: React.FC = () => {
                 {selectedBoletimClassId && (
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      Alunos da Turma ({users.filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId))).length})
+                      Alunos da Turma ({users.filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory))).length})
                     </p>
                     <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                       {users
-                        .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
+                        .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory)))
                         .map(std => {
                           const isSelected = selectedBoletimStudentId === std.id;
                           return (

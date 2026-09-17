@@ -58,8 +58,12 @@ export const GradeJournal: React.FC = () => {
   const isAutoLockedS1 = autoLockEnabled && calendarEvents.find(e => e.type === 'CLOSING_S1')?.date && simulatedDate >= (calendarEvents.find(e => e.type === 'CLOSING_S1')?.date || '') && currentUser?.role !== 'ADMIN';
   const isAutoLockedS2 = autoLockEnabled && calendarEvents.find(e => e.type === 'CLOSING_S2')?.date && simulatedDate >= (calendarEvents.find(e => e.type === 'CLOSING_S2')?.date || '') && currentUser?.role !== 'ADMIN';
 
+  // Não conta como "aluno desta turma" quem teve a matrícula cancelada
+  // aqui (hiddenFromHistory) — sem isso, um aluno transferido pra outra
+  // turma (matrícula errada corrigida) continuava aparecendo pro
+  // professor lançar nota nesta turma antiga pra sempre.
   const classStudents = users.filter(
-    u => u.role === 'STUDENT' && (u.classId === targetClass.id || grades.some(g => g.studentId === u.id && g.classId === targetClass.id))
+    u => u.role === 'STUDENT' && (u.classId === targetClass.id || grades.some(g => g.studentId === u.id && g.classId === targetClass.id && !g.hiddenFromHistory))
   );
   const journalGrades = grades.filter(g => g.classId === targetClass.id && g.subjectId === targetSubject.id);
 

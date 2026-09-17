@@ -209,7 +209,12 @@ export const HistoricoCompletoModule: React.FC = () => {
 
             const similarStudents = findSimilarStudents(targetStudent.id);
             const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
-            const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+            // Só as notas VISÍVEIS decidem quais turmas aparecem aqui — uma
+            // turma cancelada (matrícula errada corrigida, marcada
+            // `hiddenFromHistory`) some inteira, do mesmo jeito que já
+            // acontece no Histórico Escolar Completo impresso.
+            const studentGradesVisiveis = studentGrades.filter(g => !g.hiddenFromHistory);
+            const uniqueClassIds = Array.from(new Set(studentGradesVisiveis.map(g => g.classId)));
             if (targetStudent.classId && !uniqueClassIds.includes(targetStudent.classId)) {
               uniqueClassIds.push(targetStudent.classId);
             }

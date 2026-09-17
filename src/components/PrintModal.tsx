@@ -37,7 +37,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   const targetSubject = subjects.find(s => s.id === subjectId);
   const targetCourse = targetClass ? courses.find(co => co.id === targetClass.courseId) : null;
   const filteredStudents = users.filter(
-    u => u.role === 'STUDENT' && (u.classId === targetClass?.id || grades.some(g => g.studentId === u.id && g.classId === targetClass?.id))
+    u => u.role === 'STUDENT' && (
+      u.classId === targetClass?.id
+      // Conta como "aluno desta turma" quem tem nota lançada aqui — MAS não
+      // quem teve a matrícula cancelada nesta turma (hiddenFromHistory).
+      // Sem o `!g.hiddenFromHistory`, um aluno transferido pra outra turma
+      // (matrícula errada corrigida) continuava aparecendo pro professor
+      // lançar nota na turma antiga pra sempre, mesmo já estando matriculado
+      // em outro módulo.
+      || grades.some(g => g.studentId === u.id && g.classId === targetClass?.id && !g.hiddenFromHistory)
+    )
   );
   const classStudents = filteredStudents;
 

@@ -126,6 +126,15 @@ export const HistoricoMatriculasModule: React.FC = () => {
                       const ehPeriodoAtual = `${t.year}/${t.semester}` === currentPeriod;
                       const notaDessaTurma = grades.find(g => g.studentId === aluno!.id && g.classId === t.id);
                       const jaDesistente = notaDessaTurma?.result === 'DESISTENTE';
+                      // Matrículas canceladas ANTES da correção ficaram com
+                      // "DESISTENTE" mas sem `hiddenFromHistory` — por isso
+                      // continuavam aparecendo no histórico oficial e no
+                      // diário da turma antiga. Este botão só aparece pra
+                      // esse caso específico (já cancelada, mas ainda não
+                      // escondida) e reaplica o cancelamento pra também
+                      // marcar `hiddenFromHistory`, sem duplicar nada.
+                      const aindaApareceIndevidamente = jaDesistente
+                        && grades.some(g => g.studentId === aluno!.id && g.classId === t.id && !g.hiddenFromHistory);
                       return (
                         <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800/60 last:border-0">
                           <td className="py-2 pr-3 font-mono text-slate-600 dark:text-slate-300">{t.year}/{t.semester}</td>
@@ -134,7 +143,22 @@ export const HistoricoMatriculasModule: React.FC = () => {
                           <td className="py-2">{t.shift}</td>
                           <td className="py-2 text-right">
                             {jaDesistente ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">CANCELADO</span>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">CANCELADO</span>
+                                {aindaApareceIndevidamente && (
+                                  <button
+                                    type="button"
+                                    title="Essa matrícula cancelada ainda aparece no histórico e no diário desta turma. Clique pra corrigir."
+                                    onClick={() => {
+                                      const quantos = marcarDesistenteNaTurma(aluno!.id, t.id, true);
+                                      mostrarAviso('Corrigido', `${quantos} disciplina(s) de ${aluno!.name} nesta turma foram escondidas do histórico e do diário do professor.`);
+                                    }}
+                                    className="text-[9px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-950/30 dark:text-amber-400"
+                                  >
+                                    Corrigir
+                                  </button>
+                                )}
+                              </div>
                             ) : ehPeriodoAtual ? (
                               <button
                                 type="button"
@@ -142,7 +166,7 @@ export const HistoricoMatriculasModule: React.FC = () => {
                                   if (!confirmandoCancelamentoTurma) { setConfirmandoCancelamentoTurma(true); return; }
                                   const quantos = marcarDesistenteNaTurma(aluno!.id, t.id, true);
                                   setConfirmandoCancelamentoTurma(false);
-                                  mostrarAviso('Matrícula cancelada', `${quantos} disciplina(s) de ${aluno!.name} nesta turma foram marcadas como canceladas/desistentes — já aparece assim no diário do professor.`);
+                                  mostrarAviso('Matrícula cancelada', `${quantos} disciplina(s) de ${aluno!.name} nesta turma foram marcadas como canceladas — já sumiu do diário do professor e não vai mais aparecer no histórico oficial dela.`);
                                 }}
                                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
                                   confirmandoCancelamentoTurma

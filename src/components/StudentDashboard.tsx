@@ -78,8 +78,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   const activePeriodClasses = classes.filter(c => c.year === currentYear && c.semester === currentSemester);
   const activePeriodClassIds = activePeriodClasses.map(c => c.id);
 
-  // Student's grade records in the active period
-  const studentGrades = grades.filter(g => g.studentId === activeStudent.id && activePeriodClassIds.includes(g.classId));
+  // Student's grade records in the active period — ignora matrícula
+  // cancelada (hiddenFromHistory), senão um aluno transferido de turma no
+  // mesmo período podia cair na turma antiga aqui (a nota antiga aparecendo
+  // primeiro no array), mostrando pro aluno a sala errada.
+  const studentGrades = grades.filter(g => g.studentId === activeStudent.id && activePeriodClassIds.includes(g.classId) && !g.hiddenFromHistory);
 
   // Determine the active class for the student
   const studentClassId = studentGrades[0]?.classId;
@@ -1139,7 +1142,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           {/* TAB: HISTÓRICO COMPLETO */}
           {activeSubTab === 'historico_completo' && (() => {
             const studentGrades = grades.filter(g => g.studentId === activeStudent.id);
-            const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+            // Turma com matrícula cancelada (hiddenFromHistory) não aparece
+            // pro próprio aluno aqui — mesma regra do histórico impresso.
+            const studentGradesVisiveis = studentGrades.filter(g => !g.hiddenFromHistory);
+            const uniqueClassIds = Array.from(new Set(studentGradesVisiveis.map(g => g.classId)));
             const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
 
             studentClasses.sort((a, b) => {

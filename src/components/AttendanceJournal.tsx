@@ -115,8 +115,11 @@ export const AttendanceJournal: React.FC = () => {
   const isAutoLockedDefinitive = autoLockEnabled && calendarEvents.find(e => e.type === 'DEFINITIVE_CLOSING')?.date && simulatedDate >= (calendarEvents.find(e => e.type === 'DEFINITIVE_CLOSING')?.date || '') && currentUser?.role !== 'ADMIN';
 
   const classStudents = useMemo(() => {
+    // Não conta como "aluno desta turma" quem teve a matrícula cancelada
+    // aqui (hiddenFromHistory) — sem isso, um aluno transferido pra outra
+    // turma continuava aparecendo na chamada desta turma antiga pra sempre.
     return users.filter(
-      u => u.role === 'STUDENT' && (u.classId === targetClass.id || grades.some(g => g.studentId === u.id && g.classId === targetClass.id))
+      u => u.role === 'STUDENT' && (u.classId === targetClass.id || grades.some(g => g.studentId === u.id && g.classId === targetClass.id && !g.hiddenFromHistory))
     );
   }, [users, grades, targetClass.id]);
 
