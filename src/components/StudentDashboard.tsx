@@ -168,6 +168,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Calendário Escolar — só aparece quando a direção publica algum. */}
+            <CalendarioEscolarAcessoRapido />
+
             <a
               href="https://col-gio-oswaldo-cruz-carreira-ia-199284089949.us-east1.run.app"
               target="_blank"
@@ -399,11 +402,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
             return (
               <div className="space-y-5 animate-fade-in">
-                {/* Calendário Escolar — só aparece quando a direção publica algum. */}
-                <div className="flex justify-end">
-                  <CalendarioEscolarAcessoRapido />
-                </div>
-
                 {/* Cronograma de estágio. Só aparece quando a coordenação
                     publica um — sem cronograma publicado, nada é mostrado. */}
                 <CronogramaDoAluno />
