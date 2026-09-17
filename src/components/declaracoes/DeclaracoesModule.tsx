@@ -145,34 +145,45 @@ export const DeclaracoesModule: React.FC<Props> = ({ currentUser = 'Administraç
       return;
     }
     setGerando(true);
-    const { modelo } = await carregarModelo(tipo);
-    const dados = montarDados();
+    try {
+      const { modelo } = await carregarModelo(tipo);
+      const dados = montarDados();
 
-    // PAGAMENTO_IR precisa das parcelas pagas do Financeiro antes de abrir
-    // a pré-visualização — sem isso o texto sai com o trecho de valores em
-    // branco, e essa é uma declaração para o Imposto de Renda: não dá para
-    // deixar passar incompleta.
-    if (tipo === 'PAGAMENTO_IR') {
-      const ano = (manuais.ANO_LETIVO || '').trim();
-      if (!ano) {
-        mostrar('erro', 'Informe o ano letivo para buscar os pagamentos no Financeiro.');
-        setGerando(false);
-        return;
+      // PAGAMENTO_IR precisa das parcelas pagas do Financeiro antes de abrir
+      // a pré-visualização — sem isso o texto sai com o trecho de valores em
+      // branco, e essa é uma declaração para o Imposto de Renda: não dá para
+      // deixar passar incompleta.
+      if (tipo === 'PAGAMENTO_IR') {
+        const ano = (manuais.ANO_LETIVO || '').trim();
+        if (!ano) {
+          mostrar('erro', 'Informe o ano letivo para buscar os pagamentos no Financeiro.');
+          return;
+        }
+        // Mesma trava de segurança do Calendário: se o banco não responder
+        // em 15s, desiste com uma mensagem clara em vez de deixar o botão
+        // preso em "Montando…" para sempre.
+        const todas = await Promise.race([
+          getInstallments(),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('tempo esgotado')), 15000)
+          ),
+        ]);
+        const doAluno = parcelasDoAlunoNoAno(todas, [aluno.id, aluno.enrollment], ano);
+        if (doAluno.length === 0) {
+          mostrar('erro', `Nenhuma parcela paga encontrada para ${aluno.name} em ${ano}. Confira se as mensalidades desse aluno estão lançadas como pagas no Financeiro.`);
+          return;
+        }
+        const { linhas } = montarLinhasPagamento(doAluno);
+        dados.parcelasLinhas = linhas;
       }
-      const todas = await getInstallments();
-      const doAluno = parcelasDoAlunoNoAno(todas, aluno.id, ano);
-      if (doAluno.length === 0) {
-        mostrar('erro', `Nenhuma parcela paga encontrada para ${aluno.name} em ${ano}.`);
-        setGerando(false);
-        return;
-      }
-      const { linhas } = montarLinhasPagamento(doAluno);
-      dados.parcelasLinhas = linhas;
+
+      setPreview({ modelo, dados });
+      void registrarDeclaracao(tipo, dados, currentUser);
+    } catch {
+      mostrar('erro', 'Não foi possível gerar a declaração agora — o banco demorou demais ou falhou. Tente de novo em alguns segundos.');
+    } finally {
+      setGerando(false);
     }
-
-    setPreview({ modelo, dados });
-    void registrarDeclaracao(tipo, dados, currentUser);
-    setGerando(false);
   };
 
   // ----------------------------------------------------------- MODELOS
