@@ -370,7 +370,7 @@ export function getScholarships(): Scholarship[] {
   return getItemJSON<Scholarship[]>(STORAGE_KEYS.SCHOLARSHIPS, []);
 }
 
-export function saveScholarship(scholarship: Scholarship, user: string): void {
+export async function saveScholarship(scholarship: Scholarship, user: string): Promise<void> {
   const list = getScholarships();
   const idx = list.findIndex(s => s.id === scholarship.id);
   if (idx >= 0) {
@@ -380,38 +380,44 @@ export function saveScholarship(scholarship: Scholarship, user: string): void {
   }
   setItemJSON(STORAGE_KEYS.SCHOLARSHIPS, list);
 
-  // Apply discount automatically to student's FUTURE open installments!
-  applyScholarshipToInstallments(scholarship, user);
-
   addFinancialAuditLog(user, 'BOLSA_CADASTRADA', `Bolsa ${scholarship.type} (${scholarship.discountValue}${scholarship.discountType === 'PERCENT' ? '%' : ' R$'}) associada ao aluno ${scholarship.studentName}`);
+
+  // Aplica o desconto automaticamente nas parcelas PENDENTES do aluno.
+  // As parcelas moram no Supabase agora — por isso esta função (e a
+  // saveScholarship que a chama) precisaram virar assíncronas.
+  await applyScholarshipToInstallments(scholarship, user);
 }
 
-function applyScholarshipToInstallments(scholarship: Scholarship, user: string): void {
+async function applyScholarshipToInstallments(scholarship: Scholarship, user: string): Promise<void> {
   if (!scholarship.active) return;
-  const installments = getInstallments();
+  // BUG REAL: esta função lia getInstallments() sem "await" (quebrava
+  // sempre) e, pior, gravava o resultado de volta com setItemJSON — ou
+  // seja, tentava salvar no navegador uma lista de parcelas que já não
+  // mora mais lá, e sim no Supabase (tabela financeiro_parcelas). Na
+  // prática, conceder uma bolsa NUNCA aplicava desconto nenhum na
+  // mensalidade do aluno. Agora atualiza cada parcela pendente direto no
+  // banco.
+  const todasParcelas = await getInstallments();
+  const pendentesDoAluno = todasParcelas.filter(
+    inst => inst.studentId === scholarship.studentId && inst.status === 'PENDENTE'
+  );
+
   let modifiedCount = 0;
+  for (const inst of pendentesDoAluno) {
+    const discountVal = scholarship.discountType === 'PERCENT'
+      ? (inst.originalValue * scholarship.discountValue) / 100
+      : scholarship.discountValue;
 
-  installments.forEach((inst, i) => {
-    if (inst.studentId === scholarship.studentId && inst.status === 'PENDENTE') {
-      let discountVal = 0;
-      if (scholarship.discountType === 'PERCENT') {
-        discountVal = (inst.originalValue * scholarship.discountValue) / 100;
-      } else {
-        discountVal = scholarship.discountValue;
-      }
+    const { error } = await supabase.from('financeiro_parcelas').update({
+      valor_desconto: discountVal,
+      bolsa_aplicada: `${scholarship.type} (${scholarship.discountValue}${scholarship.discountType === 'PERCENT' ? '%' : ' R$'})`,
+    }).eq('id', inst.id);
 
-      installments[i] = {
-        ...inst,
-        discountValue: discountVal,
-        scholarshipApplied: `${scholarship.type} (${scholarship.discountValue}${scholarship.discountType === 'PERCENT' ? '%' : ' R$'})`
-      };
-      modifiedCount++;
-    }
-  });
+    if (!error) modifiedCount++;
+  }
 
   if (modifiedCount > 0) {
-    setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
-    addFinancialAuditLog(user, 'BOLSA_APLICADA_PARCELAS', `Desconto da bolsa aplicado automaticamente a ${modifiedCount} parcela(s) pendente(s) do aluno ${scholarship.studentName}`);
+    await addFinancialAuditLog(user, 'BOLSA_APLICADA_PARCELAS', `Desconto da bolsa aplicado automaticamente a ${modifiedCount} parcela(s) pendente(s) do aluno ${scholarship.studentName}`);
   }
 }
 
@@ -605,6 +611,132 @@ export async function generateStudentInstallments(params: {
 
   await addFinancialAuditLog(params.user, 'PARCELAS_GERADAS', `${params.totalInstallments} parcelas geradas para ${params.studentName}`);
   return (data ?? []).map(installmentDoBanco);
+}
+
+/**
+ * Exclui as parcelas PENDENTES/ATRASADAS de um aluno, pra permitir gerar de
+ * novo do zero — não existia como "desfazer" uma geração feita com valor,
+ * curso ou data errados sem duplicar as parcelas.
+ *
+ * PROPOSITALMENTE NUNCA apaga parcelas com status PAGA ou ABONADA: são
+ * dinheiro que já entrou ou desconto já autorizado — apagar isso seria
+ * apagar histórico financeiro real, não desfazer um erro de geração.
+ */
+export async function excluirParcelasGeradas(
+  studentId: string,
+  studentName: string,
+  motivo: string,
+  user: string
+): Promise<{ ok: boolean; erro?: string; quantidadeExcluida?: number }> {
+  const { data, error } = await supabase
+    .from('financeiro_parcelas')
+    .delete()
+    .eq('aluno_id', studentId)
+    .in('status', ['PENDENTE', 'ATRASADA'])
+    .select('id');
+
+  if (error) return { ok: false, erro: explicarErroFinanceiro(error) };
+
+  const quantidade = data?.length ?? 0;
+  if (quantidade > 0) {
+    await addFinancialAuditLog(
+      user,
+      'PARCELAS_EXCLUIDAS',
+      `${quantidade} parcela(s) pendente(s)/atrasada(s) excluída(s) de ${studentName}. Motivo: ${motivo}`
+    );
+  }
+  return { ok: true, quantidadeExcluida: quantidade };
+}
+
+/**
+ * REAJUSTE EM MASSA — aumenta (ou reduz) o valor de várias parcelas
+ * PENDENTES/ATRASADAS de uma vez, tipicamente o reajuste anual de
+ * mensalidade. NUNCA mexe em parcela já PAGA (dinheiro que já entrou
+ * não muda de valor retroativamente) nem ABONADA (desconto já concedido).
+ *
+ * Filtros aceitos (todos opcionais — vazio/undefined = não filtra por isso):
+ * - cursoNome: só parcelas desse curso
+ * - competenciaAPartirDe: só parcelas com competência (MM/AAAA) igual ou
+ *   posterior a essa (ex.: "01/2027" pra reajustar só a partir de janeiro,
+ *   preservando os meses já em curso)
+ *
+ * tipo 'PERCENTUAL': novo valor = valor atual × (1 + valor/100)
+ * tipo 'FIXO': novo valor = valor atual + valor (valor pode ser negativo)
+ */
+export async function contarParcelasParaReajuste(filtros: {
+  cursoNome?: string;
+  competenciaAPartirDe?: string; // "MM/AAAA"
+}): Promise<number> {
+  let query = supabase.from('financeiro_parcelas').select('id', { count: 'exact', head: true })
+    .in('status', ['PENDENTE', 'ATRASADA']);
+  if (filtros.cursoNome) query = query.eq('curso_nome', filtros.cursoNome);
+  const { count, error } = await query;
+  if (error) { console.warn('[Financeiro] contar reajuste:', explicarErroFinanceiro(error)); return 0; }
+
+  if (!filtros.competenciaAPartirDe) return count ?? 0;
+
+  // O filtro por competência precisa comparar mês/ano de verdade (não dá
+  // pra comparar a string "MM/AAAA" direto — "02/2026" > "12/2025" na
+  // ordem alfabética, mas é ANTES na ordem do tempo). Por isso lê as
+  // linhas e filtra em memória para esse caso específico.
+  let queryFull = supabase.from('financeiro_parcelas').select('competencia')
+    .in('status', ['PENDENTE', 'ATRASADA']);
+  if (filtros.cursoNome) queryFull = queryFull.eq('curso_nome', filtros.cursoNome);
+  const { data } = await queryFull;
+  const corte = competenciaParaOrdenar(filtros.competenciaAPartirDe);
+  return (data ?? []).filter(r => competenciaParaOrdenar(r.competencia) >= corte).length;
+}
+
+function competenciaParaOrdenar(competencia: string): number {
+  const [mm, aaaa] = (competencia || '01/1970').split('/');
+  return Number(aaaa) * 12 + Number(mm);
+}
+
+export async function reajustarParcelasEmMassa(
+  filtros: { cursoNome?: string; competenciaAPartirDe?: string },
+  tipo: 'PERCENTUAL' | 'FIXO',
+  valor: number,
+  motivo: string,
+  user: string
+): Promise<{ ok: boolean; erro?: string; quantidadeAjustada?: number }> {
+  let query = supabase.from('financeiro_parcelas').select('id, valor_original, competencia')
+    .in('status', ['PENDENTE', 'ATRASADA']);
+  if (filtros.cursoNome) query = query.eq('curso_nome', filtros.cursoNome);
+
+  const { data: linhas, error: erroLer } = await query;
+  if (erroLer) return { ok: false, erro: explicarErroFinanceiro(erroLer) };
+
+  let alvo = linhas ?? [];
+  if (filtros.competenciaAPartirDe) {
+    const corte = competenciaParaOrdenar(filtros.competenciaAPartirDe);
+    alvo = alvo.filter(r => competenciaParaOrdenar(r.competencia) >= corte);
+  }
+
+  if (alvo.length === 0) return { ok: true, quantidadeAjustada: 0 };
+
+  let ajustadas = 0;
+  for (const linha of alvo) {
+    const valorAtual = Number(linha.valor_original) || 0;
+    const novoValor = tipo === 'PERCENTUAL'
+      ? Math.round(valorAtual * (1 + valor / 100) * 100) / 100
+      : Math.round((valorAtual + valor) * 100) / 100;
+    if (novoValor < 0) continue; // nunca deixa ir negativo
+
+    const { error } = await supabase.from('financeiro_parcelas')
+      .update({ valor_original: novoValor })
+      .eq('id', linha.id);
+    if (!error) ajustadas++;
+  }
+
+  await addFinancialAuditLog(
+    user,
+    'REAJUSTE_EM_MASSA',
+    `Reajuste ${tipo === 'PERCENTUAL' ? valor + '%' : 'R$ ' + valor.toFixed(2)} aplicado a ${ajustadas} parcela(s)` +
+    `${filtros.cursoNome ? ` do curso ${filtros.cursoNome}` : ' (todos os cursos)'}` +
+    `${filtros.competenciaAPartirDe ? ` a partir de ${filtros.competenciaAPartirDe}` : ''}. Motivo: ${motivo}`
+  );
+
+  return { ok: true, quantidadeAjustada: ajustadas };
 }
 
 export function calculateInstallmentAmountDue(inst: Installment, targetDateStr?: string): {
