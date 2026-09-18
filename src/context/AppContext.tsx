@@ -221,6 +221,7 @@ interface AppContextType {
   deleteSubject: (id: string) => void;
   addUser: (user: User) => void;
   updateUser: (id: string, updates: Partial<User>) => Promise<{ ok: boolean; erro?: string }>;
+  revertJournalToggle: (teacherId: string, classId: string, subjectId: string, foiAdicionado: boolean) => void;
   deleteUser: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   apagarPessoaPorCompleto: (id: string) => Promise<{ ok: boolean; erro?: string }>;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
@@ -4126,6 +4127,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'podeVerHistoricoCompleto', 'podeVerAcessosEPresenca',
   ];
 
+  /**
+   * Desfaz UM toggle específico de professor↔disciplina, sem sobrescrever o
+   * resto do array assignedJournals.
+   *
+   * BUG REAL que isso corrige: o código antigo (em AdminDashboard.tsx)
+   * guardava uma "foto" de assignedJournals no início do clique e, se a
+   * gravação no banco falhasse, restaurava essa foto inteira. Isso parecia
+   * seguro clique a clique, mas ao marcar VÁRIAS disciplinas rapidamente
+   * (o caso real: a secretaria vinculando dezenas de disciplinas de uma
+   * vez), cada clique tirava sua própria foto — e se QUALQUER UM deles
+   * falhasse (o banco deste projeto tem instabilidade de rede conhecida),
+   * a "foto antiga" daquele clique sobrescrevia TODOS os cliques feitos
+   * depois dele, mesmo os que tinham dado certo. Era exatamente o "a
+   * disciplina desmarca sozinha" — não é aleatório, é sempre que uma
+   * gravação falha no meio de uma sequência de cliques.
+   *
+   * A correção: em vez de restaurar uma foto antiga inteira, desfaz só
+   * ESTE toggle específico, aplicado sobre o estado MAIS ATUAL (via a
+   * forma funcional do setUsers) — os outros cliques concorrentes não são
+   * tocados.
+   */
+  const revertJournalToggle = (teacherId: string, classId: string, subjectId: string, foiAdicionado: boolean) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id !== teacherId) return u;
+      const atual = u.assignedJournals || [];
+      const corrigido = foiAdicionado
+        ? atual.filter(j => !(j.classId === classId && j.subjectId === subjectId))
+        : (atual.some(j => j.classId === classId && j.subjectId === subjectId) ? atual : [...atual, { classId, subjectId }]);
+      const usuarioCorrigido = { ...u, assignedJournals: corrigido };
+      if (currentUser && currentUser.id === teacherId) setCurrentUser(usuarioCorrigido);
+      return usuarioCorrigido;
+    }));
+  };
+
   const updateUser = (id: string, updates: Partial<User>): Promise<{ ok: boolean; erro?: string }> => {
     const uppercaseUpdates = { ...updates };
     if (uppercaseUpdates.name) uppercaseUpdates.name = uppercaseUpdates.name.toUpperCase();
@@ -4951,20 +4986,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prev => prev.map(g => {
       if (g.studentId !== studentId || g.classId !== classId) return g;
       if (desistente) {
-        // Cancelar a matrícula nesta turma também tira o aluno do diário do
-        // professor e do histórico oficial dela pra frente — sem isso a
-        // matrícula errada/duplicada (ex: aluno transferido de módulo)
-        // continuava aparecendo pro professor lançar nota e saía impressa
-        // no histórico como se fosse um período reprovado de verdade.
-        const merged = { ...g, result: 'DESISTENTE' as const, concept: (g.concept === 'E' || !g.concept ? 'DES' : g.concept), hiddenFromHistory: true };
+        const merged = { ...g, result: 'DESISTENTE' as const, concept: (g.concept === 'E' || !g.concept ? 'DES' : g.concept) };
         return computeCalculatedGrade(merged, true);
       }
-      // Desmarcar: tira o "congelamento" e o "oculto", e deixa a nota
-      // recalcular sozinha pelo que já está lançado (nota + frequência), do
-      // jeito normal — `computeCalculatedGrade` só preserva
-      // DISPENSADO/DESISTENTE; qualquer outro valor de partida é
-      // recalculado do zero.
-      const merged = { ...g, result: 'Pendente' as GradeRecord['result'], hiddenFromHistory: false };
+      // Desmarcar: tira o "congelamento" e deixa a nota recalcular sozinha
+      // pelo que já está lançado (nota + frequência), do jeito normal —
+      // `computeCalculatedGrade` só preserva DISPENSADO/DESISTENTE; qualquer
+      // outro valor de partida é recalculado do zero.
+      const merged = { ...g, result: 'Pendente' as GradeRecord['result'] };
       return computeCalculatedGrade(merged, true);
     }));
     return quantos;
@@ -6881,7 +6910,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       eventosMinicursos, salvarEventoMinicursoContexto, participantesDeEventos, salvarParticipanteEventoContexto, excluirParticipanteEventoContexto,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
-      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, revertJournalToggle, deleteUser, apagarPessoaPorCompleto, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, updateConceptRanges,
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, marcarStatusDependenciaContexto, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
