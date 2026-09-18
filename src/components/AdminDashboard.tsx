@@ -141,7 +141,7 @@ const areNamesSimilar = (name1: string, name2: string): boolean => {
 export const AdminDashboard: React.FC = () => {
   const { 
     users, courses, classes, subjects, grades, attendance, calendarEvents, messages,
-    sendMessage, deleteMessage, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
+    sendMessage, deleteMessage, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, revertJournalToggle, deleteUser, toggleJournalStatus,
     gerarAcessosDosAlunos, contarAlunosSemAcesso, mostrarAviso, pedirConfirmacao,
     getStudentAbsences, importStudents,
     securityLogs, cloudBackupStatus, lastCloudBackupTime, addSecurityLog,
@@ -519,8 +519,16 @@ export const AdminDashboard: React.FC = () => {
     atribuirProfessorAoDiario(classId, subjectId, periodo, novoProfessorId).then(res => {
       if (!res.ok) {
         setJournalError(`Não foi possível gravar no banco: ${res.erro || 'motivo não informado'}. Tente novamente.`);
-        // Desfaz a marcação na tela — ela não é real, o banco recusou.
-        updateUser(teacherId, { assignedJournals: currentAssigned });
+        // BUG REAL: aqui o código restaurava uma "foto" de assignedJournals
+        // tirada no início deste clique (currentAssigned). Isso parecia
+        // certo, mas se você estivesse marcando várias disciplinas em
+        // sequência rápida e ESTA gravação específica falhasse (o banco
+        // deste projeto tem instabilidade de rede conhecida), a foto antiga
+        // sobrescrevia TODAS as marcações feitas depois dela, mesmo as que
+        // tinham dado certo — era isso que causava "a disciplina desmarca
+        // sozinha" durante o preenchimento em massa. Agora desfaz só ESTA
+        // marcação específica, em cima do estado mais atual.
+        revertJournalToggle(teacherId, classId, subjectId, !exists);
       }
     });
   };
@@ -5349,7 +5357,7 @@ export const AdminDashboard: React.FC = () => {
                   >
                     <option value="">Selecione um Aluno...</option>
                     {users
-                      .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory)))
+                      .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
                       .map(std => (
                         <option key={std.id} value={std.id}>{std.name} ({std.enrollment || 'Sem matrícula'})</option>
                       ))}
@@ -5360,11 +5368,11 @@ export const AdminDashboard: React.FC = () => {
                 {selectedBoletimClassId && (
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                      Alunos da Turma ({users.filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory))).length})
+                      Alunos da Turma ({users.filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId))).length})
                     </p>
                     <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
                       {users
-                        .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId && !g.hiddenFromHistory)))
+                        .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
                         .map(std => {
                           const isSelected = selectedBoletimStudentId === std.id;
                           return (
