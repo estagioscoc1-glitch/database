@@ -58,8 +58,11 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
     { id: 15, label: 'Reimprimir Recibo', icon: Printer, desc: 'Reimpressão de 2ª via de recibos dados baixa' },
   ];
 
-  const handleOpenAudit = () => {
-    setAuditLogs(getFinancialAuditLogs());
+  const handleOpenAudit = async () => {
+    // BUG REAL: faltava "await" — getFinancialAuditLogs() é assíncrona
+    // (busca no Supabase); sem esperar, a lista de auditoria abria sempre
+    // vazia, mesmo tendo registros.
+    setAuditLogs(await getFinancialAuditLogs());
     setShowAuditModal(true);
   };
 
