@@ -64,22 +64,31 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
   };
 
   // ------------------------------------------------------------ montagem das parcelas
-  const numerosReais = new Map(parcelasReais.map(p => [p.number, p]));
+  // Mesma correção do bug de numeração aplicada na aba do aluno: o
+  // financeiro normal numera sempre a partir de "1", então precisa de um
+  // deslocamento pelo tanto de parcelas retroativas já existentes, senão
+  // a parcela atual (financeiro normal) bate de frente com a 1ª retroativa.
+  const numerosRetroativosBrutos = regularizacoes.filter(r => r.tipo === 'PARCELA').map(r => r.numeroParcela ?? 0);
+  const deslocamento = numerosRetroativosBrutos.length > 0 ? Math.max(...numerosRetroativosBrutos) : 0;
+
+  const numerosReais = new Map(parcelasReais.map(p => [deslocamento + p.number, p]));
   const numerosRetroativos = new Map(
     regularizacoes.filter(r => r.tipo === 'PARCELA' && r.numeroParcela != null).map(r => [r.numeroParcela as number, r])
   );
   const maiorNumero = Math.max(
     MAX_PARCELAS_PADRAO,
-    ...parcelasReais.map(p => p.totalInstallments || 0),
-    ...Array.from(numerosRetroativos.keys())
+    deslocamento,
+    ...parcelasReais.map(p => deslocamento + (p.totalInstallments || p.number || 0))
   );
 
   const linhasParcelas: LinhaParcela[] = [];
   for (let n = 1; n <= maiorNumero; n++) {
-    const real = numerosReais.get(n);
-    if (real) {
-      linhasParcelas.push({ numero: n, pago: real.status === 'PAGA' || real.status === 'ABONADA', origem: 'NORMAL' });
-      continue;
+    if (n > deslocamento) {
+      const real = numerosReais.get(n);
+      if (real) {
+        linhasParcelas.push({ numero: n, pago: real.status === 'PAGA' || real.status === 'ABONADA', origem: 'NORMAL' });
+        continue;
+      }
     }
     const retro = numerosRetroativos.get(n);
     if (retro) {
