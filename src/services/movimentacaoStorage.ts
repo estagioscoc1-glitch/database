@@ -5,7 +5,8 @@ import {
   StageDefinition, StageVacancy, StageEvaluation, StageScheduleItem, StageTeacherReceipt,
   StageField, StageTeacher, StageCronograma
 } from '../types/movimentacao';
-import { addFinancialAuditLog, saveMiscPaymentCatalog, generateStudentInstallments, getInstallments, saveInstallments } from './financeiroStorage';
+import { addFinancialAuditLog, saveMiscPaymentCatalog, generateStudentInstallments, getInstallments } from './financeiroStorage';
+import { supabase } from '../lib/supabase';
 import { addAuditLog } from './cadastrosStorage';
 
 // LocalStorage Keys
@@ -249,7 +250,7 @@ export function getCancelations(): CancelationRecord[] {
   return data ? JSON.parse(data) : [];
 }
 
-export function cancelStudentEnrollment(cancelation: CancelationRecord, operator: string): void {
+export async function cancelStudentEnrollment(cancelation: CancelationRecord, operator: string): Promise<void> {
   const list = getCancelations();
   list.unshift(cancelation);
   localStorage.setItem(KEYS.CANCELATIONS, JSON.stringify(list));
@@ -263,18 +264,30 @@ export function cancelStudentEnrollment(cancelation: CancelationRecord, operator
   }
 
   // Financeiro: Cancel future unpaid installments
+  //
+  // BUG REAL: esta função lia getInstallments() sem "await" (quebrava
+  // sempre com erro) e, mesmo se não quebrasse, chamava saveInstallments()
+  // — que é só um aviso no console hoje, não salva nada (as parcelas
+  // moram no Supabase, não mais no navegador). Ou seja: cancelar a
+  // matrícula de um aluno NUNCA cancelava as mensalidades futuras dele,
+  // mesmo com a caixinha "cancelar parcelas futuras" marcada — o aluno
+  // continuava aparecendo como devendo depois de cancelado.
   if (cancelation.futureInstallmentsCanceled) {
-    const installments = getInstallments();
+    const todasParcelas = await getInstallments();
+    const pendentesDoAluno = todasParcelas.filter(
+      inst => inst.studentId === cancelation.studentId && inst.status === 'PENDENTE'
+    );
+
     let canceledCount = 0;
-    installments.forEach(inst => {
-      if (inst.studentId === cancelation.studentId && inst.status === 'PENDENTE') {
-        inst.status = 'CANCELADA';
-        inst.notes = `Cancelado por cancelamento de matrícula (${cancelation.reason})`;
-        canceledCount++;
-      }
-    });
-    saveInstallments(installments);
-    addFinancialAuditLog(operator, 'CANCELAMENTO_MATRICULA_FINANCEIRO', `${canceledCount} parcelas futuras isentadas devido ao cancelamento do aluno ${cancelation.studentName}`);
+    for (const inst of pendentesDoAluno) {
+      const { error } = await supabase.from('financeiro_parcelas').update({
+        status: 'CANCELADA',
+        observacoes: `${inst.notes || ''} | Cancelado por cancelamento de matrícula (${cancelation.reason})`.trim(),
+      }).eq('id', inst.id);
+      if (!error) canceledCount++;
+    }
+
+    await addFinancialAuditLog(operator, 'CANCELAMENTO_MATRICULA_FINANCEIRO', `${canceledCount} parcelas futuras isentadas devido ao cancelamento do aluno ${cancelation.studentName}`);
   }
 
   addAuditLog(cancelation.id, 'ALUNO', 'EDITADO', operator, `Matrícula cancelada para o aluno ${cancelation.studentName}. Motivo: ${cancelation.reason}`);
@@ -285,17 +298,20 @@ export function getDependencies(): DependencyEnrollment[] {
   return data ? JSON.parse(data) : [];
 }
 
-export function saveDependency(dep: DependencyEnrollment, operator: string): void {
+export async function saveDependency(dep: DependencyEnrollment, operator: string): Promise<void> {
   const list = getDependencies();
   list.unshift(dep);
   localStorage.setItem(KEYS.DEPENDENCIES, JSON.stringify(list));
 
   // Create financial installments automatically
+  // BUG REAL: generateStudentInstallments é assíncrona e ficava sem
+  // "await" — a dependência ficava cadastrada mesmo quando a cobrança da
+  // taxa nunca chegava a ser criada no Financeiro.
   if (dep.feeValue > 0 && dep.installmentsCount > 0) {
     const valuePerInst = dep.feeValue / dep.installmentsCount;
     const now = new Date();
-    
-    generateStudentInstallments({
+
+    await generateStudentInstallments({
       studentId: dep.studentId,
       studentName: dep.studentName,
       enrollment: dep.enrollmentNumber,
@@ -389,7 +405,7 @@ export function getEvents(): EventMinicourse[] {
   return JSON.parse(data);
 }
 
-export function saveEvent(event: EventMinicourse, operator: string): void {
+export async function saveEvent(event: EventMinicourse, operator: string): Promise<void> {
   const list = getEvents();
   const idx = list.findIndex(e => e.id === event.id);
   if (idx >= 0) list[idx] = event;
@@ -397,8 +413,11 @@ export function saveEvent(event: EventMinicourse, operator: string): void {
   localStorage.setItem(KEYS.EVENTS, JSON.stringify(list));
 
   // Auto add to Misc Financial Catalog if fee > 0
+  // BUG REAL: saveMiscPaymentCatalog é assíncrona (grava no Supabase) e
+  // ficava sem "await" — a cobrança do evento às vezes não chegava a ser
+  // criada no catálogo de Pagamentos Diversos antes da função terminar.
   if (event.feeValue > 0) {
-    saveMiscPaymentCatalog({
+    await saveMiscPaymentCatalog({
       id: `evt_cat_${event.id}`,
       name: `Taxa Evento/Minicurso: ${event.title}`,
       category: 'OUTROS',
@@ -407,7 +426,7 @@ export function saveEvent(event: EventMinicourse, operator: string): void {
       active: true,
       blockedActions: []
     }, operator);
-    addFinancialAuditLog(operator, 'CRIACAO_TAXA_MINICURSO', `Cobrança diversa criada para o minicurso "${event.title}" no valor de R$ ${event.feeValue.toFixed(2)}`);
+    await addFinancialAuditLog(operator, 'CRIACAO_TAXA_MINICURSO', `Cobrança diversa criada para o minicurso "${event.title}" no valor de R$ ${event.feeValue.toFixed(2)}`);
   }
 }
 
