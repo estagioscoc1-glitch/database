@@ -38,22 +38,40 @@ export const AlunoFinanceiroTab: React.FC<Props> = ({ alunoId, modulo }) => {
   }
 
   // Junta parcelas do financeiro normal + regularização retroativa numa
-  // única linha do tempo, por número — a retroativa só entra se não
-  // existir a mesma parcela já lançada no financeiro normal (evita
-  // duplicar visualmente a mesma parcela vinda de dois lugares).
-  const numerosDoFinanceiroNormal = new Set(parcelas.map(p => p.number));
-  const parcelasRetroativas = regularizacoes.filter(r => r.tipo === 'PARCELA' && !numerosDoFinanceiroNormal.has(r.numeroParcela ?? -1));
+  // única linha do tempo.
+  //
+  // BUG REAL corrigido aqui: o financeiro normal numera as parcelas dele
+  // sempre a partir de "1" (não sabe que já existiam parcelas antigas
+  // antes) — então um aluno do Módulo 2, com 6 parcelas retroativas
+  // (1 a 6) e a mensalidade atual gerada pelo sistema novo, tinha a
+  // mensalidade atual TAMBÉM numerada como "1", duplicando na tela. A
+  // correção: desloca a numeração do financeiro normal pelo tanto de
+  // parcelas retroativas que já existem, pra virar uma sequência contínua
+  // (retroativas 1–6, financeiro normal 7, 8, 9...).
+  const numerosRetroativosBrutos = regularizacoes.filter(r => r.tipo === 'PARCELA').map(r => r.numeroParcela ?? 0);
+  const deslocamento = numerosRetroativosBrutos.length > 0 ? Math.max(...numerosRetroativosBrutos) : 0;
 
-  const linhasParcelas = [
-    ...parcelas.map(p => ({
-      numero: p.number, pago: p.status === 'PAGA' || p.status === 'ABONADA',
-      origemRetroativa: false, competencia: p.competencia,
-    })),
-    ...parcelasRetroativas.map(r => ({
-      numero: r.numeroParcela ?? 0, pago: r.status === 'PAGO',
-      origemRetroativa: true, competencia: r.competencia,
-    })),
-  ].sort((a, b) => a.numero - b.numero);
+  const maiorNumero = Math.max(
+    18,
+    deslocamento,
+    ...parcelas.map(p => deslocamento + (p.totalInstallments || p.number || 0))
+  );
+
+  const numerosReaisPorNumeroDeslocado = new Map(parcelas.map(p => [deslocamento + p.number, p]));
+  const numerosRetroativosPorNumero = new Map(
+    regularizacoes.filter(r => r.tipo === 'PARCELA' && r.numeroParcela != null).map(r => [r.numeroParcela as number, r])
+  );
+
+  const linhasParcelas: { numero: number; pago: boolean; competencia?: string | null }[] = [];
+  for (let n = 1; n <= maiorNumero; n++) {
+    if (n <= deslocamento) {
+      const retro = numerosRetroativosPorNumero.get(n);
+      linhasParcelas.push({ numero: n, pago: retro?.status === 'PAGO', competencia: retro?.competencia });
+    } else {
+      const real = numerosReaisPorNumeroDeslocado.get(n);
+      linhasParcelas.push({ numero: n, pago: real ? (real.status === 'PAGA' || real.status === 'ABONADA') : false, competencia: real?.competencia });
+    }
+  }
 
   const proximasPendentes = linhasParcelas.filter(l => !l.pago).slice(0, 3);
 
@@ -74,7 +92,8 @@ export const AlunoFinanceiroTab: React.FC<Props> = ({ alunoId, modulo }) => {
 
   const seguro = itemExtra('SEGURO');
   const kit = itemExtra('KIT');
-  const jaleco = itemExtra('JALECO');
+  // Jaleco não aparece pro aluno (a pedido) — continua sendo controlado
+  // pela administração em Editar Regularizações, só não é mostrado aqui.
 
   return (
     <div className="space-y-5">
@@ -115,11 +134,10 @@ export const AlunoFinanceiroTab: React.FC<Props> = ({ alunoId, modulo }) => {
 
       <div>
         <h4 className="text-xs font-black uppercase text-slate-500 mb-2">Outros Pagamentos</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <ItemStatus pago={!!seguro && seguro.status === 'PAGO'} label="Seguro"
             sub={seguro?.status === 'PAGO' && seguro.dataPagamento ? `Pago em ${new Date(seguro.dataPagamento + 'T12:00:00').toLocaleDateString('pt-BR')}` : undefined} />
           <ItemStatus pago={!!kit && kit.status === 'PAGO'} label="Kit" />
-          <ItemStatus pago={!!jaleco && jaleco.status === 'PAGO'} label="Jaleco" />
         </div>
       </div>
     </div>
