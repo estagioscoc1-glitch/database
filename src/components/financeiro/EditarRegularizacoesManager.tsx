@@ -1,162 +1,275 @@
 import React, { useState, useEffect } from 'react';
 import {
-  listarRegularizacoes, editarRegularizacao, excluirRegularizacao, RegistroRegularizacao,
+  listarRegularizacoesDoAluno, editarRegularizacao, excluirRegularizacao, importarRegularizacoesEmLote,
+  RegistroRegularizacao, TipoRegularizacao, seguroAindaValido,
 } from '../../services/regularizacaoStorage';
-import { Search, Trash2, Loader2, Save, CheckCircle2, XCircle } from 'lucide-react';
+import { getInstallments } from '../../services/financeiroStorage';
+import { Installment } from '../../types/financeiro';
+import { Search, Trash2, Loader2, CheckCircle2, XCircle, Info } from 'lucide-react';
 
 // ===========================================================================
-//  EDITAR REGULARIZAÇÕES
+//  EDITAR REGULARIZAÇÕES — visão completa por aluno
 //
-//  Aqui dá pra mudar QUALQUER coisa de um registro já importado — mês,
-//  número da parcela, status (pago/pendente) e data de pagamento — porque
-//  a importação automática é só um ponto de partida, não a palavra final.
-//  Toda troca de status fica registrada no log de auditoria.
+//  Busca um aluno e mostra TUDO num lugar só: todas as parcelas dele (pagas
+//  e pendentes, sejam do financeiro normal ou da regularização), Seguro,
+//  Kit, Jaleco e Matrícula — com acesso total pra marcar/desmarcar,
+//  ajustar mês e data, direto por aqui.
+//
+//  IMPORTANTE: esta tela NUNCA passa pelo caixa. Regularização retroativa
+//  não é um recebimento de dinheiro de verdade (não tem valor, não gera
+//  recibo) — por isso não precisa de caixa aberto pra usar, diferente de
+//  "Entradas". As parcelas que já vieram do financeiro normal aparecem
+//  aqui só pra CONSULTA (ficam com um cadeado) — pra mudar essas de
+//  verdade, o caminho continua sendo Entradas/Alteração Vencimentos,
+//  porque essas sim mexem em dinheiro e recibo real.
 // ===========================================================================
 
 interface Props {
   currentUser?: string;
+  allStudentUsers?: any[];
 }
 
-export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Financeiro' }) => {
-  const [registros, setRegistros] = useState<RegistroRegularizacao[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [busca, setBusca] = useState('');
-  const [filtroTipo, setFiltroTipo] = useState('');
-  const [salvandoId, setSalvandoId] = useState<string | null>(null);
+const MAX_PARCELAS_PADRAO = 18; // cobre os 3 módulos (1–6, 7–12, 13–18)
 
-  const carregar = async () => {
+interface LinhaParcela {
+  numero: number;
+  pago: boolean;
+  origem: 'NORMAL' | 'RETROATIVO' | 'NENHUMA';
+  registroRetroativo?: RegistroRegularizacao;
+}
+
+export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Financeiro', allStudentUsers = [] }) => {
+  const [busca, setBusca] = useState('');
+  const [aluno, setAluno] = useState<any | null>(null);
+  const [parcelasReais, setParcelasReais] = useState<Installment[]>([]);
+  const [regularizacoes, setRegularizacoes] = useState<RegistroRegularizacao[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [salvandoChave, setSalvandoChave] = useState<string | null>(null);
+
+  const alunosFiltrados = busca.trim().length >= 2 && !aluno
+    ? allStudentUsers.filter((a: any) => a.name?.toLowerCase().includes(busca.toLowerCase()) || a.enrollment?.includes(busca)).slice(0, 8)
+    : [];
+
+  const carregarDoAluno = async (a: any) => {
+    setAluno(a);
+    setBusca('');
     setCarregando(true);
-    setRegistros(await listarRegularizacoes());
-    setCarregando(false);
+    try {
+      const [todas, reg] = await Promise.all([getInstallments(), listarRegularizacoesDoAluno(a.id)]);
+      setParcelasReais(todas.filter(p => p.studentId === a.id));
+      setRegularizacoes(reg);
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  useEffect(() => { void carregar(); }, []);
+  // ------------------------------------------------------------ montagem das parcelas
+  const numerosReais = new Map(parcelasReais.map(p => [p.number, p]));
+  const numerosRetroativos = new Map(
+    regularizacoes.filter(r => r.tipo === 'PARCELA' && r.numeroParcela != null).map(r => [r.numeroParcela as number, r])
+  );
+  const maiorNumero = Math.max(
+    MAX_PARCELAS_PADRAO,
+    ...parcelasReais.map(p => p.totalInstallments || 0),
+    ...Array.from(numerosRetroativos.keys())
+  );
 
-  const filtrados = registros.filter(r => {
-    if (filtroTipo && r.tipo !== filtroTipo) return false;
-    if (busca.trim().length >= 2) {
-      const q = busca.toLowerCase();
-      return r.alunoNome.toLowerCase().includes(q) || r.alunoMatricula.includes(q);
+  const linhasParcelas: LinhaParcela[] = [];
+  for (let n = 1; n <= maiorNumero; n++) {
+    const real = numerosReais.get(n);
+    if (real) {
+      linhasParcelas.push({ numero: n, pago: real.status === 'PAGA' || real.status === 'ABONADA', origem: 'NORMAL' });
+      continue;
     }
-    return true;
-  });
+    const retro = numerosRetroativos.get(n);
+    if (retro) {
+      linhasParcelas.push({ numero: n, pago: retro.status === 'PAGO', origem: 'RETROATIVO', registroRetroativo: retro });
+      continue;
+    }
+    linhasParcelas.push({ numero: n, pago: false, origem: 'NENHUMA' });
+  }
 
-  const handleAlterar = async (r: RegistroRegularizacao, campos: Partial<RegistroRegularizacao>) => {
-    setSalvandoId(r.id);
+  // ------------------------------------------------------------ toggles
+  const handleToggleParcela = async (linha: LinhaParcela) => {
+    if (linha.origem === 'NORMAL') return; // read-only — gerenciado pelo financeiro normal
+    const chave = `parcela-${linha.numero}`;
+    setSalvandoChave(chave);
     try {
-      const ok = await editarRegularizacao(r.id, campos as any, currentUser);
-      if (ok) {
-        setRegistros(prev => prev.map(x => x.id === r.id ? { ...x, ...campos } : x));
+      if (linha.registroRetroativo) {
+        const novoStatus = linha.pago ? 'PENDENTE' : 'PAGO';
+        const ok = await editarRegularizacao(linha.registroRetroativo.id, { status: novoStatus }, currentUser);
+        if (ok) setRegularizacoes(prev => prev.map(r => r.id === linha.registroRetroativo!.id ? { ...r, status: novoStatus } : r));
       } else {
-        alert('Não foi possível salvar agora. Tente de novo.');
+        // Ainda não existe registro nenhum pra essa parcela — cria um novo, já como PAGO.
+        const res = await importarRegularizacoesEmLote([{
+          alunoId: aluno.id, alunoMatricula: aluno.enrollment || '—', alunoNome: aluno.name,
+          tipo: 'PARCELA', numeroParcela: linha.numero, status: 'PAGO',
+          origemPlanilha: 'Lançamento manual em Editar Regularizações',
+        }], currentUser);
+        if (res.ok) await carregarDoAluno(aluno);
       }
     } finally {
-      setSalvandoId(null);
+      setSalvandoChave(null);
     }
   };
 
-  const handleExcluir = async (r: RegistroRegularizacao) => {
-    if (!confirm(`Excluir o registro de ${r.tipo} de ${r.alunoNome}? Isso não afeta parcelas do financeiro normal, só a regularização retroativa.`)) return;
-    const ok = await excluirRegularizacao(r.id, currentUser);
-    if (ok) setRegistros(prev => prev.filter(x => x.id !== r.id));
+  const itemExtra = (tipo: TipoRegularizacao) => regularizacoes.find(r => r.tipo === tipo);
+
+  const handleToggleExtra = async (tipo: TipoRegularizacao) => {
+    const chave = `extra-${tipo}`;
+    setSalvandoChave(chave);
+    try {
+      const existente = itemExtra(tipo);
+      if (existente) {
+        const novoStatus = existente.status === 'PAGO' ? 'PENDENTE' : 'PAGO';
+        const ok = await editarRegularizacao(existente.id, { status: novoStatus }, currentUser);
+        if (ok) setRegularizacoes(prev => prev.map(r => r.id === existente.id ? { ...r, status: novoStatus } : r));
+      } else {
+        const res = await importarRegularizacoesEmLote([{
+          alunoId: aluno.id, alunoMatricula: aluno.enrollment || '—', alunoNome: aluno.name,
+          tipo, status: 'PAGO', origemPlanilha: 'Lançamento manual em Editar Regularizações',
+        }], currentUser);
+        if (res.ok) await carregarDoAluno(aluno);
+      }
+    } finally {
+      setSalvandoChave(null);
+    }
   };
 
+  const handleDataExtra = async (tipo: TipoRegularizacao, data: string) => {
+    const existente = itemExtra(tipo);
+    if (!existente) return;
+    const ok = await editarRegularizacao(existente.id, { dataPagamento: data || null }, currentUser);
+    if (ok) setRegularizacoes(prev => prev.map(r => r.id === existente.id ? { ...r, dataPagamento: data || null } : r));
+  };
+
+  const handleExcluirExtra = async (tipo: TipoRegularizacao) => {
+    const existente = itemExtra(tipo);
+    if (!existente) return;
+    if (!confirm(`Excluir o registro de ${tipo}?`)) return;
+    const ok = await excluirRegularizacao(existente.id, currentUser);
+    if (ok) setRegularizacoes(prev => prev.filter(r => r.id !== existente.id));
+  };
+
+  // ============================================================== render
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
+      <div className="p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl flex items-start gap-2">
+        <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+        <p className="text-[11px] font-semibold text-blue-800 dark:text-blue-300">
+          Essa tela não passa pelo caixa — não precisa ter um caixa aberto pra usar. Regularização retroativa não
+          gera recibo nem entra em receita, só marca a situação do aluno.
+        </p>
+      </div>
+
+      {!aluno ? (
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text" value={busca} onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar aluno ou matrícula..."
+            placeholder="Buscar aluno por nome ou matrícula..."
             className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-xs"
           />
+          {alunosFiltrados.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden">
+              {alunosFiltrados.map((a: any) => (
+                <button key={a.id} onClick={() => carregarDoAluno(a)} className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-slate-800 flex justify-between">
+                  <span className="font-bold">{a.name}</span>
+                  <span className="text-slate-400">{a.enrollment}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}
-          className="px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs">
-          <option value="">Todos os tipos</option>
-          <option value="PARCELA">Parcela</option>
-          <option value="SEGURO">Seguro</option>
-          <option value="KIT">Kit</option>
-          <option value="JALECO">Jaleco</option>
-          <option value="OUTRO">Outro</option>
-        </select>
-      </div>
-
-      {carregando ? (
-        <div className="flex items-center gap-2 text-slate-400 py-10 justify-center"><Loader2 className="h-5 w-5 animate-spin" /> Carregando…</div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/60">
-                <tr>
-                  {['Aluno', 'Tipo', 'Parcela nº', 'Competência', 'Status', 'Data Pagto.', ''].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left font-black text-[10px] uppercase text-slate-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map(r => (
-                  <tr key={r.id} className="border-t border-slate-100 dark:border-slate-800">
-                    <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{r.alunoNome} <span className="text-slate-400 font-normal">({r.alunoMatricula})</span></td>
-                    <td className="px-3 py-2">
-                      <select value={r.tipo} onChange={(e) => handleAlterar(r, { tipo: e.target.value as any })}
-                        className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 font-bold">
-                        <option value="PARCELA">Parcela</option>
-                        <option value="SEGURO">Seguro</option>
-                        <option value="KIT">Kit</option>
-                        <option value="JALECO">Jaleco</option>
-                        <option value="OUTRO">Outro</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      {r.tipo === 'PARCELA' ? (
-                        <input type="number" min={1} value={r.numeroParcela ?? ''}
-                          onChange={(e) => handleAlterar(r, { numeroParcela: parseInt(e.target.value, 10) || null })}
-                          className="w-16 px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-center" />
-                      ) : '—'}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="text" value={r.competencia ?? ''} placeholder="MM/AAAA"
-                        onChange={(e) => handleAlterar(r, { competencia: e.target.value || null })}
-                        className="w-20 px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono" />
-                    </td>
-                    <td className="px-3 py-2">
+        <>
+          <div className="flex items-center justify-between p-3 bg-slate-800 dark:bg-slate-950 rounded-xl">
+            <div>
+              <p className="font-black text-white text-sm">{aluno.name}</p>
+              <p className="text-[11px] text-slate-300">Matrícula: {aluno.enrollment || '—'}</p>
+            </div>
+            <button onClick={() => { setAluno(null); setParcelasReais([]); setRegularizacoes([]); }}
+              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg text-[11px]">
+              Trocar aluno
+            </button>
+          </div>
+
+          {carregando ? (
+            <div className="flex items-center gap-2 text-slate-400 py-10 justify-center"><Loader2 className="h-5 w-5 animate-spin" /> Carregando…</div>
+          ) : (
+            <>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5">
+                <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Mensalidades — clique pra marcar/desmarcar</h4>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {linhasParcelas.map(l => {
+                    const chave = `parcela-${l.numero}`;
+                    const bloqueada = l.origem === 'NORMAL';
+                    return (
                       <button
+                        key={l.numero}
                         type="button"
-                        onClick={() => handleAlterar(r, { status: r.status === 'PAGO' ? 'PENDENTE' : 'PAGO' })}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase ${
-                          r.status === 'PAGO'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
-                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                        disabled={bloqueada || salvandoChave === chave}
+                        onClick={() => handleToggleParcela(l)}
+                        title={bloqueada ? 'Parcela do financeiro normal — gerencie em Entradas ou Alteração Vencimentos' : 'Clique pra marcar/desmarcar'}
+                        className={`relative text-center p-2.5 rounded-xl border font-black text-xs transition-all ${
+                          l.pago
+                            ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400'
+                        } ${bloqueada ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:scale-105'}`}
+                      >
+                        {salvandoChave === chave ? <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto" /> : (
+                          <>
+                            <div>{l.numero}ª</div>
+                            <div className="text-[9px] font-bold uppercase mt-0.5">{l.pago ? 'Paga' : 'Pendente'}</div>
+                            {bloqueada && <div className="text-[8px] text-slate-400 normal-case">normal 🔒</div>}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 space-y-3">
+                <h4 className="text-xs font-black uppercase text-slate-500">Outros Itens</h4>
+                {(['SEGURO', 'KIT', 'JALECO', 'MATRICULA'] as TipoRegularizacao[]).map(tipo => {
+                  const item = itemExtra(tipo);
+                  const pago = item?.status === 'PAGO';
+                  const chave = `extra-${tipo}`;
+                  const seguroVencido = tipo === 'SEGURO' && pago && item?.dataPagamento && !seguroAindaValido(item.dataPagamento);
+                  return (
+                    <div key={tipo} className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
+                      <button
+                        type="button" disabled={salvandoChave === chave} onClick={() => handleToggleExtra(tipo)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-black text-[11px] uppercase min-w-[140px] justify-center ${
+                          pago ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                               : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
                         }`}
                       >
-                        {r.status === 'PAGO' ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                        {r.status}
+                        {salvandoChave === chave ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (pago ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />)}
+                        {tipo} — {pago ? 'Pago' : 'Pendente'}
                       </button>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="date" value={r.dataPagamento ?? ''}
-                        onChange={(e) => handleAlterar(r, { dataPagamento: e.target.value || null })}
-                        className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono" />
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {salvandoId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /> : (
-                        <button type="button" onClick={() => handleExcluir(r)} className="p-1.5 text-slate-400 hover:text-rose-600">
+
+                      {tipo === 'SEGURO' && pago && (
+                        <>
+                          <input type="date" value={item?.dataPagamento ?? ''} onChange={(e) => handleDataExtra(tipo, e.target.value)}
+                            className="px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-xs" />
+                          {seguroVencido && <span className="text-[10px] font-black text-amber-600 uppercase">Vencido (+ de 1 ano)</span>}
+                        </>
+                      )}
+
+                      {item && (
+                        <button onClick={() => handleExcluirExtra(tipo)} className="ml-auto p-1.5 text-slate-400 hover:text-rose-600">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
-                    </td>
-                  </tr>
-                ))}
-                {filtrados.length === 0 && (
-                  <tr><td colSpan={7} className="p-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
   );
