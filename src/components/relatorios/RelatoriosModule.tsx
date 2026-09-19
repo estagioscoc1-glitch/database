@@ -106,11 +106,12 @@ export const RelatoriosModule: React.FC<RelatoriosModuleProps> = ({ initialSubTa
   const [stageEvaluations, setStageEvaluations] = useState<StageEvaluation[]>([]);
   const [emittedHistory, setEmittedHistory] = useState<{ id: string; studentName: string; docType: string; date: string; operator: string }[]>([]);
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
     setDetailedStudentsMap(getDetailedStudents());
     setDetailedTeachersMap(getDetailedTeachers());
     setOfficialTemplates(getOfficialTemplates());
-    setInstallments(getInstallments());
+    // BUG REAL: faltava "await" — getInstallments() é assíncrona.
+    setInstallments(await getInstallments());
     setEnrollments(getEnrollments());
     setDependencies(getDependencies());
     setCurriculums(getCurriculums());
