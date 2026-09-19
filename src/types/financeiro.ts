@@ -139,7 +139,32 @@ export interface CoursePriceConfig {
   notes?: string;
 }
 
-export type FinancialNoteCategory = 
+/**
+ * CONVÊNIO BANCÁRIO — o que o banco fornece quando a escola assina o
+ * contrato de cobrança (boleto registrado). Enquanto isso não existir, os
+ * campos ficam vazios e a tela avisa que ainda não dá pra emitir boleto de
+ * verdade — mas todo o resto (layout, linha digitável, código de barras)
+ * já fica pronto, só rodando com os dados de teste até lá.
+ */
+export interface ConvenioBancario {
+  bancoCodigo: string; // "001" Banco do Brasil, "341" Itaú, "104" Caixa, "237" Bradesco, "033" Santander...
+  bancoNome: string;
+  agencia: string;
+  contaCorrente: string; // com dígito verificador, se houver
+  carteira: string;
+  codigoCedente: string; // "código do beneficiário" / convênio de cobrança
+  cedenteNome: string;
+  cedenteCnpj: string;
+  especieDocumento: string; // "DM" = Duplicata Mercantil (padrão pra mensalidade)
+  aceite: 'S' | 'N';
+  localPagamento: string;
+  instrucoes: string[]; // linhas de instrução impressas no boleto
+  proximoNossoNumero: number; // contador — incrementa a cada boleto emitido
+  ativo: boolean; // true = já tem convênio de verdade; false = só dados de teste
+}
+
+
+export type FinancialNoteCategory =
   | 'OCORRENCIA' 
   | 'INADIMPLENCIA' 
   | 'RENEGOCIACAO' 
