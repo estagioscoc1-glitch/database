@@ -1,27 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { MiscPaymentCatalog, MiscIncome } from '../../types/financeiro';
-import { getMiscPaymentCatalog, getMiscIncomes } from '../../services/financeiroStorage';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Installment } from '../../types/financeiro';
+import { getInstallments } from '../../services/financeiroStorage';
 import { AutorizacaoAFCPrintView } from './AutorizacaoAFCPrintView';
 import { Search, FileCheck2, Printer, Loader2 } from 'lucide-react';
 
 // ===========================================================================
 //  AUTORIZAÇÕES AFC
 //
-//  Como funciona, do jeito que LG pediu: a direção escolhe QUAL cobrança do
-//  catálogo de Pagamentos Diversos representa a autorização (ex.: "Segunda
-//  Chamada A.F.C"), o sistema busca todo aluno que já pagou (ou teve
-//  abonada) essa cobrança específica, e gera duas coisas pra imprimir:
+//  Regra de verdade (LG explicou depois de eu ter feito a 1ª versão errada,
+//  em cima de "Pagamentos Diversos" — não é isso):
 //
-//  1) Uma folha com 12 autorizações pequenas, uma por aluno pago, prontas
-//     pra recortar e entregar.
-//  2) Uma lista de assinatura com os mesmos alunos, pra eles assinarem
-//     confirmando a presença na AFC.
+//  A liberação é por MENSALIDADE, não por taxa avulsa. Pra cada módulo do
+//  curso (1, 2, 3...), a direção escolhe até qual número de parcela o aluno
+//  precisa ter PAGO pra estar autorizado — ex.: "Módulo 1 libera com as
+//  parcelas pagas até a 4ª". Alunos em DEPENDÊNCIA (recuperando disciplina
+//  de outro módulo) têm o próprio limite, separado, porque a parcela deles
+//  é de outro lançamento (gerado por saveDependency, className começando
+//  com "Dependência:").
 //
-//  DE ONDE VEM CADA ALUNO: casa o nome da cobrança paga (MiscIncome.chargeName)
-//  com o nome exato do item escolhido no catálogo. Como o campo "Nome da
-//  Cobrança" ainda pode ser editado à mão na hora de receber (em Entradas),
-//  um nome digitado diferente do catálogo não vai casar — por isso a tela
-//  mostra quantos foram encontrados antes de gerar, pra conferir.
+//  DE ONDE VEM módulo/Dependência de cada aluno: da turma dele (classId →
+//  classes[].module e classes[].isDependency) — já existe no cadastro,
+//  não precisou inventar campo novo.
+//
+//  "Pagou até a parcela N" = as parcelas de número 1 a N (Installment.number)
+//  estão TODAS com status PAGA — não é só ter pago exatamente a Nª.
 // ===========================================================================
 
 interface Props {
@@ -44,45 +46,70 @@ export const AutorizacoesAFCManager: React.FC<Props> = ({
   courses = [],
   classes = [],
 }) => {
-  const [catalogo, setCatalogo] = useState<MiscPaymentCatalog[]>([]);
-  const [catalogoId, setCatalogoId] = useState('');
-  const [tituloAutorizacao, setTituloAutorizacao] = useState('Autorizado(a) a realizar a Segunda Chamada A.F.C.');
+  const [todasParcelas, setTodasParcelas] = useState<Installment[]>([]);
+  const [carregandoParcelas, setCarregandoParcelas] = useState(true);
+
+  // módulos regulares existentes nas turmas cadastradas (sem contar Dependência)
+  const modulosExistentes = useMemo(() => {
+    const set = new Set<number>();
+    classes.forEach((c: any) => { if (!c.isDependency && c.module) set.add(c.module); });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [classes]);
+
+  const [limitePorModulo, setLimitePorModulo] = useState<Record<number, string>>({});
+  const [limiteDependencia, setLimiteDependencia] = useState('1');
   const [buscando, setBuscando] = useState(false);
   const [alunos, setAlunos] = useState<AlunoAutorizado[] | null>(null);
   const [mostrarImpressao, setMostrarImpressao] = useState(false);
+  const [tituloAutorizacao, setTituloAutorizacao] = useState('Autorizado(a) a realizar a Segunda Chamada A.F.C.');
 
   useEffect(() => {
-    void getMiscPaymentCatalog().then(lista => setCatalogo(lista.filter(c => c.active)));
+    void getInstallments().then(lista => {
+      setTodasParcelas(lista);
+      setCarregandoParcelas(false);
+    });
   }, []);
 
-  const itemEscolhido = catalogo.find(c => c.id === catalogoId);
-
-  const handleBuscar = async () => {
-    if (!itemEscolhido) {
-      alert('Escolha qual pagamento do catálogo representa essa autorização.');
-      return;
-    }
+  const handleBuscar = () => {
     setBuscando(true);
     setAlunos(null);
-    try {
-      const todasEntradas = await getMiscIncomes();
-      const nomeAlvo = itemEscolhido.name.trim().toLowerCase();
-      const pagos = todasEntradas.filter(
-        m => m.chargeName.trim().toLowerCase() === nomeAlvo && (m.status === 'PAGO' || m.status === 'ABONADO')
-      );
 
-      const encontrados: AlunoAutorizado[] = pagos.map((m: MiscIncome) => {
-        const aluno = allStudentUsers.find((u: any) => u.id === m.studentId || u.enrollment === m.enrollment);
-        const turma = aluno ? classes.find((c: any) => c.id === aluno.classId) : undefined;
-        const curso = turma ? courses.find((c: any) => c.id === turma.courseId) : undefined;
-        return {
-          studentId: m.studentId,
-          studentName: m.studentName,
-          enrollment: m.enrollment,
+    try {
+      const encontrados: AlunoAutorizado[] = [];
+
+      allStudentUsers.forEach((aluno: any) => {
+        const turma = classes.find((c: any) => c.id === aluno.classId);
+        if (!turma) return;
+
+        const ehDependencia = !!turma.isDependency;
+        const limiteTxt = ehDependencia ? limiteDependencia : limitePorModulo[turma.module];
+        const limite = parseInt(limiteTxt, 10);
+        if (!limite || limite <= 0) return; // módulo/Dependência sem limite configurado = não entra na busca
+
+        const parcelasDoAluno = todasParcelas.filter(
+          p => (p.studentId === aluno.id || p.enrollment === aluno.enrollment) && p.classId === turma.id
+        );
+        if (parcelasDoAluno.length === 0) return;
+
+        // Precisa ter TODAS as parcelas de 1 até "limite" pagas — não só a última.
+        let liberado = true;
+        let ultimoPagamento = '';
+        for (let n = 1; n <= limite; n++) {
+          const parcela = parcelasDoAluno.find(p => p.number === n);
+          if (!parcela || parcela.status !== 'PAGA') { liberado = false; break; }
+          if (parcela.paidAt) ultimoPagamento = parcela.paidAt;
+        }
+        if (!liberado) return;
+
+        const curso = courses.find((c: any) => c.id === turma.courseId);
+        encontrados.push({
+          studentId: aluno.id,
+          studentName: aluno.name,
+          enrollment: aluno.enrollment || '—',
           courseName: curso?.name || '—',
-          className: turma?.name || '—',
-          paidAt: m.paidAt,
-        };
+          className: ehDependencia ? `${turma.name} (Dependência)` : turma.name,
+          paidAt: ultimoPagamento,
+        });
       });
 
       setAlunos(encontrados);
@@ -90,6 +117,8 @@ export const AutorizacoesAFCManager: React.FC<Props> = ({
       setBuscando(false);
     }
   };
+
+  const algumLimiteConfigurado = modulosExistentes.some(m => Number(limitePorModulo[m]) > 0) || Number(limiteDependencia) > 0;
 
   return (
     <div className="space-y-6">
@@ -99,57 +128,75 @@ export const AutorizacoesAFCManager: React.FC<Props> = ({
             Autorizações AFC
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Escolha qual cobrança do catálogo dá direito à autorização. O sistema busca quem já pagou (ou teve abonado)
-            e gera as autorizações prontas pra imprimir, mais a lista de assinatura.
+            Defina até qual parcela paga libera a autorização, por módulo (e para Dependência separadamente).
+            Só entram alunos com TODAS as parcelas, da 1ª até esse número, já pagas.
           </p>
         </div>
 
         <div className="space-y-4 text-xs">
-          <div>
-            <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">
-              Qual pagamento dá direito a essa autorização? (*)
-            </label>
-            <select
-              value={catalogoId}
-              onChange={(e) => { setCatalogoId(e.target.value); setAlunos(null); }}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Selecione o item do catálogo de Pagamentos Diversos...</option>
-              {catalogo.map(c => (
-                <option key={c.id} value={c.id}>{c.name} (R$ {c.defaultValue.toFixed(2)})</option>
-              ))}
-            </select>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Se o item não existir ainda, cadastre-o antes em Financeiro → Pagamentos Diversos.
-            </p>
-          </div>
+          {carregandoParcelas ? (
+            <p className="flex items-center gap-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /> Carregando parcelas do Financeiro…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {modulosExistentes.map(m => (
+                  <div key={m}>
+                    <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">
+                      Módulo {m} — libera até a parcela nº
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={limitePorModulo[m] ?? ''}
+                      onChange={(e) => { setLimitePorModulo(prev => ({ ...prev, [m]: e.target.value })); setAlunos(null); }}
+                      placeholder="Vazio = não libera"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-[11px] font-extrabold uppercase text-amber-600 mb-1">
+                    Dependência — libera até a parcela nº
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={limiteDependencia}
+                    onChange={(e) => { setLimiteDependencia(e.target.value); setAlunos(null); }}
+                    placeholder="Vazio = não libera"
+                    className="w-full px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl font-bold focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">
-              Texto da autorização (aparece em cada cartãozinho)
-            </label>
-            <input
-              type="text"
-              value={tituloAutorizacao}
-              onChange={(e) => setTituloAutorizacao(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium"
-            />
-          </div>
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">
+                  Texto da autorização (aparece em cada cartãozinho)
+                </label>
+                <input
+                  type="text"
+                  value={tituloAutorizacao}
+                  onChange={(e) => setTituloAutorizacao(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium"
+                />
+              </div>
 
-          <button
-            type="button"
-            onClick={handleBuscar}
-            disabled={buscando || !catalogoId}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white font-extrabold rounded-xl text-xs uppercase tracking-wide"
-          >
-            {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            {buscando ? 'Buscando…' : 'Buscar alunos que pagaram'}
-          </button>
+              <button
+                type="button"
+                onClick={handleBuscar}
+                disabled={buscando || !algumLimiteConfigurado}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white font-extrabold rounded-xl text-xs uppercase tracking-wide"
+              >
+                {buscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                {buscando ? 'Buscando…' : 'Buscar alunos autorizados'}
+              </button>
+            </>
+          )}
 
           {alunos !== null && (
             <div className="p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-2xl space-y-3">
               <p className="font-extrabold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                <FileCheck2 className="h-4 w-4" /> {alunos.length} aluno(s) encontrado(s) para "{itemEscolhido?.name}".
+                <FileCheck2 className="h-4 w-4" /> {alunos.length} aluno(s) autorizado(s).
               </p>
               {alunos.length > 0 ? (
                 <>
@@ -171,8 +218,7 @@ export const AutorizacoesAFCManager: React.FC<Props> = ({
                 </>
               ) : (
                 <p className="text-[11px] text-blue-700 dark:text-blue-400">
-                  Nenhum aluno pagou esse item ainda (ou o nome da cobrança lançada em Entradas ficou diferente do
-                  cadastrado no catálogo — confira em Pagamentos Diversos).
+                  Nenhum aluno com todas as parcelas em dia até o limite configurado ainda.
                 </p>
               )}
             </div>
@@ -180,11 +226,11 @@ export const AutorizacoesAFCManager: React.FC<Props> = ({
         </div>
       </div>
 
-      {mostrarImpressao && alunos && itemEscolhido && (
+      {mostrarImpressao && alunos && (
         <AutorizacaoAFCPrintView
           alunos={alunos}
           tituloAutorizacao={tituloAutorizacao}
-          nomeCobranca={itemEscolhido.name}
+          nomeCobranca="Mensalidades em dia"
           onClose={() => setMostrarImpressao(false)}
         />
       )}
