@@ -81,15 +81,21 @@ export async function importarRegularizacoesEmLote(
   const { error, data } = await supabase.from('financeiro_regularizacao_retroativa').insert(linhas).select('id');
   if (error) return { ok: false, erro: explicarErroFinanceiro(error) };
 
-  // Log de auditoria — uma linha por registro importado.
-  for (const r of registros) {
-    await registrarAlteracaoStatus({
-      alunoId: r.alunoId, alunoNome: r.alunoNome, tipoRegistro: r.tipo,
-      statusAnterior: null, statusNovo: r.status, competencia: r.competencia ?? null,
-      numeroParcela: r.numeroParcela ?? null, dataPagamento: r.dataPagamento ?? null,
-      origem: 'RETROATIVO', usuario: user, motivo: 'Importação em lote de regularização retroativa',
-    });
-  }
+  // BUG REAL evitado aqui: gravar o log de auditoria um registro de cada
+  // vez, esperando cada um antes do próximo, deixaria uma importação de
+  // algumas centenas de linhas (que é exatamente esse caso, ~700-1000
+  // parcelas + pagamentos) demorando vários minutos, dando a impressão de
+  // ter travado. Uma importação com muitos alunos de módulos 2 e 3 é
+  // normal ter bastante linha (cada aluno pago gera várias parcelas pra
+  // trás) — por isso a gravação do log inteiro vai de uma vez só.
+  const logs = registros.map(r => ({
+    aluno_id: r.alunoId, aluno_nome: r.alunoNome, tipo_registro: r.tipo, registro_id: null,
+    status_anterior: null, status_novo: r.status, competencia: r.competencia ?? null,
+    numero_parcela: r.numeroParcela ?? null, data_pagamento: r.dataPagamento ?? null,
+    origem: 'RETROATIVO', usuario: user, motivo: 'Importação em lote de regularização retroativa',
+  }));
+  const { error: erroLog } = await supabase.from('financeiro_status_alteracoes_log').insert(logs);
+  if (erroLog) console.warn('[Regularização] log em lote:', explicarErroFinanceiro(erroLog));
 
   await addFinancialAuditLog(user, 'REGULARIZACAO_RETROATIVA_IMPORTADA', `${registros.length} registro(s) de regularização retroativa importado(s).`);
   return { ok: true, quantidadeImportada: data?.length ?? registros.length };
