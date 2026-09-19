@@ -17,7 +17,7 @@ import {
   FinancialNote, FinancialReceipt, FinancialAuditLog, ExemptionItem, ReportTemplate
 } from '../types/financeiro';
 
-function explicarErroFinanceiro(erro: any): string {
+export function explicarErroFinanceiro(erro: any): string {
   const m = String(erro?.message || erro);
   if (m.includes('financeiro_') && m.includes('does not exist')) {
     return 'O financeiro ainda não foi instalado no banco. Rode o arquivo 40_financeiro_tabelas.sql no Supabase.';
@@ -813,11 +813,20 @@ export async function updateInstallmentDueDate(
     .from('financeiro_parcelas').select('*').eq('id', installmentId).single();
   if (erroLer || !linha) return false;
 
-  const { error } = await supabase.from('financeiro_parcelas').update({
+  const hoje = new Date().toISOString().split('T')[0];
+  const atualizacao: Record<string, any> = {
     vencimento: newDueDate, valor_desconto: newDiscountValue, data_limite_desconto: newDiscountLimitDate,
     data_inicio_juros: newInterestStartDate,
     observacoes: `${linha.observacoes || ''} | Vencimento alterado em ${new Date().toLocaleDateString('pt-BR')} por ${user}: ${reason}`.trim(),
-  }).eq('id', installmentId);
+  };
+  // Se a parcela estava ATRASADA e o novo vencimento é hoje ou no futuro,
+  // ela deixa de estar atrasada — sem isso, mesmo com prazo novo, ela
+  // continuava aparecendo como atrasada em toda outra tela do sistema.
+  if (linha.status === 'ATRASADA' && newDueDate >= hoje) {
+    atualizacao.status = 'PENDENTE';
+  }
+
+  const { error } = await supabase.from('financeiro_parcelas').update(atualizacao).eq('id', installmentId);
   if (error) return false;
 
   await addFinancialAuditLog(user, 'ALTERACAO_VENCIMENTO', `Vencimento da Parcela ${linha.numero}/${linha.total_parcelas} de ${linha.aluno_nome} alterado para ${newDueDate}. Motivo: ${reason}`);
