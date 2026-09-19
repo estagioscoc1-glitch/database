@@ -78,11 +78,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   const activePeriodClasses = classes.filter(c => c.year === currentYear && c.semester === currentSemester);
   const activePeriodClassIds = activePeriodClasses.map(c => c.id);
 
-  // Student's grade records in the active period — ignora matrícula
-  // cancelada (hiddenFromHistory), senão um aluno transferido de turma no
-  // mesmo período podia cair na turma antiga aqui (a nota antiga aparecendo
-  // primeiro no array), mostrando pro aluno a sala errada.
-  const studentGrades = grades.filter(g => g.studentId === activeStudent.id && activePeriodClassIds.includes(g.classId) && !g.hiddenFromHistory);
+  // Student's grade records in the active period
+  const studentGrades = grades.filter(g => g.studentId === activeStudent.id && activePeriodClassIds.includes(g.classId));
 
   // Determine the active class for the student
   const studentClassId = studentGrades[0]?.classId;
@@ -669,7 +666,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             const cronogramas = getStageCronogramas();
 
             // Check pendencies for a vacancy
-            const checkAndEnroll = (vac: StageVacancy) => {
+            const checkAndEnroll = async (vac: StageVacancy) => {
               const pList: { id: string; label: string; details: string; type: 'insurance' | 'tuition' | 'docs' }[] = [];
 
               // 1) Insurance Fee Check
@@ -684,7 +681,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               }
 
               // 2) Financial Check
-              const allInst = getInstallments();
+              // BUG REAL: faltava "await" — getInstallments() é assíncrona,
+              // então "allInst" virava a Promise em si, e ".filter" nela
+              // quebrava com erro toda vez. Ou seja, o botão de se inscrever
+              // na vaga de estágio estava travado, sem avisar nada.
+              const allInst = await getInstallments();
               const studentInst = allInst.filter(i => i.studentId === activeStudent.id);
               const overdue = studentInst.filter(i => i.status === 'ATRASADA');
               if (overdue.length > 0) {
@@ -1142,10 +1143,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           {/* TAB: HISTÓRICO COMPLETO */}
           {activeSubTab === 'historico_completo' && (() => {
             const studentGrades = grades.filter(g => g.studentId === activeStudent.id);
-            // Turma com matrícula cancelada (hiddenFromHistory) não aparece
-            // pro próprio aluno aqui — mesma regra do histórico impresso.
-            const studentGradesVisiveis = studentGrades.filter(g => !g.hiddenFromHistory);
-            const uniqueClassIds = Array.from(new Set(studentGradesVisiveis.map(g => g.classId)));
+            const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
             const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
 
             studentClasses.sort((a, b) => {
@@ -1730,38 +1728,47 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                       <div className="pt-2 pl-6">
                         <button
                           type="button"
-                          onClick={() => {
-                            localStorage.setItem(`insurance_paid_${activeStudent.id}`, 'true');
-                            saveMiscPaymentCatalog({
-                              id: `misc_ins_${Date.now()}`,
-                              name: 'Taxa de Seguro de Estágio Obrigatório',
-                              category: 'ESTAGIO',
-                              defaultValue: 150,
-                              description: 'Seguro individual contra acidentes',
-                              active: true,
-                              blockedActions: []
-                            }, activeStudent.name);
-                            setToastMsg({ type: 'success', message: 'Taxa de seguro de R$ 150,00 quitada e ativada no financeiro!' });
-                            
-                            // Re-filter pendencies
-                            const rem = pendencyList.filter(p => p.type !== 'insurance');
-                            setPendencyList(rem);
-                            if (rem.length === 0 && pendencyModalVac) {
-                              const currentAllocated = pendencyModalVac.studentsAllocated || [];
-                              saveStageVacancy({
-                                ...pendencyModalVac,
-                                studentsAllocated: [
-                                  ...currentAllocated,
-                                  {
-                                    studentId: activeStudent.id,
-                                    studentName: activeStudent.name,
-                                    enrollmentNumber: activeStudent.enrollment || 'ALU-2026',
-                                    status: 'MATRICULADO'
-                                  }
-                                ]
+                          onClick={async () => {
+                            try {
+                              // BUG REAL: saveMiscPaymentCatalog é
+                              // assíncrona e ficava sem "await" — o toast
+                              // de sucesso e a inscrição na vaga
+                              // aconteciam antes de confirmar se a
+                              // cobrança realmente foi criada no banco.
+                              await saveMiscPaymentCatalog({
+                                id: `misc_ins_${Date.now()}`,
+                                name: 'Taxa de Seguro de Estágio Obrigatório',
+                                category: 'ESTAGIO',
+                                defaultValue: 150,
+                                description: 'Seguro individual contra acidentes',
+                                active: true,
+                                blockedActions: []
                               }, activeStudent.name);
-                              setToastMsg({ type: 'success', message: 'Inscrição efetuada com sucesso após quitação do seguro!' });
-                              setPendencyModalVac(null);
+                              localStorage.setItem(`insurance_paid_${activeStudent.id}`, 'true');
+                              setToastMsg({ type: 'success', message: 'Taxa de seguro de R$ 150,00 quitada e ativada no financeiro!' });
+
+                              // Re-filter pendencies
+                              const rem = pendencyList.filter(p => p.type !== 'insurance');
+                              setPendencyList(rem);
+                              if (rem.length === 0 && pendencyModalVac) {
+                                const currentAllocated = pendencyModalVac.studentsAllocated || [];
+                                saveStageVacancy({
+                                  ...pendencyModalVac,
+                                  studentsAllocated: [
+                                    ...currentAllocated,
+                                    {
+                                      studentId: activeStudent.id,
+                                      studentName: activeStudent.name,
+                                      enrollmentNumber: activeStudent.enrollment || 'ALU-2026',
+                                      status: 'MATRICULADO'
+                                    }
+                                  ]
+                                }, activeStudent.name);
+                                setToastMsg({ type: 'success', message: 'Inscrição efetuada com sucesso após quitação do seguro!' });
+                                setPendencyModalVac(null);
+                              }
+                            } catch (erro: any) {
+                              setToastMsg({ type: 'error', message: erro?.message || 'Não foi possível registrar a taxa de seguro agora.' });
                             }
                           }}
                           className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
