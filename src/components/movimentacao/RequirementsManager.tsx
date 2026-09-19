@@ -85,69 +85,83 @@ export const RequirementsManager: React.FC<RequirementsManagerProps> = ({ curren
     setReqFee(cfg.feeValue);
     setReqFeePaid(!cfg.isFeeMandatory || cfg.feeValue === 0);
 
-    // Get student details
-    const studentEnrs = enrollmentsList.filter(e => e.studentId === selectedStudent.id || e.studentName === selectedStudent.name);
-    const primaryEnr = studentEnrs[0];
-    
-    // Check financial overdue
-    const allInsts = getInstallments();
-    const studentInsts = allInsts.filter(i => i.studentId === selectedStudent.id || i.studentName === selectedStudent.name || (primaryEnr && i.enrollment === primaryEnr.enrollmentNumber));
-    const today = new Date().toISOString().split('T')[0];
-    const hasOverdue = studentInsts.some(i => i.status === 'ATRASADA' || (i.status === 'PENDENTE' && i.dueDate < today));
-    
-    // Check cancelation
-    const cancelations = getCancelations();
-    const isCanceled = cancelations.some(c => c.studentId === selectedStudent.id || c.studentName === selectedStudent.name);
+    let cancelado = false;
 
-    // Check stages
-    const stageEvals = getStageEvaluations();
-    const studentStageEvals = stageEvals.filter(e => e.studentId === selectedStudent.id || e.studentName === selectedStudent.name);
-    const stagesCompleted = studentStageEvals.length > 0 && studentStageEvals.every(e => e.approved || (e.grade && e.grade >= 7));
+    // useEffect não aceita uma função async diretamente — por isso a busca
+    // fica numa função interna, chamada logo abaixo.
+    const verificarCondicoes = async () => {
+      // Get student details
+      const studentEnrs = enrollmentsList.filter(e => e.studentId === selectedStudent.id || e.studentName === selectedStudent.name);
+      const primaryEnr = studentEnrs[0];
 
-    // Check document checkitems
-    const docsDelivered = primaryEnr?.documentChecklist?.every((d: any) => d.delivered) ?? true;
+      // Check financial overdue
+      // BUG REAL: faltava "await" — getInstallments() é assíncrona, e sem
+      // esperar o resultado o ".filter" quebrava com erro toda vez que um
+      // requerimento era aberto, travando a checagem de pendências inteira
+      // (nem cancelamento, nem estágio, nem documentos chegavam a ser
+      // conferidos, porque o erro interrompia a função no meio).
+      const allInsts = await getInstallments();
+      if (cancelado) return;
+      const studentInsts = allInsts.filter(i => i.studentId === selectedStudent.id || i.studentName === selectedStudent.name || (primaryEnr && i.enrollment === primaryEnr.enrollmentNumber));
+      const today = new Date().toISOString().split('T')[0];
+      const hasOverdue = studentInsts.some(i => i.status === 'ATRASADA' || (i.status === 'PENDENTE' && i.dueDate < today));
 
-    // Build conditions list
-    const condList: RequirementCondition[] = cfg.customConditions || [
-      { id: 'default_1', name: 'Sem Mensalidades ou Débitos em Atraso', key: 'NO_OVERDUE', required: cfg.rules.requireNoOverdueInstallments },
-      { id: 'default_2', name: 'Matrícula Ativa no Período', key: 'ACTIVE_ENROLLMENT', required: cfg.rules.requireActiveEnrollment },
-      { id: 'default_3', name: 'Taxa do Requerimento Quitada', key: 'FEE_PAID', required: cfg.rules.requireFeePaid }
-    ];
+      // Check cancelation
+      const cancelations = getCancelations();
+      const isCanceled = cancelations.some(c => c.studentId === selectedStudent.id || c.studentName === selectedStudent.name);
 
-    const mappedStatus = condList.map(cond => {
-      let fulfilled = true;
-      let notes = 'Atendido';
+      // Check stages
+      const stageEvals = getStageEvaluations();
+      const studentStageEvals = stageEvals.filter(e => e.studentId === selectedStudent.id || e.studentName === selectedStudent.name);
+      const stagesCompleted = studentStageEvals.length > 0 && studentStageEvals.every(e => e.approved || (e.grade && e.grade >= 7));
 
-      if (cond.key === 'NO_OVERDUE') {
-        fulfilled = !hasOverdue;
-        notes = hasOverdue ? 'Atenção: Existem mensalidades em atraso' : 'Nenhuma parcela pendente';
-      } else if (cond.key === 'ACTIVE_ENROLLMENT') {
-        fulfilled = !isCanceled && (primaryEnr ? primaryEnr.status === 'ATIVA' : true);
-        notes = isCanceled ? 'Matrícula cancelada/trancada' : 'Matrícula ativa';
-      } else if (cond.key === 'FEE_PAID') {
-        fulfilled = reqFeePaid;
-        notes = reqFeePaid ? 'Taxa quitada' : 'Aguardando pagamento da taxa';
-      } else if (cond.key === 'STAGES_COMPLETED') {
-        fulfilled = stagesCompleted;
-        notes = stagesCompleted ? 'Estágios concluídos com êxito' : 'Pendência em estágios supervisionados';
-      } else if (cond.key === 'DOCS_DELIVERED') {
-        fulfilled = docsDelivered;
-        notes = docsDelivered ? 'Documentos de matrícula entregues' : 'Documentos de matrícula pendentes';
-      } else if (cond.key === 'CANCELED_ENROLLMENT') {
-        fulfilled = isCanceled;
-        notes = isCanceled ? 'Cancelamento formalizado' : 'Requer matrícula trancada/cancelada';
-      }
+      // Check document checkitems
+      const docsDelivered = primaryEnr?.documentChecklist?.every((d: any) => d.delivered) ?? true;
 
-      return {
-        conditionId: cond.id,
-        name: cond.name,
-        fulfilled,
-        notes
-      };
-    });
+      // Build conditions list
+      const condList: RequirementCondition[] = cfg.customConditions || [
+        { id: 'default_1', name: 'Sem Mensalidades ou Débitos em Atraso', key: 'NO_OVERDUE', required: cfg.rules.requireNoOverdueInstallments },
+        { id: 'default_2', name: 'Matrícula Ativa no Período', key: 'ACTIVE_ENROLLMENT', required: cfg.rules.requireActiveEnrollment },
+        { id: 'default_3', name: 'Taxa do Requerimento Quitada', key: 'FEE_PAID', required: cfg.rules.requireFeePaid }
+      ];
 
-    setConditionsStatus(mappedStatus);
+      const mappedStatus = condList.map(cond => {
+        let fulfilled = true;
+        let notes = 'Atendido';
 
+        if (cond.key === 'NO_OVERDUE') {
+          fulfilled = !hasOverdue;
+          notes = hasOverdue ? 'Atenção: Existem mensalidades em atraso' : 'Nenhuma parcela pendente';
+        } else if (cond.key === 'ACTIVE_ENROLLMENT') {
+          fulfilled = !isCanceled && (primaryEnr ? primaryEnr.status === 'ATIVA' : true);
+          notes = isCanceled ? 'Matrícula cancelada/trancada' : 'Matrícula ativa';
+        } else if (cond.key === 'FEE_PAID') {
+          fulfilled = reqFeePaid;
+          notes = reqFeePaid ? 'Taxa quitada' : 'Aguardando pagamento da taxa';
+        } else if (cond.key === 'STAGES_COMPLETED') {
+          fulfilled = stagesCompleted;
+          notes = stagesCompleted ? 'Estágios concluídos com êxito' : 'Pendência em estágios supervisionados';
+        } else if (cond.key === 'DOCS_DELIVERED') {
+          fulfilled = docsDelivered;
+          notes = docsDelivered ? 'Documentos de matrícula entregues' : 'Documentos de matrícula pendentes';
+        } else if (cond.key === 'CANCELED_ENROLLMENT') {
+          fulfilled = isCanceled;
+          notes = isCanceled ? 'Cancelamento formalizado' : 'Requer matrícula trancada/cancelada';
+        }
+
+        return {
+          conditionId: cond.id,
+          name: cond.name,
+          fulfilled,
+          notes
+        };
+      });
+
+      if (!cancelado) setConditionsStatus(mappedStatus);
+    };
+
+    void verificarCondicoes();
+    return () => { cancelado = true; };
   }, [selectedConfigId, selectedStudent, enrollmentsList, reqFeePaid]);
 
   // Calculate delivery deadline date from requested date + delivery days

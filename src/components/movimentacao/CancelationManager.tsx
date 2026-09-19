@@ -34,7 +34,7 @@ export const CancelationManager: React.FC<CancelationManagerProps> = ({ currentU
 
   const selectedEnrollment = activeEnrollmentList.find(e => e.studentId === selectedStudentId);
 
-  const handleConfirmCancelation = (e: React.FormEvent) => {
+  const handleConfirmCancelation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEnrollment) {
       setNotification({ type: 'error', message: 'Selecione o aluno para efetuar o cancelamento.' });
@@ -64,7 +64,9 @@ export const CancelationManager: React.FC<CancelationManagerProps> = ({ currentU
       futureInstallmentsCanceled: cancelFutureFinance
     };
 
-    cancelStudentEnrollment(cancelation, currentUser);
+    // BUG REAL: cancelStudentEnrollment virou assíncrona (agora cancela as
+    // parcelas de verdade no Supabase) — faltava esperar por ela aqui.
+    await cancelStudentEnrollment(cancelation, currentUser);
     setCancelations(getCancelations());
     setNotification({
       type: 'success',
