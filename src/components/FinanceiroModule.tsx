@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Wallet, TrendingUp, TrendingDown, Layers, Lock, Award, GraduationCap, 
-  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, FileCheck2, Landmark,
+  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, FileCheck2, Landmark, Eye,
   ShieldAlert, History, Printer 
 } from 'lucide-react';
 
@@ -11,6 +11,9 @@ import { ExpensesManager } from './financeiro/ExpensesManager';
 import { GenerateInstallmentsManager } from './financeiro/GenerateInstallmentsManager';
 import { AutorizacoesAFCManager } from './financeiro/AutorizacoesAFCManager';
 import { BoletosManager } from './financeiro/BoletosManager';
+import { RegularizacaoRetroativaManager } from './financeiro/RegularizacaoRetroativaManager';
+import { EditarRegularizacoesManager } from './financeiro/EditarRegularizacoesManager';
+import { VisibilidadeFinanceiroManager } from './financeiro/VisibilidadeFinanceiroManager';
 import { MiscPaymentsCatalogManager } from './financeiro/MiscPaymentsCatalogManager';
 import { ScholarshipsManager } from './financeiro/ScholarshipsManager';
 import { CoursePricesManager } from './financeiro/CoursePricesManager';
@@ -60,6 +63,9 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
     { id: 15, label: 'Reimprimir Recibo', icon: Printer, desc: 'Reimpressão de 2ª via de recibos dados baixa' },
     { id: 16, label: 'Autorizações AFC', icon: FileCheck2, desc: 'Cartões de autorização + lista de assinatura' },
     { id: 17, label: 'Emitir Boletos', icon: Landmark, desc: 'Boleto bancário — pronto pra quando conveniar o banco' },
+    { id: 18, label: 'Importar Regularização', icon: History, desc: 'Regularização retroativa — parcelas, seguro, kit e jaleco antigos' },
+    { id: 19, label: 'Editar Regularizações', icon: ShieldCheck, desc: 'Editar mês, parcela, status e data dos registros já importados' },
+    { id: 20, label: 'Visibilidade Financeiro Aluno', icon: Eye, desc: 'Liberar ou ocultar a aba Financeiro na área do aluno' },
   ];
 
   const handleOpenAudit = async () => {
@@ -130,6 +136,9 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
         {activeSubMenu === 4 && <GenerateInstallmentsManager currentUser={currentUser} allStudentUsers={allStudentUsers} courses={courses} classes={classes} />}
         {activeSubMenu === 16 && <AutorizacoesAFCManager allStudentUsers={allStudentUsers} courses={courses} classes={classes} />}
         {activeSubMenu === 17 && <BoletosManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
+        {activeSubMenu === 18 && <RegularizacaoRetroativaManager currentUser={currentUser} allStudentUsers={allStudentUsers} classes={classes} />}
+        {activeSubMenu === 19 && <EditarRegularizacoesManager currentUser={currentUser} />}
+        {activeSubMenu === 20 && <VisibilidadeFinanceiroManager currentUser={currentUser} allStudentUsers={allStudentUsers} classes={classes} />}
         {activeSubMenu === 5 && <MiscPaymentsCatalogManager currentUser={currentUser} />}
         {activeSubMenu === 6 && <ScholarshipsManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 7 && <CoursePricesManager currentUser={currentUser} courses={courses} />}

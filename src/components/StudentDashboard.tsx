@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
 import { CronogramaDoAluno } from './estagios/EstagioCronogramaModule';
 import { InscricaoEstagioAluno } from './estagios/InscricaoEstagioAluno';
@@ -23,6 +23,8 @@ import {
   getEventParticipants, getEvents, getOfficialTemplates 
 } from '../services/movimentacaoStorage';
 import { getInstallments, saveMiscPaymentCatalog } from '../services/financeiroStorage';
+import { financeiroVisivelParaAluno, listarRegularizacoesDoAluno, seguroAindaValido } from '../services/regularizacaoStorage';
+import { AlunoFinanceiroTab } from './AlunoFinanceiroTab';
 import { StageVacancy, EventParticipant, EventMinicourse } from '../types/movimentacao';
 import { MovimentacaoDocumentPrintModal } from './movimentacao/MovimentacaoDocumentPrintModal';
 import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'lucide-react';
@@ -43,7 +45,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
   const [printHistorico, setPrintHistorico] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo' | 'certificados'>('aproveitamento');
+  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo' | 'certificados' | 'financeiro'>('aproveitamento');
+  const [financeiroVisivel, setFinanceiroVisivel] = useState(false);
   const [printDeclType, setPrintDeclType] = useState<'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | null>(null);
   
   // Local state for simulated uploads
@@ -66,6 +69,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   const [selectedCertModal, setSelectedCertModal] = useState<{ title: string; contentHtml?: string; pdfUrl?: string; pdfName?: string } | null>(null);
 
   const activeStudent = studentId ? (users.find(u => u.id === studentId) || currentUser) : currentUser;
+
+  useEffect(() => {
+    let cancelado = false;
+    if (activeStudent?.id) {
+      void financeiroVisivelParaAluno(activeStudent.id).then(v => { if (!cancelado) setFinanceiroVisivel(v); });
+    }
+    return () => { cancelado = true; };
+  }, [activeStudent?.id]);
 
   if (!activeStudent) return null;
 
@@ -293,6 +304,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               >
                 💼 Estágios Curriculares
               </button>
+              {financeiroVisivel && (
+                <button
+                  onClick={() => setActiveSubTab('financeiro')}
+                  className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                    activeSubTab === 'financeiro'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  💰 Financeiro
+                </button>
+              )}
               {/* "Meus Certificados" escondido a pedido — a escola tem outra
                   solução para entregar certificado ao aluno, fora do portal. */}
             </div>
@@ -641,6 +664,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           })()}
 
           {/* TAB 4: ESTÁGIO (Student Tracking & Self-Enrollment) */}
+          {activeSubTab === 'financeiro' && financeiroVisivel && (
+            <AlunoFinanceiroTab alunoId={activeStudent.id} modulo={(classes.find((c: any) => c.id === activeStudent.classId) as any)?.module} />
+          )}
+
           {activeSubTab === 'estagio' && (() => {
             const courseId = courseInfo?.id || '';
             const courseName = courseInfo?.name || '';
@@ -670,7 +697,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               const pList: { id: string; label: string; details: string; type: 'insurance' | 'tuition' | 'docs' }[] = [];
 
               // 1) Insurance Fee Check
-              const insurancePaid = localStorage.getItem(`insurance_paid_${activeStudent.id}`) === 'true';
+              // Agora também aceita regularização retroativa: se a secretaria
+              // já regularizou o seguro desse aluno (pago antes do sistema
+              // existir), conta como pago aqui também — sem isso, todo aluno
+              // que pagou seguro antes de setembro/2026 ficaria bloqueado
+              // pra sempre, mesmo já tendo pago de verdade.
+              const insurancePaidLocal = localStorage.getItem(`insurance_paid_${activeStudent.id}`) === 'true';
+              const regularizacoes = await listarRegularizacoesDoAluno(activeStudent.id);
+              // Seguro retroativo só conta enquanto ainda estiver dentro de
+              // 1 ano da data de pagamento — depois disso vence de novo.
+              const seguroRegularizado = regularizacoes.some(r => r.tipo === 'SEGURO' && r.status === 'PAGO' && seguroAindaValido(r.dataPagamento));
+              const insurancePaid = insurancePaidLocal || seguroRegularizado;
               if (!insurancePaid) {
                 pList.push({
                   id: 'insurance',
