@@ -33,6 +33,8 @@ export const ScholarshipsManager: React.FC<ScholarshipsManagerProps> = ({
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
 
+  const [salvando, setSalvando] = useState(false);
+
   const refreshData = () => {
     setScholarships(getScholarships());
   };
@@ -75,7 +77,7 @@ export const ScholarshipsManager: React.FC<ScholarshipsManagerProps> = ({
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
       alert('Selecione um aluno para vincular a bolsa.');
@@ -104,10 +106,23 @@ export const ScholarshipsManager: React.FC<ScholarshipsManagerProps> = ({
       active
     };
 
-    saveScholarship(item, currentUser);
-    setShowModal(false);
-    refreshData();
-    alert('Bolsa salva! O desconto foi recalculado e aplicado a todas as parcelas pendentes do aluno.');
+    setSalvando(true);
+    try {
+      // BUG REAL: saveScholarship ficava sem "await", e a função que ela
+      // chama por baixo dos panos (aplicar o desconto nas parcelas
+      // pendentes) tinha outro bug que a fazia sempre falhar (ver
+      // financeiroStorage.ts). Ou seja: a mensagem de sucesso abaixo
+      // aparecia, mas o desconto NUNCA era aplicado de verdade na
+      // mensalidade do aluno. Os dois foram corrigidos juntos.
+      await saveScholarship(item, currentUser);
+      setShowModal(false);
+      refreshData();
+      alert('Bolsa salva! O desconto foi recalculado e aplicado a todas as parcelas pendentes do aluno.');
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível salvar essa bolsa agora.');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const filteredScholarships = scholarships.filter(s => 

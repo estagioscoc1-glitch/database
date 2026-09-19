@@ -26,38 +26,50 @@ export const CancelationsManager: React.FC<CancelationsManagerProps> = ({
   const [editMethodReceipt, setEditMethodReceipt] = useState<FinancialReceipt | null>(null);
   const [newMethod, setNewMethod] = useState('');
 
-  /* getPaymentMethods já fala com o banco (Parte 2) — devolve Promise.
-     getReceipts continua no navegador até a Parte 7 converter Recibos. */
+  /* getPaymentMethods e getReceipts já falam com o banco — faltava o
+     "await" na de recibos. */
   const refreshData = async () => {
-    setReceipts(getReceipts());
-    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
+    const [todosRecibos, metodos] = await Promise.all([getReceipts(), getPaymentMethods()]);
+    setReceipts(todosRecibos);
+    setPaymentMethods(metodos.filter(m => m.active));
   };
 
   useEffect(() => {
     void refreshData();
   }, []);
 
-  const handleCancelSubmit = (e: React.FormEvent) => {
+  const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedReceipt || !cancelReason.trim()) return;
 
     if (confirm(`Deseja realmente CANCELAR o recibo #${selectedReceipt.receiptNumber}? O lançamento será estornado e reaberto.`)) {
-      cancelReceipt(selectedReceipt.receiptNumber, currentUser, cancelReason.trim());
+      // BUG REAL: cancelReceipt é assíncrona e ficava sem "await" — a tela
+      // fechava o modal e dava como cancelado mesmo sem confirmação
+      // nenhuma do banco.
+      const ok = await cancelReceipt(selectedReceipt.receiptNumber, currentUser, cancelReason.trim());
+      if (!ok) {
+        alert('Não foi possível cancelar esse recibo agora.');
+        return;
+      }
       setSelectedReceipt(null);
       setCancelReason('');
-      void refreshData();
+      await refreshData();
     }
   };
 
-  const handleEditMethodSubmit = (e: React.FormEvent) => {
+  const handleEditMethodSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editMethodReceipt || !newMethod) return;
 
-    const res = updateReceiptPaymentMethod(editMethodReceipt.receiptNumber, newMethod, currentUser, isAdmin);
+    // BUG REAL: updateReceiptPaymentMethod é assíncrona e ficava sem
+    // "await" — "res" virava a Promise em si, então res.message e
+    // res.success eram sempre undefined (o alerta saía "undefined" e o
+    // modal nunca fechava, mesmo quando a troca dava certo no banco).
+    const res = await updateReceiptPaymentMethod(editMethodReceipt.receiptNumber, newMethod, currentUser, isAdmin);
     alert(res.message);
     if (res.success) {
       setEditMethodReceipt(null);
-      void refreshData();
+      await refreshData();
     }
   };
 

@@ -48,16 +48,23 @@ export const FinancialReportsManager: React.FC<FinancialReportsManagerProps> = (
     void loadData();
   }, []);
 
-  // getCashRegisters já fala com o banco (Parte 1) — devolve Promise.
-  // As outras quatro continuam no navegador até as próximas partes.
+  // Migração completa: getCashRegisters, getReceipts, getExpenses e
+  // getInstallments já falam todas com o banco agora (só getReportTemplates
+  // continua no navegador) — faltavam os "await" nas três últimas, que
+  // ficaram apontando para a Promise em vez do resultado.
   const loadData = async () => {
-    const regs = await getCashRegisters();
+    const [regs, todosRecibos, todasDespesas, todasParcelas] = await Promise.all([
+      getCashRegisters(),
+      getReceipts(),
+      getExpenses(),
+      getInstallments(),
+    ]);
     setCashRegisters(regs);
     if (regs.length > 0 && !selectedCashId) setSelectedCashId(regs[0].id);
 
-    setReceipts(getReceipts());
-    setExpenses(getExpenses());
-    setInstallments(getInstallments());
+    setReceipts(todosRecibos);
+    setExpenses(todasDespesas);
+    setInstallments(todasParcelas);
     setTemplates(getReportTemplates());
   };
 

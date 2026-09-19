@@ -25,11 +25,13 @@ export const ReprintReceiptsManager: React.FC<ReprintReceiptsManagerProps> = ({
   const [selectedReceipt, setSelectedReceipt] = useState<FinancialReceipt | null>(null);
 
   useEffect(() => {
-    loadReceipts();
+    void loadReceipts();
   }, []);
 
-  const loadReceipts = () => {
-    const list = getReceipts();
+  const loadReceipts = async () => {
+    // BUG REAL: faltava "await" — getReceipts() é assíncrona; a lista de
+    // recibos para reimprimir nunca carregava.
+    const list = await getReceipts();
     setReceipts(list);
   };
 

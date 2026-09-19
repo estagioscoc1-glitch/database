@@ -35,20 +35,22 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
   const [notes, setNotes] = useState('');
   const [voucherName, setVoucherName] = useState('');
 
-  /* getPaymentMethods e getOpenCashRegister já falam com o banco (Partes 1
-     e 2) — passaram a devolver Promise. getExpenses continua no navegador
-     até a Parte 6 converter Saídas. */
+  /* getPaymentMethods e getOpenCashRegister já falam com o banco.
+     getExpenses também já foi convertida — faltava o "await" aqui. */
   const refreshData = async () => {
-    setExpenses(getExpenses());
-    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
-    setOpenCash(await getOpenCashRegister());
+    const [todasDespesas, metodos, caixa] = await Promise.all([
+      getExpenses(), getPaymentMethods(), getOpenCashRegister(),
+    ]);
+    setExpenses(todasDespesas);
+    setPaymentMethods(metodos.filter(m => m.active));
+    setOpenCash(caixa);
   };
 
   useEffect(() => {
     void refreshData();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(value.replace(',', '.'));
     if (isNaN(val) || val <= 0) {
@@ -62,27 +64,34 @@ export const ExpensesManager: React.FC<ExpensesManagerProps> = ({
       }
     }
 
-    addExpense({
-      resourceOrigin,
-      category,
-      description,
-      value: val,
-      paymentMethod,
-      beneficiary,
-      date,
-      user: currentUser,
-      notes: notes.trim() || undefined,
-      voucher: voucherName || undefined
-    }, currentUser);
+    try {
+      // BUG REAL: addExpense é assíncrona e ficava sem "await" — a tela
+      // fechava o formulário e limpava os campos antes mesmo de saber se a
+      // despesa tinha sido gravada.
+      await addExpense({
+        resourceOrigin,
+        category,
+        description,
+        value: val,
+        paymentMethod,
+        beneficiary,
+        date,
+        user: currentUser,
+        notes: notes.trim() || undefined,
+        voucher: voucherName || undefined
+      }, currentUser);
 
-    // Reset Form
-    setShowAddModal(false);
-    setDescription('');
-    setValue('');
-    setBeneficiary('');
-    setNotes('');
-    setVoucherName('');
-    void refreshData();
+      // Reset Form
+      setShowAddModal(false);
+      setDescription('');
+      setValue('');
+      setBeneficiary('');
+      setNotes('');
+      setVoucherName('');
+      await refreshData();
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível registrar essa despesa agora.');
+    }
   };
 
   const filteredExpenses = expenses.filter(exp => {

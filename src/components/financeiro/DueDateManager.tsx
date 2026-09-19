@@ -23,12 +23,25 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
   const [newInterestStartDate, setNewInterestStartDate] = useState('');
   const [reason, setReason] = useState('');
 
-  const refreshData = () => {
-    setInstallments(getInstallments().filter(i => i.status === 'PENDENTE'));
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  const refreshData = async () => {
+    setCarregando(true);
+    try {
+      // BUG REAL: faltava o "await" aqui. getInstallments() é assíncrona
+      // (fala com o Supabase) — sem await, "installments" virava a Promise
+      // em si, e chamar .filter() nela quebrava sempre. Essa tela nunca
+      // carregou nenhuma parcela até agora.
+      const todas = await getInstallments();
+      setInstallments(todas.filter(i => i.status === 'PENDENTE'));
+    } finally {
+      setCarregando(false);
+    }
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   const openModal = (inst: Installment) => {
@@ -40,7 +53,7 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
     setReason('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInst || !reason.trim()) {
       alert('Informe o motivo da alteração de vencimento.');
@@ -48,20 +61,30 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
     }
 
     const discVal = parseFloat(newDiscountValue.replace(',', '.'));
-
-    updateInstallmentDueDate(
-      selectedInst.id,
-      newDueDate,
-      isNaN(discVal) ? 0 : discVal,
-      newDiscountLimitDate,
-      newInterestStartDate,
-      currentUser,
-      reason.trim()
-    );
-
-    setSelectedInst(null);
-    refreshData();
-    alert('Vencimento alterado com sucesso!');
+    setSalvando(true);
+    try {
+      // BUG REAL: faltava o "await" aqui também, e o resultado (true/false)
+      // nunca era conferido — a mensagem "alterado com sucesso" aparecia
+      // mesmo quando a atualização falhava no banco.
+      const ok = await updateInstallmentDueDate(
+        selectedInst.id,
+        newDueDate,
+        isNaN(discVal) ? 0 : discVal,
+        newDiscountLimitDate,
+        newInterestStartDate,
+        currentUser,
+        reason.trim()
+      );
+      if (!ok) {
+        alert('Não foi possível alterar o vencimento agora. Tente de novo em alguns segundos.');
+        return;
+      }
+      setSelectedInst(null);
+      await refreshData();
+      alert('Vencimento alterado com sucesso!');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const filteredInstallments = installments.filter(i => 
@@ -110,7 +133,11 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {filteredInstallments.length === 0 ? (
+              {carregando ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-400">Carregando parcelas…</td>
+                </tr>
+              ) : filteredInstallments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-400">
                     Nenhuma parcela pendente encontrada.
@@ -220,9 +247,10 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-md"
+                  disabled={salvando}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-extrabold rounded-xl shadow-md"
                 >
-                  Salvar Alterações
+                  {salvando ? 'Salvando…' : 'Salvar Alterações'}
                 </button>
               </div>
 

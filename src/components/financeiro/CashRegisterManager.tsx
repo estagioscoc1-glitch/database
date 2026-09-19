@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CashRegister } from '../../types/financeiro';
+import { CashRegister, FinancialReceipt, Expense } from '../../types/financeiro';
 import { 
   getCashRegisters, getOpenCashRegister, openCashRegister, 
   closeCashRegister, reopenCashRegister, getReceipts, getExpenses 
@@ -38,9 +38,16 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
   // Financial Print Modal State
   const [printModalData, setPrintModalData] = useState<FinancialPrintData | null>(null);
 
-  const handlePrintRegister = (reg: CashRegister) => {
-    const allRcs = getReceipts().filter(r => r.cashRegisterId === reg.id && r.status === 'VALIDO');
-    const allExps = getExpenses().filter(e => e.cashRegisterId === reg.id);
+  const [openReceipts, setOpenReceipts] = useState<FinancialReceipt[]>([]);
+  const [openExpenses, setOpenExpenses] = useState<Expense[]>([]);
+
+  const handlePrintRegister = async (reg: CashRegister) => {
+    // BUG REAL: getReceipts()/getExpenses() são assíncronas e ficavam sem
+    // "await" — o relatório de fechamento sempre saía com 0 recibos e 0
+    // despesas, mesmo caixa cheio de movimento.
+    const [todosRecibos, todasDespesas] = await Promise.all([getReceipts(), getExpenses()]);
+    const allRcs = todosRecibos.filter(r => r.cashRegisterId === reg.id && r.status === 'VALIDO');
+    const allExps = todasDespesas.filter(e => e.cashRegisterId === reg.id);
 
     setPrintModalData({
       type: 'CAIXA_DIARIO',
@@ -61,7 +68,22 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
   const refreshData = async () => {
     const list = await getCashRegisters();
     setRegisters(list);
-    setOpenCash(await getOpenCashRegister());
+    const caixaAberto = await getOpenCashRegister();
+    setOpenCash(caixaAberto);
+
+    // BUG REAL: os totais "ao vivo" do caixa aberto (linhas 121-122
+    // originais) chamavam getReceipts()/getExpenses() direto no corpo do
+    // componente, sem await — além de nunca funcionar, rodava a cada
+    // renderização. Agora são buscados aqui, junto com o resto, e guardados
+    // em estado.
+    if (caixaAberto) {
+      const [todosRecibos, todasDespesas] = await Promise.all([getReceipts(), getExpenses()]);
+      setOpenReceipts(todosRecibos.filter(r => r.cashRegisterId === caixaAberto.id && r.status === 'VALIDO'));
+      setOpenExpenses(todasDespesas.filter(e => e.cashRegisterId === caixaAberto.id));
+    } else {
+      setOpenReceipts([]);
+      setOpenExpenses([]);
+    }
   };
 
   useEffect(() => {
@@ -117,9 +139,7 @@ export const CashRegisterManager: React.FC<CashRegisterManagerProps> = ({
     }
   };
 
-  // Calculate live numbers for open cash register
-  const openReceipts = openCash ? getReceipts().filter(r => r.cashRegisterId === openCash.id && r.status === 'VALIDO') : [];
-  const openExpenses = openCash ? getExpenses().filter(e => e.cashRegisterId === openCash.id) : [];
+  // Calculate live numbers for open cash register (vem do estado agora — ver refreshData)
   const liveIncomesTotal = openReceipts.reduce((sum, r) => sum + r.totalValue, 0);
   const liveExpensesTotal = openExpenses.reduce((sum, e) => sum + e.value, 0);
   const liveBalance = (openCash?.initialBalance || 0) + liveIncomesTotal - liveExpensesTotal;

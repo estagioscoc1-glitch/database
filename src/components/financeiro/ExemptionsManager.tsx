@@ -25,16 +25,28 @@ export const ExemptionsManager: React.FC<ExemptionsManagerProps> = ({
   const [authorizer, setAuthorizer] = useState('Direção Financeira');
   const [reason, setReason] = useState('');
 
-  const refreshData = () => {
-    setExemptions(getExemptions());
-    setOpenInstallments(getInstallments().filter(i => i.status === 'PENDENTE'));
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  const refreshData = async () => {
+    setCarregando(true);
+    try {
+      // BUG REAL: as duas chamadas abaixo ficavam sem "await" — getExemptions
+      // e getInstallments viraram assíncronas (buscam no Supabase) e usar o
+      // resultado sem esperar quebrava a tela (Promise não tem .filter).
+      const [todosAbonos, todasParcelas] = await Promise.all([getExemptions(), getInstallments()]);
+      setExemptions(todosAbonos);
+      setOpenInstallments(todasParcelas.filter(i => i.status === 'PENDENTE'));
+    } finally {
+      setCarregando(false);
+    }
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedInstId) {
       alert('Selecione uma parcela para aplicar o abono.');
@@ -47,20 +59,29 @@ export const ExemptionsManager: React.FC<ExemptionsManagerProps> = ({
       return;
     }
 
-    applyExemption(
-      selectedInstId,
-      type,
-      type === 'TOTAL' ? 0 : val,
-      reason.trim(),
-      authorizer.trim(),
-      currentUser
-    );
+    setSalvando(true);
+    try {
+      // BUG REAL: faltava "await" aqui também — o abono era disparado mas o
+      // código seguia em frente sem esperar confirmação nenhuma do banco.
+      await applyExemption(
+        selectedInstId,
+        type,
+        type === 'TOTAL' ? 0 : val,
+        reason.trim(),
+        authorizer.trim(),
+        currentUser
+      );
 
-    alert('Abono aplicado com sucesso!');
-    setSelectedInstId('');
-    setReason('');
-    refreshData();
-    setMode('HISTORICO');
+      alert('Abono aplicado com sucesso!');
+      setSelectedInstId('');
+      setReason('');
+      await refreshData();
+      setMode('HISTORICO');
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível aplicar o abono agora.');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const studentInstallments = openInstallments.filter(i => 

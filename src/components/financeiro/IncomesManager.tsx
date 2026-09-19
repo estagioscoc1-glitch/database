@@ -46,13 +46,15 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
   const [miscPaymentMethod, setMiscPaymentMethod] = useState('PIX');
   const [miscNotes, setMiscNotes] = useState('');
 
-  /* getPaymentMethods e getOpenCashRegister já falam com o banco (Partes 1
-     e 2) — passaram a devolver Promise. getMiscPaymentCatalog continua no
-     navegador até a Parte 5 converter Pagamentos Diversos. */
+  /* getPaymentMethods, getOpenCashRegister e getMiscPaymentCatalog já falam
+     todas com o banco agora — faltava o "await" na do catálogo. */
   const refreshData = async () => {
-    setPaymentMethods((await getPaymentMethods()).filter(m => m.active));
-    setMiscCatalog(getMiscPaymentCatalog().filter(c => c.active));
-    setOpenCash(await getOpenCashRegister());
+    const [metodos, catalogo, caixa] = await Promise.all([
+      getPaymentMethods(), getMiscPaymentCatalog(), getOpenCashRegister(),
+    ]);
+    setPaymentMethods(metodos.filter(m => m.active));
+    setMiscCatalog(catalogo.filter(c => c.active));
+    setOpenCash(caixa);
   };
 
   useEffect(() => {
@@ -61,19 +63,26 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
 
   // Update installments when student selection changes
   useEffect(() => {
+    let cancelado = false;
     if (selectedStudent) {
-      const all = getInstallments();
-      const stInsts = all.filter(i => 
-        (i.studentId === selectedStudent.id || i.enrollment === selectedStudent.enrollment) &&
-        i.status === 'PENDENTE'
-      );
-      setStudentInstallments(stInsts);
+      // BUG REAL: faltava "await" — getInstallments() é assíncrona, e sem
+      // esperar o resultado o .filter() quebrava sempre que um aluno era
+      // selecionado (a lista de parcelas em aberto nunca aparecia).
+      getInstallments().then(all => {
+        if (cancelado) return;
+        const stInsts = all.filter(i =>
+          (i.studentId === selectedStudent.id || i.enrollment === selectedStudent.enrollment) &&
+          i.status === 'PENDENTE'
+        );
+        setStudentInstallments(stInsts);
+      });
     } else {
       setStudentInstallments([]);
     }
+    return () => { cancelado = true; };
   }, [selectedStudent]);
 
-  const handlePayInstallmentClick = (inst: Installment) => {
+  const handlePayInstallmentClick = async (inst: Installment) => {
     if (!openCash) {
       if (!confirm('ATENÇÃO: Não há nenhum caixa ABERTO no momento. Deseja prosseguir com o recebimento mesmo assim?')) {
         return;
@@ -81,18 +90,30 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
     }
 
     setProcessingId(inst.id);
-    const result = payInstallment(inst.id, selectedPaymentMethod, currentUser);
-    setProcessingId(null);
-
-    if (result) {
-      setActiveReceipt(result.receipt);
-      // Refresh list
-      const all = getInstallments();
-      const updated = all.filter(i => 
-        (i.studentId === selectedStudent?.id || i.enrollment === selectedStudent?.enrollment) &&
-        i.status === 'PENDENTE'
-      );
-      setStudentInstallments(updated);
+    try {
+      // BUG REAL: payInstallment é assíncrona e ficava sem "await" — o
+      // "if (result)" seguinte era sempre verdadeiro (é uma Promise, nunca
+      // null), então parecia ter dado certo mesmo quando falhava, e o
+      // recibo mostrado vinha vazio (result.receipt não existe numa
+      // Promise). O pagamento ainda acontecia no banco em segundo plano,
+      // só a tela é que mentia sobre o resultado.
+      const result = await payInstallment(inst.id, selectedPaymentMethod, currentUser);
+      if (result) {
+        setActiveReceipt(result.receipt);
+        // Refresh list
+        const all = await getInstallments();
+        const updated = all.filter(i =>
+          (i.studentId === selectedStudent?.id || i.enrollment === selectedStudent?.enrollment) &&
+          i.status === 'PENDENTE'
+        );
+        setStudentInstallments(updated);
+      } else {
+        alert('Não foi possível confirmar o pagamento (parcela não encontrada). Atualize a lista e tente de novo.');
+      }
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível registrar o pagamento agora.');
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -107,7 +128,7 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
     }
   };
 
-  const handleMiscSubmit = (e: React.FormEvent) => {
+  const handleMiscSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMiscStudent) {
       alert('Por favor, busque e selecione um aluno para vincular o recebimento.');
@@ -121,26 +142,33 @@ export const IncomesManager: React.FC<IncomesManagerProps> = ({
 
     const catalogItem = miscCatalog.find(c => c.id === selectedCatalogId);
 
-    const result = payMiscIncome(
-      selectedMiscStudent.id || 'st_unknown',
-      selectedMiscStudent.name || selectedMiscStudent.studentName,
-      selectedMiscStudent.enrollment || 'ALU-00',
-      miscChargeName,
-      miscCategory,
-      val,
-      miscPaymentMethod,
-      currentUser,
-      catalogItem?.blockedActions,
-      miscNotes
-    );
+    try {
+      // BUG REAL: payMiscIncome é assíncrona e ficava sem "await" — o
+      // recibo mostrado em seguida (result.receipt) vinha de uma Promise,
+      // não do resultado de verdade, então aparecia em branco.
+      const result = await payMiscIncome(
+        selectedMiscStudent.id || 'st_unknown',
+        selectedMiscStudent.name || selectedMiscStudent.studentName,
+        selectedMiscStudent.enrollment || 'ALU-00',
+        miscChargeName,
+        miscCategory,
+        val,
+        miscPaymentMethod,
+        currentUser,
+        catalogItem?.blockedActions,
+        miscNotes
+      );
 
-    setActiveReceipt(result.receipt);
+      setActiveReceipt(result.receipt);
 
-    // Reset misc form
-    setMiscChargeName('');
-    setMiscValue('0.00');
-    setMiscNotes('');
-    setSelectedCatalogId('');
+      // Reset misc form
+      setMiscChargeName('');
+      setMiscValue('0.00');
+      setMiscNotes('');
+      setSelectedCatalogId('');
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível registrar esse recebimento agora.');
+    }
   };
 
   // Filter students for search dropdown

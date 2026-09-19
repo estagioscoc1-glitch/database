@@ -25,12 +25,14 @@ export const MiscPaymentsCatalogManager: React.FC<MiscPaymentsCatalogManagerProp
   const [active, setActive] = useState(true);
   const [blockedActions, setBlockedActions] = useState<string[]>([]);
 
-  const refreshData = () => {
-    setCatalog(getMiscPaymentCatalog());
+  const refreshData = async () => {
+    // BUG REAL: faltava "await" — getMiscPaymentCatalog() é assíncrona; o
+    // catálogo de Pagamentos Diversos nunca aparecia.
+    setCatalog(await getMiscPaymentCatalog());
   };
 
   useEffect(() => {
-    refreshData();
+    void refreshData();
   }, []);
 
   const openNewModal = () => {
@@ -63,7 +65,7 @@ export const MiscPaymentsCatalogManager: React.FC<MiscPaymentsCatalogManagerProp
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(defaultValue.replace(',', '.'));
     if (isNaN(val) || val < 0) {
@@ -81,9 +83,15 @@ export const MiscPaymentsCatalogManager: React.FC<MiscPaymentsCatalogManagerProp
       blockedActions
     };
 
-    saveMiscPaymentCatalog(item, currentUser);
-    setShowModal(false);
-    refreshData();
+    try {
+      // BUG REAL: saveMiscPaymentCatalog é assíncrona e ficava sem "await"
+      // — o modal fechava antes de saber se tinha salvado de verdade.
+      await saveMiscPaymentCatalog(item, currentUser);
+      setShowModal(false);
+      await refreshData();
+    } catch (erro: any) {
+      alert(erro?.message || 'Não foi possível salvar esse item do catálogo agora.');
+    }
   };
 
   const filteredCatalog = catalog.filter(c => 
