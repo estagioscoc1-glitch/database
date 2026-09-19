@@ -14,7 +14,7 @@ import { addFinancialAuditLog, explicarErroFinanceiro } from './financeiroStorag
 //    financeiro_status_alteracoes_log.
 // ===========================================================================
 
-export type TipoRegularizacao = 'PARCELA' | 'SEGURO' | 'KIT' | 'JALECO' | 'OUTRO';
+export type TipoRegularizacao = 'PARCELA' | 'SEGURO' | 'KIT' | 'JALECO' | 'MATRICULA' | 'OUTRO';
 export type StatusRegularizacao = 'PAGO' | 'PENDENTE';
 
 export interface RegistroRegularizacao {
