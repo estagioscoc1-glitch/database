@@ -21,6 +21,8 @@ import {
   aprovarInscricao, recusarInscricao, abrirInscricoes,
   type InscricaoEstagio,
 } from '../../lib/supabaseEstagioModulo';
+import { getInstallments } from '../../services/financeiroStorage';
+import { listarRegularizacoes, seguroAindaValido } from '../../services/regularizacaoStorage';
 
 // ===========================================================================
 //  VAGAS DE ESTÁGIO
@@ -105,6 +107,33 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
     setAlunosDaVaga(al.lista);
     setInscricoes(ins.lista);
     if (al.erro) mostrar('erro', al.erro);
+    void carregarSugestoesPagamento(al.lista);
+  };
+
+  // Sugestão automática das caixinhas de Mensalidade/Seguro/Kit, a partir
+  // do financeiro real e da regularização retroativa — SÓ preenche quando
+  // a coordenação ainda não decidiu manualmente (campo null no banco). Uma
+  // vez que alguém clica na caixinha, o valor explícito manda sempre,
+  // mesmo que o financeiro mude depois — a decisão manual não é
+  // sobrescrita sozinha.
+  const [sugestoesPagamento, setSugestoesPagamento] = useState<Record<string, { mensalidade: boolean; seguro: boolean; kit: boolean }>>({});
+
+  const carregarSugestoesPagamento = async (lista: AlunoNaVaga[]) => {
+    const [todasParcelas, todasRegularizacoes] = await Promise.all([getInstallments(), listarRegularizacoes()]);
+    const mapa: Record<string, { mensalidade: boolean; seguro: boolean; kit: boolean }> = {};
+    lista.forEach(a => {
+      const parcelasDoAluno = todasParcelas.filter(p => p.studentId === a.alunoId);
+      const semAtraso = parcelasDoAluno.length === 0 ? false : !parcelasDoAluno.some(p => p.status === 'ATRASADA');
+      const regDoAluno = todasRegularizacoes.filter(r => r.alunoId === a.alunoId);
+      // Seguro só conta se ainda estiver dentro de 1 ano da data de
+      // pagamento — depois disso, vence e precisa pagar de novo.
+      const seguroOk = regDoAluno.some(r => r.tipo === 'SEGURO' && r.status === 'PAGO' && seguroAindaValido(r.dataPagamento));
+      // Kit e Jaleco contam como o MESMO requisito — qualquer um dos dois
+      // pago já libera essa caixinha (não são duas exigências separadas).
+      const kitOk = regDoAluno.some(r => (r.tipo === 'KIT' || r.tipo === 'JALECO') && r.status === 'PAGO');
+      mapa[a.alunoId] = { mensalidade: semAtraso, seguro: seguroOk, kit: kitOk };
+    });
+    setSugestoesPagamento(mapa);
   };
 
   const alunos = useMemo(() => users.filter(u => u.role === UserRole.STUDENT), [users]);
@@ -634,13 +663,22 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                 <tbody>
                   {alunosDaVaga.map(a => {
                     const media = mediaDoAluno(a);
+                    const sugestao = sugestoesPagamento[a.alunoId];
+                    const chaveSugestao: Record<'mensalidadeOk' | 'seguroOk' | 'kitOk', 'mensalidade' | 'seguro' | 'kit'> = {
+                      mensalidadeOk: 'mensalidade', seguroOk: 'seguro', kitOk: 'kit',
+                    };
                     return (
                       <tr key={a.id} className="border-t border-slate-100 dark:border-slate-800">
                         <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{a.alunoNome}</td>
                         <td className="px-3 py-2 text-slate-500">{a.alunoMatricula || '—'}</td>
-                        {(['mensalidadeOk', 'seguroOk', 'kitOk'] as const).map(k => (
-                          <td key={k} className="px-3 py-2">
-                            <input type="checkbox" checked={!!a[k]}
+                        {(['mensalidadeOk', 'seguroOk', 'kitOk'] as const).map(k => {
+                          const decididoManualmente = a[k] !== undefined;
+                          const valorSugerido = sugestao?.[chaveSugestao[k]] ?? false;
+                          const valorExibido = decididoManualmente ? !!a[k] : valorSugerido;
+                          return (
+                            <td key={k} className="px-3 py-2">
+                              <label className="flex items-center gap-1 cursor-pointer" title={decididoManualmente ? 'Confirmado manualmente' : 'Sugestão automática a partir do financeiro — clique para confirmar'}>
+                                <input type="checkbox" checked={valorExibido}
                                    onChange={async e => {
                                      const novo = { ...a, [k]: e.target.checked };
                                      setAlunosDaVaga(alunosDaVaga.map(x => x.id === a.id ? novo : x));
@@ -650,8 +688,11 @@ export const EstagioVagasModule: React.FC<{ currentUser?: string }> = ({ current
                                        kitOk: novo.kitOk,
                                      });
                                    }} />
+                                {!decididoManualmente && <span className="text-[9px] text-slate-400">auto</span>}
+                              </label>
                           </td>
-                        ))}
+                          );
+                        })}
                         <td className={`px-3 py-2 font-mono font-black ${media === null ? 'text-slate-300' : 'text-slate-700 dark:text-slate-200'}`}>
                           {media === null ? '—' : media.toFixed(1).replace('.', ',')}
                         </td>
