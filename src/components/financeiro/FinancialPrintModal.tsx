@@ -47,9 +47,12 @@ export interface FinancialPrintData {
 interface FinancialPrintModalProps {
   data: FinancialPrintData;
   onClose: () => void;
+  /** Botão extra na barra de ações — usado, por exemplo, pra abrir o mesmo
+      recibo no formato de cupom da impressora térmica (Bematech). */
+  extraAction?: { label: string; icon: React.ComponentType<{ className?: string }>; onClick: () => void };
 }
 
-export const FinancialPrintModal: React.FC<FinancialPrintModalProps> = ({ data, onClose }) => {
+export const FinancialPrintModal: React.FC<FinancialPrintModalProps> = ({ data, onClose, extraAction }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [zoom, setZoom] = useState(1);
   const printableRef = useRef<HTMLDivElement>(null);
@@ -524,6 +527,16 @@ export const FinancialPrintModal: React.FC<FinancialPrintModalProps> = ({ data, 
             >
               <ExternalLink className="h-4 w-4" /> Abrir em Nova Página
             </button>
+
+            {extraAction && (
+              <button
+                onClick={extraAction.onClick}
+                type="button"
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+              >
+                <extraAction.icon className="h-4 w-4" /> {extraAction.label}
+              </button>
+            )}
           </div>
 
           {/* Zoom Controls & Page Format */}
