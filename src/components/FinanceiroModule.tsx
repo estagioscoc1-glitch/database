@@ -137,7 +137,7 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
         {activeSubMenu === 16 && <AutorizacoesAFCManager allStudentUsers={allStudentUsers} courses={courses} classes={classes} />}
         {activeSubMenu === 17 && <BoletosManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 18 && <RegularizacaoRetroativaManager currentUser={currentUser} allStudentUsers={allStudentUsers} classes={classes} />}
-        {activeSubMenu === 19 && <EditarRegularizacoesManager currentUser={currentUser} />}
+        {activeSubMenu === 19 && <EditarRegularizacoesManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 20 && <VisibilidadeFinanceiroManager currentUser={currentUser} allStudentUsers={allStudentUsers} classes={classes} />}
         {activeSubMenu === 5 && <MiscPaymentsCatalogManager currentUser={currentUser} />}
         {activeSubMenu === 6 && <ScholarshipsManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
