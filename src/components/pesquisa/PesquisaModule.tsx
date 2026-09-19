@@ -77,10 +77,13 @@ export const PesquisaModule: React.FC<PesquisaModuleProps> = ({ initialSubTab = 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Refresh all data
-  const loadAllData = () => {
+  const loadAllData = async () => {
     setDetailedStudentsMap(getDetailedStudents());
     setDetailedTeachersMap(getDetailedTeachers());
-    setInstallments(getInstallments());
+    // BUG REAL: getInstallments() é assíncrona (fala com o Supabase) — sem
+    // "await" a Pesquisa nunca mostrava nenhuma parcela nos resultados de
+    // busca financeira do aluno.
+    setInstallments(await getInstallments());
     setFinancialNotes(getFinancialNotes());
     setStageEvaluations(getStageEvaluations());
     setStageVacancies(getStageVacancies());
