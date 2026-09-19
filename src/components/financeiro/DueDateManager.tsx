@@ -34,7 +34,10 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
       // em si, e chamar .filter() nela quebrava sempre. Essa tela nunca
       // carregou nenhuma parcela até agora.
       const todas = await getInstallments();
-      setInstallments(todas.filter(i => i.status === 'PENDENTE'));
+      // Antes só mostrava PENDENTE — agora inclui ATRASADA também, pra dar
+      // pra estender o prazo de quem já venceu (o pedido original era só
+      // isso: hoje não tinha como dar um novo prazo pra quem já atrasou).
+      setInstallments(todas.filter(i => i.status === 'PENDENTE' || i.status === 'ATRASADA'));
     } finally {
       setCarregando(false);
     }
@@ -140,7 +143,7 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
               ) : filteredInstallments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-400">
-                    Nenhuma parcela pendente encontrada.
+                    Nenhuma parcela pendente ou atrasada encontrada.
                   </td>
                 </tr>
               ) : (
@@ -154,6 +157,11 @@ export const DueDateManager: React.FC<DueDateManagerProps> = ({
                     <td className="p-3.5 font-mono text-slate-500">{inst.competencia}</td>
                     <td className="p-3.5 font-mono font-bold text-blue-600">
                       {new Date(inst.dueDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                      {inst.status === 'ATRASADA' && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 text-[9px] font-black rounded-md uppercase align-middle">
+                          Atrasada
+                        </span>
+                      )}
                     </td>
                     <td className="p-3.5 text-right font-mono font-bold">R$ {inst.originalValue.toFixed(2)}</td>
                     <td className="p-3.5 text-right font-mono text-emerald-600">R$ {inst.discountValue.toFixed(2)}</td>
