@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Wallet, TrendingUp, TrendingDown, Layers, Lock, Award, GraduationCap, 
-  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, FileCheck2,
+  FileText, CreditCard, PieChart, XCircle, Calendar, ShieldCheck, FileCheck2, Landmark,
   ShieldAlert, History, Printer 
 } from 'lucide-react';
 
@@ -10,6 +10,7 @@ import { IncomesManager } from './financeiro/IncomesManager';
 import { ExpensesManager } from './financeiro/ExpensesManager';
 import { GenerateInstallmentsManager } from './financeiro/GenerateInstallmentsManager';
 import { AutorizacoesAFCManager } from './financeiro/AutorizacoesAFCManager';
+import { BoletosManager } from './financeiro/BoletosManager';
 import { MiscPaymentsCatalogManager } from './financeiro/MiscPaymentsCatalogManager';
 import { ScholarshipsManager } from './financeiro/ScholarshipsManager';
 import { CoursePricesManager } from './financeiro/CoursePricesManager';
@@ -58,6 +59,7 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
     { id: 13, label: 'Abonos', icon: ShieldCheck, desc: 'Concessão de abonos parciais/totais' },
     { id: 15, label: 'Reimprimir Recibo', icon: Printer, desc: 'Reimpressão de 2ª via de recibos dados baixa' },
     { id: 16, label: 'Autorizações AFC', icon: FileCheck2, desc: 'Cartões de autorização + lista de assinatura' },
+    { id: 17, label: 'Emitir Boletos', icon: Landmark, desc: 'Boleto bancário — pronto pra quando conveniar o banco' },
   ];
 
   const handleOpenAudit = async () => {
@@ -127,6 +129,7 @@ export const FinanceiroModule: React.FC<FinanceiroModuleProps> = ({
         {activeSubMenu === 3 && <ExpensesManager currentUser={currentUser} />}
         {activeSubMenu === 4 && <GenerateInstallmentsManager currentUser={currentUser} allStudentUsers={allStudentUsers} courses={courses} classes={classes} />}
         {activeSubMenu === 16 && <AutorizacoesAFCManager allStudentUsers={allStudentUsers} courses={courses} classes={classes} />}
+        {activeSubMenu === 17 && <BoletosManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 5 && <MiscPaymentsCatalogManager currentUser={currentUser} />}
         {activeSubMenu === 6 && <ScholarshipsManager currentUser={currentUser} allStudentUsers={allStudentUsers} />}
         {activeSubMenu === 7 && <CoursePricesManager currentUser={currentUser} courses={courses} />}
