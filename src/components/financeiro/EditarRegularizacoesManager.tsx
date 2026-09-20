@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   listarRegularizacoesDoAluno, editarRegularizacao, excluirRegularizacao, importarRegularizacoesEmLote,
-  RegistroRegularizacao, TipoRegularizacao, seguroAindaValido,
+  RegistroRegularizacao, TipoRegularizacao, seguroAindaValido, getParcelaInicialAluno, salvarParcelaInicialAluno,
 } from '../../services/regularizacaoStorage';
 import { getInstallments } from '../../services/financeiroStorage';
 import { Installment } from '../../types/financeiro';
@@ -43,6 +43,11 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
   const [aluno, setAluno] = useState<any | null>(null);
   const [parcelasReais, setParcelasReais] = useState<Installment[]>([]);
   const [regularizacoes, setRegularizacoes] = useState<RegistroRegularizacao[]>([]);
+  const [parcelaInicial, setParcelaInicial] = useState(1);
+  const [editandoParcelaInicial, setEditandoParcelaInicial] = useState(false);
+  const [novoParcelaInicial, setNovoParcelaInicial] = useState('1');
+  const [motivoParcelaInicial, setMotivoParcelaInicial] = useState('');
+  const [salvandoParcelaInicial, setSalvandoParcelaInicial] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [salvandoChave, setSalvandoChave] = useState<string | null>(null);
 
@@ -55,11 +60,27 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
     setBusca('');
     setCarregando(true);
     try {
-      const [todas, reg] = await Promise.all([getInstallments(), listarRegularizacoesDoAluno(a.id)]);
+      const [todas, reg, pi] = await Promise.all([
+        getInstallments(), listarRegularizacoesDoAluno(a.id), getParcelaInicialAluno(a.id),
+      ]);
       setParcelasReais(todas.filter(p => p.studentId === a.id));
       setRegularizacoes(reg);
+      setParcelaInicial(pi);
+      setNovoParcelaInicial(String(pi));
     } finally {
       setCarregando(false);
+    }
+  };
+
+  const handleSalvarParcelaInicial = async () => {
+    const n = parseInt(novoParcelaInicial, 10) || 1;
+    setSalvandoParcelaInicial(true);
+    try {
+      const ok = await salvarParcelaInicialAluno(aluno.id, n, motivoParcelaInicial, currentUser);
+      if (ok) { setParcelaInicial(n); setEditandoParcelaInicial(false); }
+      else alert('Não foi possível salvar agora.');
+    } finally {
+      setSalvandoParcelaInicial(false);
     }
   };
 
@@ -69,7 +90,13 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
   // deslocamento pelo tanto de parcelas retroativas já existentes, senão
   // a parcela atual (financeiro normal) bate de frente com a 1ª retroativa.
   const numerosRetroativosBrutos = regularizacoes.filter(r => r.tipo === 'PARCELA').map(r => r.numeroParcela ?? 0);
-  const deslocamento = numerosRetroativosBrutos.length > 0 ? Math.max(...numerosRetroativosBrutos) : 0;
+  // Mesmo ajuste do arquivo da aba do aluno: o deslocamento considera
+  // também a parcela inicial configurada manualmente (aproveitamento de
+  // estudos), não só as parcelas retroativas importadas.
+  const deslocamento = Math.max(
+    numerosRetroativosBrutos.length > 0 ? Math.max(...numerosRetroativosBrutos) : 0,
+    parcelaInicial - 1
+  );
 
   const numerosReais = new Map(parcelasReais.map(p => [deslocamento + p.number, p]));
   const numerosRetroativos = new Map(
@@ -82,7 +109,7 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
   );
 
   const linhasParcelas: LinhaParcela[] = [];
-  for (let n = 1; n <= maiorNumero; n++) {
+  for (let n = parcelaInicial; n <= maiorNumero; n++) {
     if (n > deslocamento) {
       const real = numerosReais.get(n);
       if (real) {
@@ -203,6 +230,42 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
             </button>
           </div>
 
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+            {!editandoParcelaInicial ? (
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                  Mostrando a partir da parcela <strong>{parcelaInicial}ª</strong>
+                  {parcelaInicial > 1 && ' (aproveitamento de estudos ou similar)'}.
+                </p>
+                <button onClick={() => setEditandoParcelaInicial(true)} className="text-[11px] font-bold text-amber-700 hover:underline">
+                  Ajustar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                  Use isso só quando o aluno NUNCA deveu as parcelas anteriores (ex.: aproveitamento de estudos,
+                  entrou direto num módulo mais avançado). Não use pra esconder parcela atrasada.
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold">Parcela inicial:</span>
+                  <input type="number" min={1} value={novoParcelaInicial} onChange={(e) => setNovoParcelaInicial(e.target.value)}
+                    className="w-16 px-2 py-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg font-mono font-bold text-center" />
+                  <input type="text" value={motivoParcelaInicial} onChange={(e) => setMotivoParcelaInicial(e.target.value)}
+                    placeholder="Motivo (ex.: aproveitamento de estudos)"
+                    className="flex-1 px-2 py-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg text-xs" />
+                  <button onClick={handleSalvarParcelaInicial} disabled={salvandoParcelaInicial}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-black rounded-lg text-[11px]">
+                    {salvandoParcelaInicial ? 'Salvando…' : 'Salvar'}
+                  </button>
+                  <button onClick={() => setEditandoParcelaInicial(false)} className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-lg text-[11px]">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {carregando ? (
             <div className="flex items-center gap-2 text-slate-400 py-10 justify-center"><Loader2 className="h-5 w-5 animate-spin" /> Carregando…</div>
           ) : (
@@ -241,7 +304,7 @@ export const EditarRegularizacoesManager: React.FC<Props> = ({ currentUser = 'Fi
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 space-y-3">
                 <h4 className="text-xs font-black uppercase text-slate-500">Outros Itens</h4>
-                {(['SEGURO', 'KIT', 'JALECO', 'MATRICULA'] as TipoRegularizacao[]).map(tipo => {
+                {(['SEGURO', 'KIT', 'JALECO', 'MATRICULA', 'DEPENDENCIA'] as TipoRegularizacao[]).map(tipo => {
                   const item = itemExtra(tipo);
                   const pago = item?.status === 'PAGO';
                   const chave = `extra-${tipo}`;
