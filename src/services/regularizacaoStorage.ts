@@ -14,7 +14,7 @@ import { addFinancialAuditLog, explicarErroFinanceiro } from './financeiroStorag
 //    financeiro_status_alteracoes_log.
 // ===========================================================================
 
-export type TipoRegularizacao = 'PARCELA' | 'SEGURO' | 'KIT' | 'JALECO' | 'MATRICULA' | 'OUTRO';
+export type TipoRegularizacao = 'PARCELA' | 'SEGURO' | 'KIT' | 'JALECO' | 'MATRICULA' | 'DEPENDENCIA' | 'OUTRO';
 export type StatusRegularizacao = 'PAGO' | 'PENDENTE';
 
 export interface RegistroRegularizacao {
@@ -215,6 +215,36 @@ export function calcularNumeroParcela(config: ConfigParcelaTurma, competencia: s
   const [mesAlvo, anoAlvo] = competencia.split('/').map(Number);
   const diffMeses = (anoAlvo * 12 + mesAlvo) - (anoRef * 12 + mesRef);
   return config.numeroParcelaReferencia + diffMeses;
+}
+
+// ---------------------------------------------------------------------------
+// PARCELA INICIAL POR ALUNO (casos de aproveitamento de estudos)
+// ---------------------------------------------------------------------------
+// Existe pra alunos que entram direto num módulo mais avançado (por
+// aproveitamento de estudos) e nunca tiveram as parcelas anteriores — pra
+// essa telas de mensalidade não mostrarem "1ª a 6ª pendente" errado, pra
+// quem nunca deveu essas parcelas.
+
+export async function getParcelaInicialAluno(alunoId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('financeiro_config_parcela_aluno').select('parcela_inicial').eq('aluno_id', alunoId).maybeSingle();
+  if (error || !data) return 1;
+  return data.parcela_inicial;
+}
+
+export async function salvarParcelaInicialAluno(
+  alunoId: string, parcelaInicial: number, motivo: string, user: string
+): Promise<boolean> {
+  const { error } = await supabase.from('financeiro_config_parcela_aluno').upsert({
+    aluno_id: alunoId, parcela_inicial: parcelaInicial, motivo: motivo || null, criado_por: user,
+  });
+  if (!error) {
+    await addFinancialAuditLog(
+      user, 'PARCELA_INICIAL_ALUNO_ALTERADA',
+      `Parcela inicial ajustada para ${parcelaInicial} (aproveitamento de estudos ou similar). Motivo: ${motivo || 'não informado'}.`
+    );
+  }
+  return !error;
 }
 
 // ---------------------------------------------------------------------------
