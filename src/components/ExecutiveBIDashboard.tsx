@@ -1159,7 +1159,10 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
             )}
           </div>
 
-          {/* KPI 7-D: Chatbot de atendimento — mensagens novas não respondidas. */}
+          {/* KPI 7-D: Chatbot de atendimento — conversas com atividade nas
+              últimas 24h. Não é mais "mensagem não lida" — o bot responde
+              tudo sozinho, então esse contador nunca refletia a realidade;
+              agora mostra atividade de verdade (ver chatbot-novidades.ts). */}
           <div
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group cursor-pointer"
             onClick={() => window.open('https://atendimento-colegiooswaldocruz.lovable.app/admin', '_blank')}
@@ -1174,7 +1177,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
                 </span>
               )}
             </div>
-            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Chatbot · Mensagens Novas</p>
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mt-3">Chatbot · Conversas (24h)</p>
             {chatbotNovidades?.erro ? (
               <p className="text-[10px] text-rose-500 mt-1.5 leading-snug">{chatbotNovidades.erro}</p>
             ) : (
@@ -1183,7 +1186,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
                   {chatbotNovidades?.totalNaoLidas ?? '—'}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">
-                  {chatbotNovidades?.totalNaoLidas ? 'Clique para abrir o atendimento' : 'Nenhuma conversa pendente'}
+                  {chatbotNovidades?.totalNaoLidas ? 'Clique para abrir o atendimento' : 'Nenhuma conversa nas últimas 24h'}
                 </p>
               </>
             )}
