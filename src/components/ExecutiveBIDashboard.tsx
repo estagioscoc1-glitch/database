@@ -1159,10 +1159,13 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
             )}
           </div>
 
-          {/* KPI 7-D: Chatbot de atendimento — conversas com atividade nas
-              últimas 24h. Não é mais "mensagem não lida" — o bot responde
-              tudo sozinho, então esse contador nunca refletia a realidade;
-              agora mostra atividade de verdade (ver chatbot-novidades.ts). */}
+          {/* KPI 7-D: Chatbot de atendimento — OCULTO A PEDIDO enquanto a
+              permissão da tabela "conversations" não é liberada no Supabase
+              do chatbot (projeto separado, feito no Lovable — fora do
+              nosso controle por aqui). O código continua todo aqui, só
+              vem dentro de um comentário — é só remover as marcações de
+              comentário no início e no fim deste bloco pra reativar, assim
+              que a permissão de lá for corrigida. Nada foi apagado.
           <div
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group cursor-pointer"
             onClick={() => window.open('https://atendimento-colegiooswaldocruz.lovable.app/admin', '_blank')}
@@ -1191,6 +1194,7 @@ export const ExecutiveBIDashboard: React.FC<ExecutiveBIDashboardProps> = ({ onNa
               </>
             )}
           </div>
+          */}
 
           {/* KPI 8: Desistências */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group cursor-pointer" onClick={() => setFilterStatus('DESISTENTE')}>
