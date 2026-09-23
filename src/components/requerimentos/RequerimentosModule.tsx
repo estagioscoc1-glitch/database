@@ -17,6 +17,8 @@ import { DeclaracoesModule } from '../declaracoes/DeclaracoesModule';
 import { RequerimentoMatriculaModule } from './RequerimentoMatriculaModule';
 import { RequerimentoDiplomaPrintView } from './RequerimentoDiplomaPrintView';
 import { AditivosContratoModule } from './AditivosContratoModule';
+import { TermoTrancamentoManager } from './TermoTrancamentoManager';
+import { TermoCienciaDocumentosManager } from './TermoCienciaDocumentosManager';
 import { FichaEstagioModule } from '../estagios/FichaEstagioModule';
 import { HistoricoEscolarModule } from '../historico/HistoricoEscolarModule';
 import { DiplomasModule } from '../diplomas/DiplomasModule';
@@ -56,7 +58,7 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
   const { users, classes, courses } = useApp();
   const [fichaAberta, setFichaAberta] = useState<Requerimento | null>(null);
 
-  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'matricula' | 'contratos' | 'aditivos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico'>('fila');
+  const [aba, setAba] = useState<'fila' | 'novo' | 'tipos' | 'matricula' | 'contratos' | 'aditivos' | 'declaracoes' | 'ficha' | 'historico' | 'diplomas' | 'historico' | 'trancamento' | 'ciencia'>('fila');
   const [tipos, setTipos] = useState<TipoRequerimento[]>([]);
   const [pedidos, setPedidos] = useState<Requerimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -283,6 +285,8 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
             { id: 'matricula', rotulo: 'Requerimento de Matrícula', icone: FileText },
             { id: 'contratos', rotulo: 'Contratos', icone: FileSignature },
             { id: 'aditivos', rotulo: 'Aditivo de Contrato', icone: FileSignature },
+            { id: 'trancamento', rotulo: 'Termo de Trancamento', icone: FileText },
+            { id: 'ciencia', rotulo: 'Termo de Ciência (Documentos)', icone: FileText },
             { id: 'declaracoes', rotulo: 'Declarações', icone: Stamp },
             { id: 'ficha', rotulo: 'Ficha de Estágio', icone: ClipboardList },
             { id: 'historico', rotulo: 'Histórico Escolar', icone: ScrollText },
@@ -753,6 +757,8 @@ export const RequerimentosModule: React.FC<Props> = ({ currentUser = 'Administra
       {aba === 'contratos' && <ContratosModule currentUser={currentUser} />}
 
       {aba === 'aditivos' && <AditivosContratoModule currentUser={currentUser} />}
+      {aba === 'trancamento' && <TermoTrancamentoManager currentUser={currentUser} />}
+      {aba === 'ciencia' && <TermoCienciaDocumentosManager currentUser={currentUser} />}
 
       {/* Declarações — os cinco modelos, incluindo os três que o aluno também
           emite sozinho pelo painel dele (Escolaridade, SETRANSP e Vacina). */}
