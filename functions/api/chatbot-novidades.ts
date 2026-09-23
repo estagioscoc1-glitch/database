@@ -78,7 +78,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error:
           "Variáveis de ambiente CHATBOT_SUPABASE_URL / CHATBOT_SUPABASE_ANON_KEY não configuradas no Cloudflare Pages.",
       }),
-      { status: 500, headers: corsHeaders }
+      { status: 200, headers: corsHeaders }
     );
   }
 
@@ -87,6 +87,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     Authorization: `Bearer ${CHATBOT_SUPABASE_ANON_KEY}`,
   };
 
+  // BUG REAL encontrado e corrigido: as respostas de erro aqui embaixo
+  // usavam status HTTP 500/502. O Cloudflare INTERCEPTA esses códigos e
+  // troca a resposta pela própria página genérica de erro dele (por isso
+  // aparecia "Bad Gateway" no navegador, escondendo o JSON de erro que a
+  // function preparava) — a tela nunca chegava a ver o motivo real. Por
+  // isso agora toda resposta sai com status 200; o "ok: false" dentro do
+  // JSON é quem avisa que deu erro, e o painel já sabe ler isso.
   try {
     const desde24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -109,7 +116,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
           error: "Erro ao consultar conversas recentes no Supabase do chatbot.",
           detalhe,
         }),
-        { status: 502, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       );
     }
 
@@ -140,7 +147,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error: "Falha inesperada ao consultar o chatbot.",
         detalhe: erro instanceof Error ? erro.message : String(erro),
       }),
-      { status: 500, headers: corsHeaders }
+      { status: 200, headers: corsHeaders }
     );
   }
 };
