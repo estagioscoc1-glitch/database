@@ -29,7 +29,14 @@ export async function buscarChatbotNovidades(): Promise<ChatbotNovidades> {
     const resp = await fetch('/api/chatbot-novidades');
     const dados = await resp.json();
     if (!dados.ok) {
-      return { totalNaoLidas: 0, conversas: [], erro: dados.error || 'Não foi possível consultar o chatbot.' };
+      // BUG REAL corrigido: só mostrava a mensagem genérica (dados.error) e
+      // descartava o "detalhe" — que é exatamente o texto de erro que o
+      // Supabase do chatbot devolve (nome de tabela errado, RLS bloqueando
+      // etc.). Sem o detalhe, ficava impossível saber qual era o problema
+      // de verdade só olhando o painel.
+      const mensagem = dados.error || 'Não foi possível consultar o chatbot.';
+      const detalhe = typeof dados.detalhe === 'string' ? dados.detalhe : (dados.detalhe ? JSON.stringify(dados.detalhe) : '');
+      return { totalNaoLidas: 0, conversas: [], erro: detalhe ? `${mensagem} — ${detalhe}` : mensagem };
     }
     return {
       totalNaoLidas: dados.total_nao_lidas ?? 0,
