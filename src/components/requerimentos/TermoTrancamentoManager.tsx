@@ -14,6 +14,15 @@ import { Search, Printer, X, FileWarning } from 'lucide-react';
 //  preenchido automaticamente com os dados do aluno (nome, curso, período,
 //  sala), em vez de digitar tudo à mão toda vez.
 //
+//  BUG REAL corrigido: a 1ª versão só pegava curso/turma/período de um
+//  registro chamado StudentEnrollment — só que a maioria dos alunos da
+//  escola entrou pelo Importador de Planilhas, que NUNCA cria esse
+//  registro. Pra esses alunos (a maioria!), a tela sempre dizia "matrícula
+//  não encontrada", mesmo o aluno existindo e tendo turma normalmente.
+//  Agora pega curso/turma direto do cadastro da turma dele (classes/
+//  courses), que TODO aluno tem — o StudentEnrollment (se existir) só
+//  complementa com a taxa/plano financeiro, quando tiver.
+//
 //  Isso é só o DOCUMENTO PRA ASSINAR — não mexe na matrícula do aluno no
 //  sistema. Pra cancelar/trancar de verdade a matrícula (bloquear diário,
 //  parcelas futuras etc.), o caminho continua sendo Movimentação →
@@ -25,7 +34,7 @@ interface Props {
 }
 
 export const TermoTrancamentoManager: React.FC<Props> = ({ currentUser = 'Secretaria' }) => {
-  const { users } = useApp();
+  const { users, classes, courses } = useApp();
   const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState<any | null>(null);
   const [enrollment, setEnrollment] = useState<StudentEnrollment | null>(null);
@@ -38,14 +47,20 @@ export const TermoTrancamentoManager: React.FC<Props> = ({ currentUser = 'Secret
     ? alunos.filter((a: any) => a.name?.toLowerCase().includes(busca.toLowerCase()) || a.enrollment?.includes(busca)).slice(0, 8)
     : [];
 
+  // Dados da turma/curso direto do cadastro — funciona pra qualquer aluno,
+  // veio de planilha ou de matrícula manual.
+  const turma = aluno ? classes.find((c: any) => c.id === aluno.classId) : null;
+  const curso = turma ? courses.find((c: any) => c.id === turma.courseId) : null;
+
   const handleSelecionar = (a: any) => {
     setAluno(a);
     setBusca('');
+    // StudentEnrollment é só complemento (dossiê/plano financeiro), quando existir.
     const matriculas = getEnrollments().filter(e => e.studentId === a.id);
     setEnrollment(matriculas[matriculas.length - 1] || null);
   };
 
-  const podeGerar = !!aluno && !!enrollment && motivo.trim().length > 0 && !!dataInicio;
+  const podeGerar = !!aluno && !!turma && motivo.trim().length > 0 && !!dataInicio;
 
   return (
     <div className="space-y-6">
@@ -75,11 +90,15 @@ export const TermoTrancamentoManager: React.FC<Props> = ({ currentUser = 'Secret
         {aluno && (
           <div className="p-3 bg-blue-50 dark:bg-slate-800 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300">
             ✓ {aluno.name} (Matrícula: {aluno.enrollment})
-            {!enrollment && <p className="text-rose-600 font-normal mt-1">Nenhuma matrícula encontrada pra esse aluno — confira em Movimentação.</p>}
+            {turma ? (
+              <p className="font-normal mt-1">{curso?.name || 'Curso não identificado'} — Turma {turma.name}</p>
+            ) : (
+              <p className="text-rose-600 font-normal mt-1">Esse aluno não tem turma cadastrada — confira em Cadastros Acadêmicos.</p>
+            )}
           </div>
         )}
 
-        {aluno && enrollment && (
+        {aluno && turma && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Motivo do trancamento/desistência</label>
@@ -101,9 +120,12 @@ export const TermoTrancamentoManager: React.FC<Props> = ({ currentUser = 'Secret
         </button>
       </div>
 
-      {mostrarImpressao && aluno && enrollment && (
+      {mostrarImpressao && aluno && turma && (
         <TermoTrancamentoPrintView
-          aluno={aluno} enrollment={enrollment} motivo={motivo} dataInicio={dataInicio}
+          aluno={aluno} turmaNome={turma.name} cursoNome={curso?.name || ''}
+          periodo={enrollment?.semester || `${turma.year}/${turma.semester}`}
+          dossie={enrollment?.enrollmentNumber || aluno.enrollment}
+          motivo={motivo} dataInicio={dataInicio}
           onClose={() => setMostrarImpressao(false)}
         />
       )}
@@ -122,8 +144,9 @@ const CSS_IMPRESSAO = `
 `;
 
 const TermoTrancamentoPrintView: React.FC<{
-  aluno: any; enrollment: StudentEnrollment; motivo: string; dataInicio: string; onClose: () => void;
-}> = ({ aluno, enrollment, motivo, dataInicio, onClose }) => {
+  aluno: any; turmaNome: string; cursoNome: string; periodo: string; dossie: string;
+  motivo: string; dataInicio: string; onClose: () => void;
+}> = ({ aluno, turmaNome, cursoNome, periodo, dossie, motivo, dataInicio, onClose }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
   React.useEffect(() => {
@@ -151,13 +174,13 @@ const TermoTrancamentoPrintView: React.FC<{
       </div>
 
       <p style={{ textAlign: 'right' }}>Goiânia, {hoje.getDate()} de {hoje.toLocaleDateString('pt-BR', { month: 'long' })} de {hoje.getFullYear()}.</p>
-      <p>Dossiê: {enrollment.enrollmentNumber}.</p>
+      <p>Dossiê: {dossie}.</p>
 
       <h2 style={{ textAlign: 'center', fontSize: '13pt', margin: '0.5cm 0' }}>Termo de Trancamento e / ou Desistência de Curso.</h2>
 
       <p style={{ textAlign: 'justify' }}>
-        Eu <strong>{aluno.name}</strong> devidamente matriculado(a) no Curso Técnico em <strong>{enrollment.courseName}</strong> do
-        período <strong>{enrollment.semester}</strong> na Sala <strong>{enrollment.className}</strong>, declaro perante a Direção do
+        Eu <strong>{aluno.name}</strong> devidamente matriculado(a) no Curso Técnico em <strong>{cursoNome}</strong> do
+        período <strong>{periodo}</strong> na Sala <strong>{turmaNome}</strong>, declaro perante a Direção do
         Colégio Oswaldo Cruz que estarei a partir de {dataInicioBr ? dataInicioBr.toLocaleDateString('pt-BR') : '____/____/______'} deixando
         de frequentar as atividades escolares devido: {motivo}.
       </p>

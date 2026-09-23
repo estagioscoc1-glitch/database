@@ -27,7 +27,7 @@ interface Props {
 }
 
 export const TermoCienciaDocumentosManager: React.FC<Props> = ({ currentUser = 'Secretaria' }) => {
-  const { users } = useApp();
+  const { users, classes, courses } = useApp();
   const [busca, setBusca] = useState('');
   const [aluno, setAluno] = useState<any | null>(null);
   const [enrollment, setEnrollment] = useState<StudentEnrollment | null>(null);
@@ -39,6 +39,11 @@ export const TermoCienciaDocumentosManager: React.FC<Props> = ({ currentUser = '
   const alunosFiltrados = busca.trim().length >= 2
     ? alunos.filter((a: any) => a.name?.toLowerCase().includes(busca.toLowerCase()) || a.enrollment?.includes(busca)).slice(0, 8)
     : [];
+
+  // Curso direto do cadastro da turma — funciona mesmo sem StudentEnrollment
+  // (a maioria dos alunos, cadastrados por planilha, não tem esse registro).
+  const turma = aluno ? classes.find((c: any) => c.id === aluno.classId) : null;
+  const curso = turma ? courses.find((c: any) => c.id === turma.courseId) : null;
 
   const montarChecklist = (base: EnrollmentDocumentCheckitem[]): EnrollmentDocumentCheckitem[] =>
     DOCUMENTOS_DO_TERMO.map(nome => {
@@ -60,9 +65,11 @@ export const TermoCienciaDocumentosManager: React.FC<Props> = ({ currentUser = '
       item.name === nome ? { ...item, delivered: !item.delivered, deliveredAt: !item.delivered ? new Date().toISOString() : undefined } : item
     );
     setChecklist(novo);
+    // Só persiste de verdade se o aluno tiver um registro de matrícula
+    // (StudentEnrollment) — a maioria, cadastrada por planilha, não tem.
+    // Sem isso, o checklist ainda funciona pra gerar o termo agora, só
+    // não fica salvo pra próxima vez que abrir esse aluno.
     if (enrollment) {
-      // Salva de volta na matrícula do aluno — o mesmo checklist que
-      // Movimentação → Matrícula usa, pra não ficar um controle duplicado.
       const atualizada: StudentEnrollment = { ...enrollment, documentsChecklist: novo };
       saveEnrollment(atualizada, currentUser);
       setEnrollment(atualizada);
@@ -103,7 +110,12 @@ export const TermoCienciaDocumentosManager: React.FC<Props> = ({ currentUser = '
           <>
             <div className="p-3 bg-blue-50 dark:bg-slate-800 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300">
               ✓ {aluno.name} (Matrícula: {aluno.enrollment})
-              {!enrollment && <p className="text-amber-600 font-normal mt-1">Sem matrícula cadastrada ainda — o checklist não vai salvar até ter uma.</p>}
+              {turma ? (
+                <p className="font-normal mt-1">{curso?.name || 'Curso não identificado'} — Turma {turma.name}</p>
+              ) : (
+                <p className="text-rose-600 font-normal mt-1">Esse aluno não tem turma cadastrada — confira em Cadastros Acadêmicos.</p>
+              )}
+              {!enrollment && <p className="text-amber-600 font-normal mt-1">Aviso: sem registro de matrícula formal — o checklist funciona normalmente, mas não fica salvo pra próxima vez que abrir esse aluno.</p>}
             </div>
 
             <div>
@@ -136,7 +148,7 @@ export const TermoCienciaDocumentosManager: React.FC<Props> = ({ currentUser = '
       </div>
 
       {mostrarImpressao && aluno && (
-        <TermoCienciaPrintView aluno={aluno} enrollment={enrollment} checklist={checklist} prazo={prazo} onClose={() => setMostrarImpressao(false)} />
+        <TermoCienciaPrintView aluno={aluno} cursoNome={curso?.name || ''} checklist={checklist} prazo={prazo} onClose={() => setMostrarImpressao(false)} />
       )}
     </div>
   );
@@ -153,8 +165,8 @@ const CSS_IMPRESSAO = `
 `;
 
 const TermoCienciaPrintView: React.FC<{
-  aluno: any; enrollment: StudentEnrollment | null; checklist: EnrollmentDocumentCheckitem[]; prazo: string; onClose: () => void;
-}> = ({ aluno, enrollment, checklist, prazo, onClose }) => {
+  aluno: any; cursoNome: string; checklist: EnrollmentDocumentCheckitem[]; prazo: string; onClose: () => void;
+}> = ({ aluno, cursoNome, checklist, prazo, onClose }) => {
   const [imprimindo, setImprimindo] = useState(false);
 
   React.useEffect(() => {
@@ -180,7 +192,7 @@ const TermoCienciaPrintView: React.FC<{
 
       <p style={{ textAlign: 'justify' }}>
         Declaro pelo presente termo, estar ciente de que esta pré-matrícula não garante minha permanência no curso
-        de <strong>{enrollment?.courseName || '.....................................'}</strong>, gerando apenas uma
+        de <strong>{cursoNome || '.....................................'}</strong>, gerando apenas uma
         expectativa de vaga, que será efetivamente assegurada mediante a confirmação da matrícula, procedimento este
         de minha responsabilidade, e condicionado à apresentação de toda a documentação exigida pela Secretaria do
         Colégio Oswaldo Cruz de Goiânia — até <strong>{prazoBr}</strong>, sob pena de cancelamento da matrícula.
