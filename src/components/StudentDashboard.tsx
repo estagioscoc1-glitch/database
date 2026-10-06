@@ -1215,7 +1215,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                   <div className="space-y-6">
                     {studentClasses.map(cls => {
                       const classGrades = studentGrades.filter(g => g.classId === cls.id);
-                      const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                      const clsSubjects = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
 
                       return (
                         <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
