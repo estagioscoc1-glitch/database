@@ -36,6 +36,25 @@ interface StudentDashboardProps {
   studentId?: string;
 }
 
+// Existe nota DE VERDADE lançada nesse conjunto de registros?
+//
+// Usado pra distinguir o boletim que o aluno realmente cursa daquele que só
+// ficou "vazio" de uma matrícula antiga/duplicada (ex.: presencial e EAD no
+// mesmo módulo). Um registro com tudo zerado conta como "sem nota".
+type NotasMinimas = {
+  av1?: number | null; av2?: number | null; av3?: number | null; recS1?: number | null;
+  av4?: number | null; av5?: number | null; av6?: number | null; recS2?: number | null;
+  afc?: number | null; extra?: number | null; conselho?: number | null;
+  s1: number; s2: number; pf: number;
+};
+function temNotaLancada(registros: NotasMinimas[]): boolean {
+  return registros.some(g =>
+    g.s1 > 0 || g.s2 > 0 || g.pf > 0 ||
+    [g.av1, g.av2, g.av3, g.recS1, g.av4, g.av5, g.av6, g.recS2, g.afc, g.extra, g.conselho]
+      .some(v => typeof v === 'number' && v > 0)
+  );
+}
+
 export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId }) => {
   const { 
     currentUser, subjects, grades, classes, getStudentAbsences, 
@@ -100,9 +119,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   // a ficha inteira do Módulo 1 — mesmo ele estando no Módulo 2. Agora, se o
   // aluno tem turma regular E dependência no período, a turma principal é a
   // regular; a dependência só vira a principal se for a única turma dele.
-  const studentClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
-  const regularClassId = studentClassIds.find(id => !classes.find(c => c.id === id)?.isDependency);
-  const studentClassId = regularClassId ?? studentClassIds[0];
+  //
+  // Segundo ajuste (aluno que mudou de presencial pra EAD no mesmo módulo): a
+  // turma antiga ficava com notas zeradas e podia ser escolhida como principal,
+  // mostrando um boletim vazio. Agora, entre as turmas regulares, vale a que
+  // tem nota lançada; e turma que a secretaria escondeu do histórico
+  // (hiddenFromHistory) não decide nada — mesma regra do Histórico do
+  // administrador.
+  const gradesVisiveisDoPeriodo = studentGrades.filter(g => !g.hiddenFromHistory);
+  const classIdsCandidatas = Array.from(new Set(
+    (gradesVisiveisDoPeriodo.length > 0 ? gradesVisiveisDoPeriodo : studentGrades).map(g => g.classId)
+  ));
+  const regulares = classIdsCandidatas.filter(id => !classes.find(c => c.id === id)?.isDependency);
+  const regularComNota = regulares.find(id => temNotaLancada(studentGrades.filter(g => g.classId === id)));
+  const studentClassId = regularComNota ?? regulares[0] ?? classIdsCandidatas[0];
   const targetClass = classes.find(c => c.id === studentClassId) || activePeriodClasses[0];
 
   // Course info
@@ -1191,8 +1221,26 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           {/* TAB: HISTÓRICO COMPLETO */}
           {activeSubTab === 'historico_completo' && (() => {
             const studentGrades = grades.filter(g => g.studentId === activeStudent.id);
-            const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
-            const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
+            // Só notas VISÍVEIS decidem quais turmas aparecem — igual ao Histórico
+            // do administrador e ao PDF: turma que a secretaria escondeu
+            // (hiddenFromHistory) some inteira. A tela do aluno nunca olhava isso.
+            const studentGradesVisiveis = studentGrades.filter(g => !g.hiddenFromHistory);
+            const uniqueClassIds = Array.from(new Set(studentGradesVisiveis.map(g => g.classId)));
+            const turmasComRegistro = classes.filter(c => uniqueClassIds.includes(c.id));
+            // Boletim "vazio" duplicado: se o aluno tem duas turmas REGULARES no
+            // mesmo ano/semestre/módulo (ex.: presencial antiga + EAD) e só uma
+            // delas tem nota lançada, mostra só essa. Nunca esconde turma com
+            // nota, nem dependência, nem quando nenhuma das duas tem nota.
+            const studentClasses = turmasComRegistro.filter(c => {
+              if (c.isDependency) return true;
+              if (temNotaLancada(studentGradesVisiveis.filter(g => g.classId === c.id))) return true;
+              const irmaComNota = turmasComRegistro.some(o =>
+                o.id !== c.id && !o.isDependency &&
+                o.year === c.year && o.semester === c.semester && o.module === c.module &&
+                temNotaLancada(studentGradesVisiveis.filter(g => g.classId === o.id))
+              );
+              return !irmaComNota;
+            });
 
             studentClasses.sort((a, b) => {
               if (a.year !== b.year) return a.year - b.year;
@@ -1262,6 +1310,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                                 {clsSubjects.map(sub => {
                                   const score = classGrades.find(g => g.subjectId === sub.id);
+                                  if (score?.hiddenFromHistory) return null;
                                   const absences = getStudentAbsences(activeStudent.id, sub.id, cls.id);
                                   return (
                                     <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20">
