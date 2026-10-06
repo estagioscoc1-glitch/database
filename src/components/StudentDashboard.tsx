@@ -93,7 +93,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   const studentGrades = grades.filter(g => g.studentId === activeStudent.id && activePeriodClassIds.includes(g.classId));
 
   // Determine the active class for the student
-  const studentClassId = studentGrades[0]?.classId;
+  //
+  // BUG REAL corrigido: antes pegava a turma da PRIMEIRA nota encontrada, na
+  // ordem em que as notas estão guardadas. Se essa primeira nota fosse de uma
+  // DEPENDÊNCIA (ex.: Biossegurança, Módulo 1), a tela inicial do aluno virava
+  // a ficha inteira do Módulo 1 — mesmo ele estando no Módulo 2. Agora, se o
+  // aluno tem turma regular E dependência no período, a turma principal é a
+  // regular; a dependência só vira a principal se for a única turma dele.
+  const studentClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+  const regularClassId = studentClassIds.find(id => !classes.find(c => c.id === id)?.isDependency);
+  const studentClassId = regularClassId ?? studentClassIds[0];
   const targetClass = classes.find(c => c.id === studentClassId) || activePeriodClasses[0];
 
   // Course info
@@ -101,7 +110,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
   // Enrolled subjects
   const studentSubjects = targetClass 
-    ? subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module)
+    ? (targetClass.isDependency && targetClass.dependencySubjectId
+        ? subjects.filter(s => s.id === targetClass.dependencySubjectId)
+        : subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module))
     : [];
 
   // Filter student notifications and messages
