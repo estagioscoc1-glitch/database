@@ -807,7 +807,12 @@ export const AttendanceJournal: React.FC = () => {
               {classStudents.map((stud, idx) => {
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
                 const isOverLimit = absStats.total > maxAbsencesLimit;
-                const isTransferred = stud.classId !== targetClass.id;
+                // Turma de DEPENDÊNCIA: o aluno é de outra turma principal e está
+                // aqui só pela disciplina em dependência. Isso NÃO é transferência
+                // — antes, a linha dele saía travada e ninguém conseguia lançar
+                // falta. Só é "transferido" quem está numa turma regular que não é
+                // mais a dele.
+                const isTransferred = stud.classId !== targetClass.id && !targetClass.isDependency;
                 const studentGrade = grades.find(g => g.studentId === stud.id && g.classId === targetClass.id && g.subjectId === targetSubject.id);
                 const isStudentInactive = studentGrade?.result === 'DISPENSADO' || studentGrade?.result === 'DESISTENTE';
                 const isStudentBlockedForTeacher = currentUser?.role !== 'ADMIN' && isStudentInactive;
