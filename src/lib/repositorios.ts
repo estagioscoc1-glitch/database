@@ -645,6 +645,28 @@ async function upsertEmLotes(
  * papéis o RLS recusa, e isso é o comportamento correto.
  * ========================================================================== */
 
+/**
+ * ÚLTIMO PROFESSOR CONHECIDO DE CADA DIÁRIO (chave "turma|disciplina").
+ *
+ * POR QUE EXISTE — PROTEGE O VÍNCULO PROFESSOR↔DIÁRIO CONTRA TELA DESATUALIZADA.
+ *
+ * A publicação automática (a cada 3 s) regravava o professor de TODOS os
+ * diários a partir do que o navegador de quem está logado "achava". Se esse
+ * navegador estivesse atrasado — a aba aberta há horas, ou uma leitura do banco
+ * que chegou depois da gravação — ele desfazia o que outra pessoa tinha acabado
+ * de salvar, e o vínculo sumia sem aviso. É o "cadastro o professor no diário
+ * e não fixa", e a "disciplina desmarca sozinha".
+ *
+ * Agora só se grava o professor de um diário quando ESTE navegador o MUDOU de
+ * fato em relação ao último valor conhecido (lido do banco ou gravado por ele).
+ * Diário que não foi mexido aqui nunca é regravado, então nunca desfaz o
+ * trabalho de outra pessoa. Um professor nunca é apagado do banco por um
+ * diário "que não mudou".
+ */
+let professorConhecidoPorDiario = new Map<string, string | null>();
+/** Só vale depois que a estrutura foi lida do banco com sucesso nesta sessão. */
+let professorConhecidoCarregado = false;
+
 export async function publicarEstrutura(dados: {
   courses: Course[];
   subjects: Subject[];
@@ -963,19 +985,50 @@ export async function publicarEstrutura(dados: {
       ? `${turma.year}/${turma.semester}`
       : currentPeriod;
 
+    // O professor só entra na gravação se ESTE navegador o mudou.
+    // Sem a chave `professor_id`, o upsert não encosta no professor que já
+    // está no banco (o PostgREST só atualiza as colunas enviadas).
+    const professorLocal = professorDoDiario.get(par) ?? null;
+    const conhecido = professorConhecidoPorDiario.has(par)
+      ? professorConhecidoPorDiario.get(par) ?? null
+      : null;
+    // Sem leitura bem-sucedida do banco não há como saber o que é mudança
+    // daqui: nesse caso NÃO se grava professor nenhum (só estrutura).
+    const mudouAqui = professorConhecidoCarregado && professorLocal !== conhecido;
+
     diarios.push({
       id: idDiario(turmaId, disciplinaId, periodoDaTurma),
       turma_id: turmaId,
       disciplina_id: disciplinaId,
-      professor_id: professorDoDiario.get(par) ?? null,
+      ...(mudouAqui ? { professor_id: professorLocal } : {}),
       periodo: periodoDaTurma,
       fechado: !!turma.closedDefinitive,
+      _par: par,
+      _professor: professorLocal,
     });
   }
 
   if (diarios.length) {
-    const r = await upsertEmLotes('diarios', diarios, 'id', 'gravar diários');
-    if (!r.ok) erros.push(r.erro || 'diários');
+    // Dois grupos, cada um com as mesmas colunas: o que traz professor_id e o
+    // que não traz. Misturar os dois num lote faria o banco preencher com NULL
+    // a coluna que faltou em alguns itens.
+    const semMarcas = (d: any) => { const { _par, _professor, ...resto } = d; return resto; };
+    const comProfessor = diarios.filter(d => 'professor_id' in d);
+    const semProfessor = diarios.filter(d => !('professor_id' in d));
+
+    if (comProfessor.length) {
+      const r = await upsertEmLotes('diarios', comProfessor.map(semMarcas), 'id', 'gravar diários');
+      if (!r.ok) erros.push(r.erro || 'diários');
+    }
+    if (semProfessor.length) {
+      const r = await upsertEmLotes('diarios', semProfessor.map(semMarcas), 'id', 'gravar diários');
+      if (!r.ok) erros.push(r.erro || 'diários');
+    }
+
+    // Só depois de gravar sem erro é que o valor vira "conhecido".
+    if (!erros.length) {
+      for (const d of comProfessor) professorConhecidoPorDiario.set(d._par, d._professor);
+    }
   }
 
   if (erros.length) {
@@ -2669,6 +2722,15 @@ export async function carregarEstrutura(): Promise<{
     dependencySubjectId: t.disciplina_dependencia_id ?? undefined,
     scheduleText: t.horario ?? undefined,
   }));
+
+  // Guarda o que o BANCO tem agora, para a publicação saber o que é mudança
+  // feita aqui e o que é só cópia desatualizada (ver professorConhecidoPorDiario).
+  const conhecidoAgora = new Map<string, string | null>();
+  for (const d of (rDiarios.data ?? []) as any[]) {
+    conhecidoAgora.set(`${d.turma_id}|${d.disciplina_id}`, d.professor_id ?? null);
+  }
+  professorConhecidoPorDiario = conhecidoAgora;
+  professorConhecidoCarregado = true;
 
   // Diários de cada professor viram a lista de acessos dele.
   const diariosPorProfessor = new Map<string, { classId: string; subjectId: string }[]>();
