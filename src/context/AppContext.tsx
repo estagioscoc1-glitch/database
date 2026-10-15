@@ -753,6 +753,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // mesmo usando o sistema normalmente.
   const [usuarioAdminOriginal, setUsuarioAdminOriginal] = useState<User | null>(null);
 
+  // Espelho de "há um admin vendo como outra pessoa?" para a rotina de
+  // sincronização (que roda dentro de um efeito de uma vez só e não enxerga o
+  // estado novo). Sem isto, toda sincronização desfazia o "Ver como".
+  const verComoAtivoRef = React.useRef<boolean>(false);
+  verComoAtivoRef.current = !!usuarioAdminOriginal;
+
   // ACESSOS E PRESENÇA — quem está online agora + histórico de acesso de
   // professores e alunos. Só a gestão enxerga isto (o próprio banco já
   // barra qualquer outro papel de ler, mas a tela também só existe pra
@@ -1506,6 +1512,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const doServidor = await montarUsuario(perfil);
             if (!desmontado) {
               setCurrentUser(atual => {
+                // "VER COMO" EM ANDAMENTO: quem está na tela é o aluno/professor
+                // que o admin escolheu ver, e `doServidor` é o ADMIN de verdade.
+                // Misturar os dois trocava a identidade de volta para o admin —
+                // o "Ver como" entrava e voltava sozinho, a cada sincronização
+                // (nota lançada por qualquer professor, volta de aba, renovação
+                // de acesso). Enquanto o "Ver como" está ligado, não se mexe.
+                if (verComoAtivoRef.current) return atual;
                 if (atual && atual.role !== papelDoServidor) {
                   addSecurityLog('PAPEL_ADULTERADO',
                     `Papel no navegador (${atual.role}) diferente do servidor (${perfil.papel}). Corrigido.`, 'high');
@@ -1518,6 +1531,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Se o servidor não responder, ao menos o papel não fica adulterado.
             console.warn('[Portal] Não foi possível remontar o usuário do servidor:', err?.message || err);
             setCurrentUser(atual => {
+              if (verComoAtivoRef.current) return atual;   // "Ver como" em andamento: não mexe
               if (atual && atual.role !== papelDoServidor) {
                 addSecurityLog('PAPEL_ADULTERADO',
                   `Papel no navegador (${atual.role}) diferente do servidor (${perfil.papel}). Corrigido.`, 'high');
