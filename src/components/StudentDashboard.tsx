@@ -31,6 +31,7 @@ import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'luci
 
 import { AditivoPendenteAviso } from './AditivoPendenteAviso';
 import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
+import { useEstagioSge, PainelEstagioSge } from './estagios/MeuProgressoSge';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -96,6 +97,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
     }
     return () => { cancelado = true; };
   }, [activeStudent?.id]);
+
+  // Histórico de estágios vindo do SGE (sistema da secretaria). Sem dados do SGE, a tela de "Meu Progresso" continua como era.
+  const estagioSge = useEstagioSge(activeStudent?.id);
 
   if (!activeStudent) return null;
 
@@ -864,7 +868,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
-                      📊 Meu Progresso ({completionPercent}%)
+                      📊 Meu Progresso ({estagioSge.dados ? estagioSge.dados.resumo.percentual : completionPercent}%)
                     </button>
                   </div>
                 </div>
@@ -972,7 +976,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 )}
 
                 {/* SUBMODE 2: MEU PROGRESSO DE ESTÁGIO */}
-                {estagioSubMode === 'meu_progresso' && (
+                {estagioSubMode === 'meu_progresso' && estagioSge.dados && (
+                  <PainelEstagioSge dados={estagioSge.dados} />
+                )}
+                {estagioSubMode === 'meu_progresso' && !estagioSge.dados && (
                   <div className="space-y-5">
                     {/* Progress Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
