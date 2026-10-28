@@ -41,7 +41,7 @@ export interface OfertaEstagioSge {
 
 const A_CADA_MS = 2 * 60 * 1000; // enquanto a tela está aberta, confere de novo a cada 2 minutos
 const ESPERA_RESPOSTA_MS = 90 * 1000; // quanto tempo a tela espera o SGE responder um pedido
-const VERIFICA_RESPOSTA_MS = 2000;
+const VERIFICA_RESPOSTA_MS = 1000;
 
 /** Lê do banco as vagas liberadas para o aluno (id da ficha do aluno). `disponivel` é falso quando não deu para ler (aí a tela antiga segue valendo). */
 export function useOfertaEstagioSge(alunoId: string | undefined): { ofertas: OfertaEstagioSge[]; disponivel: boolean; recarregar: () => Promise<void> } {
@@ -89,7 +89,7 @@ const dormir = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms)
 
 type Resultado = { tipo: 'ok' | 'info' | 'recusado' | 'erro'; texto: string };
 
-export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: string; somenteLeitura?: boolean; onAtualizar: () => Promise<void> }> = ({ oferta, alunoId, somenteLeitura, onAtualizar }) => {
+export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: string; somenteLeitura?: boolean; verComo?: boolean; onAtualizar: () => Promise<void> }> = ({ oferta, alunoId, somenteLeitura, verComo, onAtualizar }) => {
   const [fase, setFase] = useState<'parado' | 'confirmando' | 'enviando'>('parado');
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const montado = useRef(true);
@@ -111,7 +111,8 @@ export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: 
           pedidoId = antigo.data?.id ?? null;
         }
         if (!pedidoId) {
-          setResultado({ tipo: 'erro', texto: /Muitas tentativas/.test(novo.error.message) ? novo.error.message : 'Não foi possível enviar o seu pedido agora. Tente novamente em instantes.' });
+          console.warn('[Inscrição de estágio] o banco recusou o pedido:', novo.error.code, novo.error.message);
+          setResultado({ tipo: 'erro', texto: /Muitas tentativas/.test(novo.error.message) ? novo.error.message : `Não foi possível enviar o seu pedido agora. Tente novamente em instantes.${novo.error.code ? ` (código ${novo.error.code})` : ''}` });
           setFase('parado');
           return;
         }
@@ -199,6 +200,7 @@ export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: 
             <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
               Confirmar a sua inscrição na vaga nº {v.codigo_vaga}? Você entra na lista da vaga e só poderá escolher outra depois que a sua nota nesta for lançada.
             </p>
+            {verComo ? <p className="text-xs font-black text-rose-700 dark:text-rose-300">Atenção: você está vendo o portal como este aluno. Ao confirmar, a inscrição será feita DE VERDADE para ele.</p> : null}
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => void enviar('inscrever')} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl cursor-pointer">Sim, confirmar inscrição</button>
               <button type="button" onClick={() => setFase('parado')} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs rounded-xl cursor-pointer">Cancelar</button>
