@@ -62,7 +62,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
     currentUser, subjects, grades, classes, getStudentAbsences, 
     notifications, calendarEvents, currentPeriod, courses, messages,
     simulatedDate, declarationConfigs, studentDocuments, updateStudentDocumentStatus,
-    users, internships
+    users, internships, usuarioAdminOriginal
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
   const [printHistorico, setPrintHistorico] = useState<boolean>(false);
@@ -885,6 +885,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                         oferta={escolherOferta(ofertaSge.ofertas)!}
                         alunoId={activeStudent.id}
                         somenteLeitura={!!studentId && studentId !== currentUser?.id}
+                        verComo={!!usuarioAdminOriginal}
                         onAtualizar={ofertaSge.recarregar}
                       />
                     )}
