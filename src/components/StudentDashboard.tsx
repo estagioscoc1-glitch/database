@@ -32,6 +32,7 @@ import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'luci
 import { AditivoPendenteAviso } from './AditivoPendenteAviso';
 import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
 import { useEstagioSge, PainelEstagioSge } from './estagios/MeuProgressoSge';
+import { useOfertaEstagioSge, escolherOferta, InscricaoEstagioSge } from './estagios/InscricaoEstagioSge';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -100,6 +101,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
   // Histórico de estágios vindo do SGE (sistema da secretaria). Sem dados do SGE, a tela de "Meu Progresso" continua como era.
   const estagioSge = useEstagioSge(activeStudent?.id);
+  // Vaga de estágio liberada pelo SGE para a turma do aluno (ele se inscreve aqui e cai direto na vaga). Sem oferta, a tela de vagas continua como era.
+  const ofertaSge = useOfertaEstagioSge(activeStudent?.id);
 
   if (!activeStudent) return null;
 
@@ -876,6 +879,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 {/* SUBMODE 1: VAGAS ABERTAS PARA INSCRIÇÃO */}
                 {estagioSubMode === 'vagas_abertas' && (
                   <div className="space-y-4">
+                    {/* Vaga liberada pelo SGE para a turma do aluno: inscrição direta, com as pendências na hora */}
+                    {ofertaSge.disponivel && ofertaSge.ofertas.length > 0 && (
+                      <InscricaoEstagioSge
+                        oferta={escolherOferta(ofertaSge.ofertas)!}
+                        alunoId={activeStudent.id}
+                        somenteLeitura={!!studentId && studentId !== currentUser?.id}
+                        onAtualizar={ofertaSge.recarregar}
+                      />
+                    )}
+
                     {/* Cronogramas Banner */}
                     {cronogramas.length > 0 && (
                       <div className="p-4 bg-gradient-to-r from-blue-900 to-indigo-950 text-white rounded-2xl border border-blue-500/30 space-y-2">
@@ -900,17 +913,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                       </div>
                     )}
 
+                    {!(ofertaSge.disponivel && ofertaSge.ofertas.length > 0 && allVacancies.length === 0) && (
                     <h4 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                       Vagas e Turmas de Estágio Disponíveis ({allVacancies.length})
                     </h4>
+                    )}
 
-                    {allVacancies.length === 0 ? (
+                    {allVacancies.length === 0 ? (ofertaSge.disponivel && ofertaSge.ofertas.length > 0 ? null : (
                       <div className="p-10 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
                         <Briefcase className="h-8 w-8 text-slate-300 mx-auto" />
                         <p className="font-bold text-slate-600 dark:text-slate-300">Nenhuma vaga de estágio publicada no momento.</p>
                         <p>A coordenação acadêmica publicará novas vagas no cronograma oficial.</p>
                       </div>
-                    ) : (
+                    )) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {allVacancies.map(vac => {
                           const allocated = vac.studentsAllocated || [];
