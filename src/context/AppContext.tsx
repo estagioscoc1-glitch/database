@@ -1266,10 +1266,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // preenchido depois de GRAVAR — nunca depois de LER. A auditoria
               // registrou 102.174 UPDATEs em seis dias, e a nota recém-digitada
               // era atropelada por esse rodízio, regravada em branco por cima.
+              //
+              // E A RECARGA NÃO PODE APAGAR A NOTA QUE O PROFESSOR ACABOU DE
+              // DIGITAR. Esta rotina roda de novo a cada gravação de qualquer
+              // pessoa; nota digitada que ainda espera o 1,2 s de gravação era
+              // trocada pela do banco e o portal esquecia que havia algo a
+              // gravar. Da segunda carga em diante, nota alterada aqui e ainda
+              // NÃO gravada vence a do banco. Na primeira carga o banco manda.
+              const notasGravadasAntes = notasGravadasRef.current;
+              const notasJaCarregouUmaVez = notasPrimeiraCargaFeitaRef.current;
               notasGravadasRef.current = new Map(
                 notas.map(n => [n.id, JSON.stringify(n)] as [string, string])
               );
-              setGrades(notas);
+              notasPrimeiraCargaFeitaRef.current = true;
+              if (!notasJaCarregouUmaVez) {
+                setGrades(notas);
+              } else {
+                setGrades(prev => {
+                  const locaisNaoGravadas = new Map<string, any>();
+                  for (const g of prev) {
+                    if (notasGravadasAntes.get(g.id) !== JSON.stringify(g)) locaisNaoGravadas.set(g.id, g);
+                  }
+                  if (locaisNaoGravadas.size === 0) return notas;
+                  const idsDoBanco = new Set(notas.map(n => n.id));
+                  const resultado: any[] = notas.map(n => locaisNaoGravadas.get(n.id) ?? n);
+                  for (const [id, g] of locaisNaoGravadas) {
+                    if (!idsDoBanco.has(id)) resultado.push(g);
+                  }
+                  return resultado as any;
+                });
+              }
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar notas:', err?.message || err);
@@ -1289,8 +1315,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // que ninguém tivesse lançado nada.
               //
               // As notas já faziam esta marcação; as faltas ficaram de fora.
+              //
+              // E, como nas notas e nas aulas, a recarga não apaga a falta que
+              // o professor acabou de lançar e que ainda espera para gravar.
+              const faltasGravadasAntes = faltasGravadasRef.current;
+              const faltasJaCarregouUmaVez = faltasPrimeiraCargaFeitaRef.current;
               faltasGravadasRef.current = new Map(Object.entries(faltas));
-              setDirectAbsences(faltas);
+              faltasPrimeiraCargaFeitaRef.current = true;
+              if (!faltasJaCarregouUmaVez) {
+                setDirectAbsences(faltas);
+              } else {
+                setDirectAbsences(prev => {
+                  const resultado: any = { ...faltas };
+                  for (const [chave, total] of Object.entries(prev || {})) {
+                    if (faltasGravadasAntes.get(chave) !== total) resultado[chave] = total;
+                  }
+                  return resultado;
+                });
+              }
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar faltas:', err?.message || err);
@@ -1408,11 +1450,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           try {
             const aulas = await carregarAulas();
             if (aulas && aulas.length > 0 && !desmontado) {
-              // Mesma razão das faltas: chamada lida do banco já está gravada.
+              // A RECARGA NÃO PODE APAGAR O QUE O PROFESSOR ACABOU DE MEXER.
+              //
+              // Esta rotina roda de novo a cada gravação de QUALQUER pessoa
+              // (notas, frequência, alunos) e substituía a lista de aulas
+              // inteira pela do banco. Uma data corrigida que ainda esperava
+              // o 1,5 s de gravação era trocada de volta pela data antiga —
+              // e, como a lista "já gravada" também era refeita, o portal
+              // esquecia que havia algo a gravar. A correção sumia sem aviso.
+              //
+              // Da segunda carga em diante: aula alterada aqui e ainda NÃO
+              // gravada vence a do banco; aula nova ainda não gravada é
+              // mantida. Na primeira carga nada muda (o banco manda), para
+              // cópia velha do navegador nunca sobrescrever o servidor.
+              const gravadasAntes = aulasGravadasRef.current;
+              const jaCarregouUmaVez = aulasPrimeiraCargaFeitaRef.current;
               aulasGravadasRef.current = new Map(
                 (aulas as any[]).map(a => [a.id, JSON.stringify(a)] as [string, string])
               );
-              setAttendance(aulas as any);
+              aulasPrimeiraCargaFeitaRef.current = true;
+              if (!jaCarregouUmaVez) {
+                setAttendance(aulas as any);
+              } else {
+                setAttendance(prev => {
+                  const locaisNaoGravadas = new Map<string, any>();
+                  for (const a of prev) {
+                    if (gravadasAntes.get(a.id) !== JSON.stringify(a)) locaisNaoGravadas.set(a.id, a);
+                  }
+                  if (locaisNaoGravadas.size === 0) return aulas as any;
+                  const idsDoBanco = new Set((aulas as any[]).map(a => a.id));
+                  const resultado: any[] = (aulas as any[]).map(a => locaisNaoGravadas.get(a.id) ?? a);
+                  for (const [id, a] of locaisNaoGravadas) {
+                    if (!idsDoBanco.has(id)) resultado.push(a);
+                  }
+                  return resultado as any;
+                });
+              }
             }
           } catch (err: any) {
             console.warn('[Portal] Falha ao carregar aulas:', err?.message || err);
@@ -1695,6 +1768,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rodadaDeGravacao, setRodadaDeGravacao] = useState(0);
 
   const notasGravadasRef = React.useRef<Map<string, string>>(new Map());
+  const notasPrimeiraCargaFeitaRef = React.useRef<boolean>(false);
 
   /*
    * POR QUE OS EFEITOS ABAIXO DEPENDEM DE `currentUser?.id` E NÃO DE
@@ -1730,6 +1804,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const tentativasDeRetentativaAulaRef = React.useRef(0);
   const tentativasDeRetentativaFaltaRef = React.useRef(0);
   const faltasGravadasRef = React.useRef<Map<string, number>>(new Map());
+  const faltasPrimeiraCargaFeitaRef = React.useRef<boolean>(false);
 
   /** O usuário logado pode gravar neste diário? Evita tentativas que o banco vai recusar. */
   const podeGravarNoDiario = React.useCallback((classId: string, subjectId: string): boolean => {
@@ -1830,6 +1905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // dele nunca chegava ao servidor: sumia ao trocar de máquina ou limpar o
   // navegador. Agora cada aula vira uma linha própria.
   const aulasGravadasRef = React.useRef<Map<string, string>>(new Map());
+  const aulasPrimeiraCargaFeitaRef = React.useRef<boolean>(false);
   useEffect(() => {
     if (!bancoDisponivel || !currentUser || isLoading) return;
 
