@@ -79,10 +79,10 @@ export function responderAssistente(message: string, role: PapelAssistente): str
       "- O bloqueio só vale com o **fechamento automático ligado** (interruptor no mesmo cartão).\n" +
       "- Depois do fechamento definitivo, só o administrador edita o diário.";
     } else if (tem("boletim", "aproveitamento", "histórico", "historico")) {
-      reply = "### Boletim\n" +
-      "- Aba **Boletim Completo**. Busque por **matrícula ou nome**, ou selecione a turma.\n" +
+      reply = "### Aproveitamento Individual\n" +
+      "- Aba **Aproveitamento Individual**. Busque por **matrícula ou nome**, ou selecione a turma.\n" +
       "- Resultados possíveis: **APTO**, **NÃO APTO**, **REP. FALTAS**, **Pendente**, **DISPENSADO**, **DESISTENTE**.\n" +
-      "- Dá para imprimir o boletim de um aluno ou da turma inteira.";
+      "- Dá para imprimir o aproveitamento individual de um aluno ou da turma inteira.";
     } else if (tem("desistente", "dispensado", "trancou", "desistiu")) {
       reply = "### Marcar aluno como DESISTENTE ou DISPENSADO\n" +
       "- Abra a **planilha de notas** da disciplina.\n" +
@@ -104,7 +104,7 @@ export function responderAssistente(message: string, role: PapelAssistente): str
       "- **Importar Planilhas**: entrada de alunos em lote.\n" +
       "- **Movimentação**: transferências, cancelamentos, dependências, estágios.\n" +
       "- **Dashboard**: indicadores e os prazos de fechamento.\n" +
-      "- **Boletim Completo** e **Histórico do Aluno**.\n" +
+      "- **Aproveitamento Individual** e **Aproveitamento Individual (Todos os Períodos)**.\n" +
       "- **Mensagens & Avisos** e **Backup & Segurança**.\n\n" +
       "Pergunte sobre um assunto específico — notas, senha, importação, transferência, prazos, estágio — que eu detalho.";
     }
