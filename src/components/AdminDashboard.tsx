@@ -1127,7 +1127,7 @@ export const AdminDashboard: React.FC = () => {
         'Matrícula adicional criada',
         `${newStudent.name} (matrícula ${enrollment}) foi matriculado(a) também em ` +
         `${turmaDestino?.name || 'nova turma'} (${turmaDestino?.year}/${turmaDestino?.semester}).\n\n` +
-        `As matrículas anteriores continuam intactas, cada uma com o boletim do seu semestre.\n\n` +
+        `As matrículas anteriores continuam intactas, cada uma com o aproveitamento individual do seu semestre.\n\n` +
         `O acesso dele(a) continua o mesmo: usuário ${enrollment}.`
       );
       return;
@@ -1672,7 +1672,7 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           <GraduationCap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span>Boletim Completo</span>
+          <span>Aproveitamento Individual</span>
         </button>
         )}
         <button
@@ -1685,7 +1685,7 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span>Histórico do Aluno</span>
+          <span>Aproveitamento Individual (Todos os Períodos)</span>
         </button>
         {/* Escondida de propósito — só o botão laranja "Lançamento de Notas
             (Secretaria)" leva para essa tela agora, pra não ter duas
@@ -3636,14 +3636,14 @@ export const AdminDashboard: React.FC = () => {
                                   setSalvandoPermissaoDe(null);
                                   if (!resultado.ok) mostrarAviso('Não foi possível salvar', resultado.erro || 'O banco recusou a alteração.');
                                 }}
-                                title="Libera esse professor ver o Histórico Completo de qualquer aluno, dentro do próprio painel dele."
+                                title="Libera esse professor ver o Aproveitamento Individual de qualquer aluno, dentro do próprio painel dele."
                                 className={`px-2 py-1 rounded-lg text-[10px] font-extrabold transition-all disabled:opacity-40 ${
                                   u.podeVerHistoricoCompleto
                                     ? 'bg-indigo-600 text-white'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                                 }`}
                               >
-                                {u.podeVerHistoricoCompleto ? '✓ Vê Histórico' : 'Ver Histórico'}
+                                {u.podeVerHistoricoCompleto ? '✓ Vê Aproveitamento' : 'Ver Aproveitamento'}
                               </button>
                               <button
                                 type="button"
@@ -5241,7 +5241,7 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <GraduationCap className="h-6 w-6" />
-                <h3 className="font-extrabold text-lg">Boletim Escolar Completo</h3>
+                <h3 className="font-extrabold text-lg">Aproveitamento Individual</h3>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Visualize, pesquise e emita boletins individuais ou de turmas inteiras em formato oficial.
@@ -5538,7 +5538,7 @@ export const AdminDashboard: React.FC = () => {
                           }}
                           className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ml-auto cursor-pointer border border-slate-200/40 dark:border-slate-700/40"
                         >
-                          <Printer className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Imprimir Boletim
+                          <Printer className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Imprimir Aproveitamento Individual
                         </button>
                       </div>
                     </div>

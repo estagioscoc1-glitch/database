@@ -317,7 +317,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                     : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
-                📜 Histórico Completo
+                📜 Aproveitamento Individual
               </button>
               <button
                 onClick={() => setActiveSubTab('declaracoes')}
@@ -1275,7 +1275,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               <div className="space-y-5 animate-fade-in">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-150 dark:border-slate-800">
                   <div>
-                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Histórico Escolar Completo</h3>
+                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Aproveitamento Individual</h3>
                     <p className="text-xs text-slate-400">Consulte todo o seu aproveitamento acadêmico ao longo do curso.</p>
                   </div>
                   <button
@@ -1283,7 +1283,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                     onClick={() => setPrintHistorico(true)}
                     className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs shadow-md shadow-blue-500/10 transition-all cursor-pointer select-none uppercase tracking-wide shrink-0 self-start sm:self-center"
                   >
-                    <Printer className="h-4 w-4" /> Gerar Histórico Completo (PDF)
+                    <Printer className="h-4 w-4" /> Gerar Aproveitamento Individual (PDF)
                   </button>
                 </div>
 

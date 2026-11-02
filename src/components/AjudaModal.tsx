@@ -64,9 +64,9 @@ const SECOES: Secao[] = [
     ],
   },
   {
-    titulo: 'Histórico do Aluno',
+    titulo: 'Aproveitamento Individual (Todos os Períodos)',
     itens: [
-      { titulo: 'Boletim completo', texto: 'Busca um aluno e mostra o boletim de todas as disciplinas de todos os módulos que ele já cursou, com opção de imprimir o Histórico Completo oficial.' },
+      { titulo: 'Aproveitamento Individual', texto: 'Busca um aluno e mostra o aproveitamento de todas as disciplinas de todos os módulos que ele já cursou, com opção de imprimir o Aproveitamento Individual.' },
     ],
   },
   {

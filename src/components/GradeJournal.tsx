@@ -167,14 +167,14 @@ export const GradeJournal: React.FC = () => {
           {currentUser?.role === 'ADMIN' && (
             <button
               type="button"
-              title={`Oculta ou mostra TODOS os alunos, só na disciplina "${targetSubject.name}", no Histórico e Boletim — sem mexer nas outras disciplinas desta turma.`}
+              title={`Oculta ou mostra TODOS os alunos, só na disciplina "${targetSubject.name}", no Histórico e Aproveitamento Individual — sem mexer nas outras disciplinas desta turma.`}
               onClick={() => {
                 const jaTemOculta = grades.some(g => g.classId === targetClass.id && g.subjectId === targetSubject.id && g.hiddenFromHistory);
                 const acao = jaTemOculta ? 'mostrar de novo' : 'ocultar';
                 const confirmou = window.confirm(
                   `Isto vai ${acao.toUpperCase()} TODOS os alunos na disciplina "${targetSubject.name}" ` +
                   `(só nesta disciplina, as outras da turma "${targetClass.name}" não mudam), ` +
-                  `no Histórico Escolar e no Boletim.\n\n` +
+                  `no Histórico Escolar e no Aproveitamento Individual.\n\n` +
                   `Nenhuma nota é apagada — só decide se aparece ou não nos documentos.\n\n` +
                   `Confirma?`
                 );
@@ -182,7 +182,7 @@ export const GradeJournal: React.FC = () => {
                 const quantos = ocultarDisciplinaNoHistorico(targetClass.id, targetSubject.id, !jaTemOculta);
                 mostrarAviso(
                   jaTemOculta ? 'Disciplina visível de novo' : 'Disciplina ocultada',
-                  `${quantos} lançamento(s) de "${targetSubject.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Boletim.`
+                  `${quantos} lançamento(s) de "${targetSubject.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Aproveitamento Individual.`
                 );
               }}
               className={`flex items-center gap-1.5 px-3 py-2 font-bold rounded-xl text-xs transition-all border ${
@@ -219,13 +219,13 @@ export const GradeJournal: React.FC = () => {
           {currentUser?.role === 'ADMIN' && (
             <button
               type="button"
-              title="Oculta ou mostra TODOS os alunos, em TODAS as disciplinas desta turma, no Histórico e Boletim — de uma vez. Não apaga nenhuma nota."
+              title="Oculta ou mostra TODOS os alunos, em TODAS as disciplinas desta turma, no Histórico e Aproveitamento Individual — de uma vez. Não apaga nenhuma nota."
               onClick={() => {
                 const jaTemOculta = grades.some(g => g.classId === targetClass.id && g.hiddenFromHistory);
                 const acao = jaTemOculta ? 'mostrar de novo' : 'ocultar';
                 const confirmou = window.confirm(
                   `Isto vai ${acao.toUpperCase()} TODOS os alunos, em TODAS as disciplinas da turma "${targetClass.name}", ` +
-                  `no Histórico Escolar e no Boletim.\n\n` +
+                  `no Histórico Escolar e no Aproveitamento Individual.\n\n` +
                   `Nenhuma nota é apagada — só decide se aparece ou não nos documentos.\n\n` +
                   `Confirma?`
                 );
@@ -233,7 +233,7 @@ export const GradeJournal: React.FC = () => {
                 const quantos = ocultarTurmaNoHistorico(targetClass.id, !jaTemOculta);
                 mostrarAviso(
                   jaTemOculta ? 'Turma visível de novo' : 'Turma ocultada',
-                  `${quantos} lançamento(s) de nota da turma "${targetClass.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Boletim.`
+                  `${quantos} lançamento(s) de nota da turma "${targetClass.name}" ${jaTemOculta ? 'voltaram a aparecer' : 'foram ocultados'} no Histórico e Aproveitamento Individual.`
                 );
               }}
               className={`flex items-center gap-1.5 px-3 py-2 font-bold rounded-xl text-xs transition-all border ${
@@ -312,7 +312,7 @@ export const GradeJournal: React.FC = () => {
             <button type="button" onClick={() => setPainelCampoAberto(false)} className="text-[10px] font-bold text-slate-500 hover:underline">Fechar</button>
           </div>
           <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-            Esconde só o campo escolhido no Histórico e Boletim (ex: só o AFC) — o resto da nota continua aparecendo normal. Não apaga nada.
+            Esconde só o campo escolhido no Histórico e Aproveitamento Individual (ex: só o AFC) — o resto da nota continua aparecendo normal. Não apaga nada.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -335,7 +335,7 @@ export const GradeJournal: React.FC = () => {
               type="button"
               onClick={() => {
                 const confirmou = window.confirm(
-                  `Isto vai esconder o campo "${campoEscolhido.toUpperCase()}" de TODOS os alunos desta disciplina no Histórico e Boletim.\n\nConfirma?`
+                  `Isto vai esconder o campo "${campoEscolhido.toUpperCase()}" de TODOS os alunos desta disciplina no Histórico e Aproveitamento Individual.\n\nConfirma?`
                 );
                 if (!confirmou) return;
                 const quantos = ocultarCampoParaTodos(targetClass.id, targetSubject.id, campoEscolhido, true);
@@ -508,7 +508,7 @@ export const GradeJournal: React.FC = () => {
                 <th className="py-3 px-2 text-center w-[60px] font-bold">Conc</th>
                 <th className="py-3 px-3 text-right w-[100px] font-bold">Resultado</th>
                 {currentUser?.role === 'ADMIN' && (
-                  <th className="py-3 px-2 text-center w-[50px] font-bold" title="Aparece no Histórico e Boletim do aluno?">Visível</th>
+                  <th className="py-3 px-2 text-center w-[50px] font-bold" title="Aparece no Histórico e Aproveitamento Individual do aluno?">Visível</th>
                 )}
               </tr>
             </thead>
@@ -900,8 +900,8 @@ export const GradeJournal: React.FC = () => {
                         <button
                           type="button"
                           title={grade.hiddenFromHistory
-                            ? 'Oculta no Histórico e Boletim — clique para voltar a mostrar'
-                            : 'Aparece no Histórico e Boletim — clique para ocultar'}
+                            ? 'Oculta no Histórico e Aproveitamento Individual — clique para voltar a mostrar'
+                            : 'Aparece no Histórico e Aproveitamento Individual — clique para ocultar'}
                           onClick={() => {
                             updateGrade(grade.id, {
                               hiddenFromHistory: !grade.hiddenFromHistory,

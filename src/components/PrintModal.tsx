@@ -463,7 +463,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           <div className="flex-1 flex flex-col justify-center items-center text-center p-2 border-r border-black">
             <h1 className="text-sm font-black uppercase tracking-wider text-black">
               {['boletim', 'boletim_sala'].includes(documentType) && 'Ficha de Aproveitamento Individual'}
-              {documentType === 'historico_completo' && 'Histórico Escolar Completo'}
+              {documentType === 'historico_completo' && 'Aproveitamento Individual'}
               {(documentType === 'diario_notas' || documentType === 'diario_freq' || documentType === 'mapa_notas') && 'Ficha de Acompanhamento do Discente'}
             </h1>
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-700">
@@ -1365,7 +1365,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           <div className="text-xs">
             <p className="font-bold">Janela de Impressão Minimizada</p>
             <p className="text-[10px] text-slate-400 font-mono">
-              {['boletim', 'boletim_sala'].includes(documentType) && 'Boletim Escolar'}
+              {['boletim', 'boletim_sala'].includes(documentType) && 'Aproveitamento Individual'}
               {documentType === 'diario_notas' && 'Diário de Notas'}
               {documentType === 'diario_freq' && 'Diário de Frequência'}
               {documentType === 'mapa_notas' && 'Mapa de Notas'}

@@ -77,10 +77,10 @@ export const HistoricoCompletoModule: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
             <History className="h-6 w-6" />
-            <h3 className="font-extrabold text-lg">Histórico Completo do Aluno</h3>
+            <h3 className="font-extrabold text-lg">Aproveitamento Individual (Todos os Períodos)</h3>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Visualize e emita o histórico escolar completo do aluno, contemplando todos os módulos e períodos cursados.
+            Visualize e emita o aproveitamento individual do aluno, contemplando todos os módulos e períodos cursados.
           </p>
         </div>
         {/* Print Action Button */}
@@ -99,7 +99,7 @@ export const HistoricoCompletoModule: React.FC = () => {
             disabled={!selectedHistoricoStudentId}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-45 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/10 transition-all cursor-pointer"
           >
-            <Printer className="h-4 w-4" /> Imprimir Histórico Completo
+            <Printer className="h-4 w-4" /> Imprimir Aproveitamento Individual
           </button>
         </div>
       </div>
@@ -201,7 +201,7 @@ export const HistoricoCompletoModule: React.FC = () => {
                   <History className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-4 animate-pulse" />
                   <h4 className="text-sm font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Aluno Selecionado</h4>
                   <p className="text-xs text-slate-400 max-w-sm">
-                    Utilize a busca ou o diretório ao lado para selecionar o aluno e visualizar o Histórico Completo de Aproveitamento.
+                    Utilize a busca ou o diretório ao lado para selecionar o aluno e visualizar o Aproveitamento Individual.
                   </p>
                 </div>
               );

@@ -421,7 +421,7 @@ export const TeacherDashboard: React.FC = () => {
               className="flex items-center gap-1.5 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide"
             >
               <FileText className="h-4 w-4" />
-              <span>Histórico do Aluno</span>
+              <span>Aproveitamento Individual</span>
             </button>
           )}
           {currentUser?.podeVerAcessosEPresenca && (
@@ -1163,7 +1163,7 @@ export const TeacherDashboard: React.FC = () => {
               <div className="flex items-center gap-2 min-w-0">
                 <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
                 <span className="font-extrabold text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate">
-                  Histórico Completo do Aluno
+                  Aproveitamento Individual (Todos os Períodos)
                 </span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
