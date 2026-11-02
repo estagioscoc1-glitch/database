@@ -39,9 +39,9 @@ export interface OfertaEstagioSge {
   atualizado_em: string;
 }
 
-const A_CADA_MS = 2 * 60 * 1000; // enquanto a tela está aberta, confere de novo a cada 2 minutos
+const A_CADA_MS = 6 * 1000; // enquanto a tela está aberta, confere de novo a cada 6 segundos
 const ESPERA_RESPOSTA_MS = 90 * 1000; // quanto tempo a tela espera o SGE responder um pedido
-const VERIFICA_RESPOSTA_MS = 1000;
+const VERIFICA_RESPOSTA_MS = 400;
 
 /** Lê do banco as vagas liberadas para o aluno (id da ficha do aluno). `disponivel` é falso quando não deu para ler (aí a tela antiga segue valendo). */
 export function useOfertaEstagioSge(alunoId: string | undefined): { ofertas: OfertaEstagioSge[]; disponivel: boolean; recarregar: () => Promise<void> } {
@@ -68,7 +68,10 @@ export function useOfertaEstagioSge(alunoId: string | undefined): { ofertas: Ofe
     setOfertas(null);
     void carregar();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void carregar(); }, A_CADA_MS);
-    return () => { ativo.current = false; window.clearInterval(timer); };
+    const aoVoltar = () => { if (document.visibilityState === 'visible') void carregar(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => { ativo.current = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', aoVoltar); window.removeEventListener('focus', aoVoltar); };
   }, [alunoId, carregar]);
 
   return { ofertas: ofertas ?? [], disponivel: ofertas !== null, recarregar: carregar };
@@ -125,6 +128,7 @@ export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: 
         if (r.error || !r.data || r.data.status === 'pendente') continue;
         const texto = String(r.data.mensagem ?? '');
         await onAtualizar();
+        window.dispatchEvent(new Event('sge-estagio-mudou')); // avisa o "Meu Progresso" para conferir o histórico na hora
         if (!montado.current) return;
         setResultado({ tipo: r.data.status === 'ok' ? (tipo === 'inscrever' ? 'ok' : 'info') : r.data.status === 'recusado' ? 'recusado' : 'erro', texto: texto || 'Pedido respondido.' });
         setFase('parado');

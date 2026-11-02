@@ -38,7 +38,7 @@ export interface DadosEstagioSge {
   vagas: VagaEstagioSge[];
 }
 
-const A_CADA_MS = 2 * 60 * 1000; // enquanto a tela está aberta, confere de novo a cada 2 minutos
+const A_CADA_MS = 6 * 1000; // enquanto a tela está aberta, confere de novo a cada 6 segundos (o SGE manda a nota e a entrada na vaga na hora)
 
 /** Lê do banco o histórico de estágios do aluno (id da ficha do aluno). Devolve `dados: null` quando o SGE ainda não mandou nada para ele. */
 export function useEstagioSge(alunoId: string | undefined): { dados: DadosEstagioSge | null; carregando: boolean } {
@@ -76,7 +76,13 @@ export function useEstagioSge(alunoId: string | undefined): { dados: DadosEstagi
     setCarregando(true);
     void carregar();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void carregar(); }, A_CADA_MS);
-    return () => { cancelado = true; window.clearInterval(timer); };
+    // ao voltar para a aba, ou quando o aluno acabou de entrar numa vaga (a tela de inscrição avisa), confere na hora — e de novo logo depois, quando o SGE termina de enviar
+    const aoVoltar = () => { if (document.visibilityState === 'visible') void carregar(); };
+    const aoMudar = () => { void carregar(); window.setTimeout(() => { if (!cancelado) void carregar(); }, 1500); window.setTimeout(() => { if (!cancelado) void carregar(); }, 3500); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    window.addEventListener('sge-estagio-mudou', aoMudar);
+    return () => { cancelado = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', aoVoltar); window.removeEventListener('focus', aoVoltar); window.removeEventListener('sge-estagio-mudou', aoMudar); };
   }, [alunoId]);
 
   return { dados, carregando };
