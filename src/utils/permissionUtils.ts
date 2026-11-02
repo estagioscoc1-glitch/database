@@ -23,7 +23,7 @@ export const PERMISSION_MODULES: { id: PermissionModule; label: string; descript
   { id: 'orientacao',         label: 'Movimentação',         description: 'Estágios, minicursos e eventos' },
   { id: 'estagio',            label: 'Estágios',             description: 'Tela de estágios do menu principal' },
   { id: 'requerimentos',      label: 'Requerimentos',        description: 'Fila de pedidos, contratos e declarações' },
-  { id: 'historico_completo', label: 'Histórico do Aluno',   description: 'Histórico escolar completo e parcial' },
+  { id: 'historico_completo', label: 'Aproveitamento Individual (Todos os Períodos)', description: 'Aproveitamento de todos os módulos e períodos do aluno' },
   { id: 'imp',                label: 'Importar Planilhas',   description: 'Importação de dados por planilha' },
   { id: 'msg',                label: 'Mensagens & Avisos',   description: 'Comunicados para alunos e professores' },
   { id: 'acessos',            label: 'Acessos e Presença',   description: 'Quem entrou no sistema e de onde' },
