@@ -70,6 +70,7 @@ export const AttendanceJournal: React.FC = () => {
     users, classes, subjects, attendance, grades,
     activeClassId, activeSubjectId, currentUser, getStudentAbsences, updateStudentAbsences,
     saveAttendanceSession, addAttendanceSession,
+    aulasCarregadas, aulasErroCarga, statusGravacaoAulas,
     isClassDefinitiveLocked, autoLockEnabled, simulatedDate, calendarEvents,
     currentPeriod
   } = useApp();
@@ -86,6 +87,22 @@ export const AttendanceJournal: React.FC = () => {
   const [printDoc, setPrintDoc] = useState<{ type: 'boletim' | 'boletim_sala' | 'diario_notas' | 'diario_freq' | 'mapa_notas' } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unsaved' | 'saving' | 'saved'>('idle');
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+  // Sobe quando uma data digitada é recusada, para os campos MM/DD voltarem ao valor que vale.
+  const [versaoCampos, setVersaoCampos] = useState(0);
+
+  // Situação REAL da gravação (ver comentário mais abaixo). Fica ANTES do `return` de
+  // "Nenhum Diário Ativo" para o número de hooks ser sempre o mesmo.
+  const gravacao = statusGravacaoAulas(activeClassId, activeSubjectId);
+  const gravacaoAnteriorRef = React.useRef(gravacao.pendentes);
+  useEffect(() => {
+    if (gravacaoAnteriorRef.current > 0 && gravacao.pendentes === 0 && gravacao.bloqueadas === 0) {
+      setSaveStatus('saved');
+      const relogio = setTimeout(() => setSaveStatus('idle'), 3000);
+      gravacaoAnteriorRef.current = gravacao.pendentes;
+      return () => clearTimeout(relogio);
+    }
+    gravacaoAnteriorRef.current = gravacao.pendentes;
+  }, [gravacao.pendentes, gravacao.bloqueadas]);
 
   const handleSaveAttendance = () => {
     if (isLocked) return;
@@ -110,6 +127,39 @@ export const AttendanceJournal: React.FC = () => {
       </div>
     );
   }
+
+  // A TELA DIZ O QUE ACONTECE DE VERDADE COM O QUE FOI DIGITADO.
+  //
+  // O botão "Salvar" só esperava 0,8 s e mostrava "salvo com sucesso", mesmo
+  // quando nada tinha ido para o servidor (sem permissão no diário, diário
+  // ainda sem carregar, falha de rede). Agora os avisos vêm da situação real:
+  // `pendentes` = aguardando envio; `bloqueadas` = barradas, nunca serão gravadas.
+  /** Não deixa criar uma data nova antes de ler as aulas que já existem — seria duplicar tudo. */
+  const bloqueiaDataNovaSemCarga = (): boolean => {
+    if (aulasCarregadas) return false;
+    setVersaoCampos(v => v + 1);
+    setWarningMessage(
+      aulasErroCarga
+        ? 'Não foi possível carregar as aulas já lançadas neste diário. Por isso NÃO é possível lançar data nova agora: ela ficaria repetida. Atualize a página (F5) e tente de novo.'
+        : 'Aguarde: ainda estamos carregando as aulas já lançadas neste diário. Em alguns segundos você poderá lançar.'
+    );
+    return true;
+  };
+
+  /** Mesma data duas vezes no mesmo diário = aula repetida (e falta contada em dobro). */
+  const bloqueiaDataRepetida = (dateStr: string, ignorarId: string | null = null): boolean => {
+    const [, mes, dia] = dateStr.split('-');
+    if (mes === '00' || dia === '00') return false; // data ainda incompleta (só o mês ou só o dia digitado)
+    const indice = subjectSessions.findIndex(s => s.date === dateStr && s.id !== ignorarId);
+    if (indice < 0) return false;
+    const [, mm, dd] = dateStr.split('-');
+    setVersaoCampos(v => v + 1);
+    setWarningMessage(
+      `Já existe uma coluna com a data ${dd}/${mm} neste diário (coluna ${indice + 1}). ` +
+      `Para registrar mais de uma aula no mesmo dia, use o botão de quantidade de aulas (1, 2 ou 4) no topo daquela coluna.`
+    );
+    return true;
+  };
 
   const isLocked = isClassDefinitiveLocked(targetClass) && currentUser?.role !== 'ADMIN';
   const isAutoLockedDefinitive = autoLockEnabled && calendarEvents.find(e => e.type === 'DEFINITIVE_CLOSING')?.date && simulatedDate >= (calendarEvents.find(e => e.type === 'DEFINITIVE_CLOSING')?.date || '') && currentUser?.role !== 'ADMIN';
@@ -354,10 +404,11 @@ export const AttendanceJournal: React.FC = () => {
     const day = col.day || '00';
     const month = cleanMonth || '00';
     const dateStr = `2026-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    
+
     if (col.id) {
       const existingSession = subjectSessions.find(s => s.id === col.id);
       if (existingSession) {
+        if (bloqueiaDataRepetida(dateStr, col.id)) return;
         saveAttendanceSession({
           ...existingSession,
           date: dateStr
@@ -365,6 +416,7 @@ export const AttendanceJournal: React.FC = () => {
       }
     } else {
       if (!cleanMonth) return; // Don't create session for an empty month if it doesn't exist
+      if (bloqueiaDataNovaSemCarga() || bloqueiaDataRepetida(dateStr)) return;
       const records: { [studentId: string]: 'P' | 'F' } = {};
       classStudents.forEach(std => {
         records[std.id] = 'P';
@@ -390,10 +442,11 @@ export const AttendanceJournal: React.FC = () => {
     const month = col.month || '00';
     const day = cleanDay || '00';
     const dateStr = `2026-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    
+
     if (col.id) {
       const existingSession = subjectSessions.find(s => s.id === col.id);
       if (existingSession) {
+        if (bloqueiaDataRepetida(dateStr, col.id)) return;
         saveAttendanceSession({
           ...existingSession,
           date: dateStr
@@ -401,6 +454,7 @@ export const AttendanceJournal: React.FC = () => {
       }
     } else {
       if (!cleanDay) return; // Don't create session for an empty day if it doesn't exist
+      if (bloqueiaDataNovaSemCarga() || bloqueiaDataRepetida(dateStr)) return;
       const records: { [studentId: string]: 'P' | 'F' } = {};
       classStudents.forEach(std => {
         records[std.id] = 'P';
@@ -465,6 +519,7 @@ export const AttendanceJournal: React.FC = () => {
         });
       }
     } else {
+      if (bloqueiaDataNovaSemCarga() || bloqueiaDataRepetida(dateStr)) return;
       const records: { [studentId: string]: 'P' | 'F' } = {};
       classStudents.forEach(std => {
         records[std.id] = std.id === studentId ? value : 'P';
@@ -706,24 +761,35 @@ export const AttendanceJournal: React.FC = () => {
       )}
 
       {/* Save status alerts */}
-      {saveStatus === 'unsaved' && (
-        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/35 rounded-2xl text-xs flex items-center justify-between gap-3 shadow-xs animate-fade-in">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping" />
-            <span className="font-extrabold">Você possui alterações não salvas no Diário de Frequência!</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleSaveAttendance}
-            className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider rounded-lg transition-all shadow-xs"
-          >
-            Salvar Agora
-          </button>
+      {/* Os avisos abaixo vêm da situação REAL da gravação (statusGravacaoAulas), não de um relógio. */}
+      {!aulasCarregadas && (
+        <div className={`p-3.5 rounded-2xl text-xs flex items-center gap-2 shadow-xs animate-fade-in border ${aulasErroCarga ? 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border-red-200/50 dark:border-red-900/35' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/35'}`}>
+          <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${aulasErroCarga ? 'bg-red-500' : 'bg-amber-500'}`} />
+          <span className="font-extrabold">
+            {aulasErroCarga
+              ? 'Não foi possível carregar as aulas já lançadas. Atualize a página (F5) antes de lançar datas novas, para não repetir aulas.'
+              : 'Carregando as aulas já lançadas neste diário…'}
+          </span>
         </div>
       )}
-      {saveStatus === 'saved' && (
+      {gravacao.bloqueadas > 0 && (
+        <div className="p-3.5 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border border-red-200/50 dark:border-red-900/35 rounded-2xl text-xs flex items-center gap-2 shadow-xs animate-fade-in">
+          <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+          <span className="font-extrabold">
+            ATENÇÃO: este diário não está liberado para o seu usuário, então o que você lança aqui NÃO é gravado no servidor e vai sumir.
+            Avise a secretaria para liberar este diário no seu acesso. ({gravacao.bloqueadas} aula(s) sem gravar)
+          </span>
+        </div>
+      )}
+      {gravacao.pendentes > 0 && (
+        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/35 rounded-2xl text-xs flex items-center gap-2 shadow-xs animate-fade-in">
+          <span className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping" />
+          <span className="font-extrabold">Enviando ao servidor… {gravacao.pendentes} aula(s) aguardando gravação. Não feche a página.</span>
+        </div>
+      )}
+      {saveStatus === 'saved' && gravacao.pendentes === 0 && gravacao.bloqueadas === 0 && (
         <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/35 rounded-2xl text-xs flex items-center gap-2 shadow-xs animate-fade-in">
-          <span className="font-extrabold">✔ Todas as alterações de frequência foram salvas com sucesso!</span>
+          <span className="font-extrabold">✔ Tudo gravado no servidor!</span>
         </div>
       )}
 
@@ -770,6 +836,7 @@ export const AttendanceJournal: React.FC = () => {
                 {cols.map((col, colIdx) => (
                   <th key={`h-month-${colIdx}`} className="py-1 px-0.5 border-r border-slate-150 dark:border-slate-800 text-center w-[40px]">
                     <JournalDateInput
+                      key={`m${colIdx}-${versaoCampos}`}
                       placeholder="MM"
                       disabled={isLocked}
                       initialValue={col.month}
@@ -792,6 +859,7 @@ export const AttendanceJournal: React.FC = () => {
                 {cols.map((col, colIdx) => (
                   <th key={`h-day-${colIdx}`} className="py-1 px-0.5 border-r border-slate-150 dark:border-slate-800 text-center w-[40px]">
                     <JournalDateInput
+                      key={`d${colIdx}-${versaoCampos}`}
                       placeholder="DD"
                       disabled={isLocked}
                       initialValue={col.day}
