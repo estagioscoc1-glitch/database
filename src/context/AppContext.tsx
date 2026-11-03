@@ -242,6 +242,12 @@ interface AppContextType {
   // Attendance
   saveAttendanceSession: (session: AttendanceSession) => void;
   addAttendanceSession: (session: Omit<AttendanceSession, 'id'>) => void;
+  // As aulas já lançadas foram lidas do banco? Enquanto não, a tela não pode criar data nova
+  // (o diário apareceria vazio e a pessoa digitaria tudo de novo, duplicando as aulas).
+  aulasCarregadas: boolean;
+  aulasErroCarga: boolean;
+  // Situação REAL da gravação das aulas de um diário: aguardando envio / barradas por falta de permissão.
+  statusGravacaoAulas: (classId: string, subjectId: string) => { pendentes: number; bloqueadas: number };
   directAbsences: Record<string, number>;
   updateStudentAbsences: (studentId: string, subjectId: string, classId: string, total: number) => void;
   
@@ -1449,7 +1455,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           try {
-            const aulas = await carregarAulas();
+            let aulas = await carregarAulas();
+            // FALHA PASSAGEIRA NÃO PODE VIRAR "DIÁRIO VAZIO".
+            //
+            // A leitura das aulas chegou a estourar o tempo do servidor (erro 500
+            // "statement timeout"). Sem isto o diário abria sem nada, o professor
+            // digitava as datas de novo e cada tentativa criava aulas repetidas
+            // (um professor chegou a ter a mesma data 9 vezes). Antes de desistir,
+            // tenta mais duas vezes; se ainda falhar, a tela avisa e não deixa
+            // criar data nova até carregar (ver `aulasCarregadas`).
+            for (const espera of [2000, 5000]) {
+              if (aulas !== null || desmontado) break;
+              await new Promise(r => setTimeout(r, espera));
+              aulas = await carregarAulas();
+            }
+            if (!desmontado) {
+              if (aulas !== null) { setAulasCarregadasOk(true); setAulasErroCarga(false); }
+              else if (!aulasPrimeiraCargaFeitaRef.current) setAulasErroCarga(true);
+            }
             if (aulas && aulas.length > 0 && !desmontado) {
               // A RECARGA NÃO PODE APAGAR O QUE O PROFESSOR ACABOU DE MEXER.
               //
@@ -1907,12 +1930,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // navegador. Agora cada aula vira uma linha própria.
   const aulasGravadasRef = React.useRef<Map<string, string>>(new Map());
   const aulasPrimeiraCargaFeitaRef = React.useRef<boolean>(false);
+
+  // O QUE A TELA DO DIÁRIO PRECISA SABER PARA NÃO MENTIR.
+  //
+  // `aulasCarregadasOk`: as aulas já lançadas foram lidas do banco com sucesso.
+  // `aulasErroCarga`: a leitura falhou mesmo depois de tentar de novo.
+  // `versaoGravacaoAulas`: sobe a cada rodada de gravação, só para a tela reler
+  // o que já foi para o servidor (as referências acima não avisam a tela).
+  const [aulasCarregadasOk, setAulasCarregadasOk] = React.useState(false);
+  const [aulasErroCarga, setAulasErroCarga] = React.useState(false);
+  const [, setVersaoGravacaoAulas] = React.useState(0);
+
+  /** Quantas aulas deste diário ainda não foram para o servidor, e quantas nunca irão por falta de permissão. */
+  const statusGravacaoAulas = (classId: string, subjectId: string) => {
+    let pendentes = 0;
+    let bloqueadas = 0;
+    if (!bancoDisponivel) return { pendentes, bloqueadas }; // modo sem servidor: nada é enviado, não há o que avisar
+    for (const a of attendance || []) {
+      if (a.classId !== classId || a.subjectId !== subjectId) continue;
+      if (/-00(-|$)/.test(a.date || '')) continue; // coluna só com o mês ou só com o dia: ainda não há o que enviar
+      if (aulasGravadasRef.current.get(a.id) === JSON.stringify(a)) continue;
+      if (podeGravarNoDiario(a.classId, a.subjectId)) pendentes++; else bloqueadas++;
+    }
+    return { pendentes, bloqueadas };
+  };
+
   useEffect(() => {
     if (!bancoDisponivel || !currentUser || isLoading) return;
 
     const tempo = setTimeout(async () => {
       const pendentes = (attendance || []).filter(a => {
         if (!a.classId || !a.subjectId || !a.date) return false;
+        // Só o mês ou só o dia digitado ("2026-03-00"): o banco recusa essa data e a
+        // tentativa virava "não gravada" + aviso laranja a cada mês digitado sozinho.
+        // Fica no navegador até a data ser completada.
+        if (/-00(-|$)/.test(a.date)) return false;
         if (!podeGravarNoDiario(a.classId, a.subjectId)) return false;
         return aulasGravadasRef.current.get(a.id) !== JSON.stringify(a);
       });
@@ -1942,6 +1994,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (res.ok) aulasGravadasRef.current.set(aula.id, JSON.stringify(aula));
         else { falhas++; ultimoErro = res.erro || ''; }
       }
+      setVersaoGravacaoAulas(v => v + 1);
 
       if (falhas > 0) {
         setCloudBackupStatus('error');
@@ -7010,6 +7063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, marcarStatusDependenciaContexto, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
+      aulasCarregadas: !bancoDisponivel || aulasCarregadasOk, aulasErroCarga, statusGravacaoAulas,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
       avisosVistos, marcarAvisoVisto,
