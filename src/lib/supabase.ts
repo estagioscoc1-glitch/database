@@ -27,6 +27,68 @@ if (!supabaseConfigurado) {
 /** Nome da chave onde a sessão fica guardada no navegador. */
 export const CHAVE_DA_SESSAO = 'coc_portal_sessao';
 
+/**
+ * Marca "a pessoa clicou em Sair". Fica no navegador até a saída terminar.
+ *
+ * POR QUE ISTO EXISTE: o botão Sair grava as pendências do diário (e, para a
+ * gestão, o retrato geral) e SÓ DEPOIS encerra a sessão. Quem clicava em Sair
+ * e atualizava a página (F5) antes desse fim voltava a entrar sem digitar
+ * login, porque a sessão ainda estava guardada. Com a marca, a página nova
+ * percebe que a saída já tinha sido pedida e apaga a sessão na hora.
+ */
+export const CHAVE_SAINDO = 'coc_portal_saindo';
+
+function lerMarca(): boolean {
+  try { return window.localStorage.getItem(CHAVE_SAINDO) !== null; } catch { return false; }
+}
+function gravarMarca(): void {
+  try { window.localStorage.setItem(CHAVE_SAINDO, String(Date.now())); } catch { /* sem armazenamento: segue como antes */ }
+}
+function apagarMarca(): void {
+  try { window.localStorage.removeItem(CHAVE_SAINDO); } catch { /* idem */ }
+}
+
+/** Também em memória: vale mesmo se o navegador não deixar gravar no armazenamento. */
+let saidaPedida = false;
+
+/** Chamar no primeiro passo do Sair, antes de gravar qualquer coisa. */
+export function marcarSaida(): void {
+  saidaPedida = true;
+  gravarMarca();
+}
+
+/** Chamar quando a pessoa vai entrar de novo: cancela uma saída que ficou pendente. */
+export function limparMarcaDeSaida(): void {
+  saidaPedida = false;
+  apagarMarca();
+}
+
+/**
+ * Roda UMA vez, no carregamento da página, ANTES de o Supabase ler o
+ * armazenamento. Se a saída tinha sido pedida e não terminou (a página foi
+ * atualizada no meio), apaga a sessão local agora, sem esperar rede, e pede ao
+ * servidor — sem bloquear nada — que invalide o acesso antigo.
+ */
+function concluirSaidaInterrompida(): void {
+  if (!lerMarca()) return;
+  let tokenAntigo: string | null = null;
+  try {
+    const bruto = window.localStorage.getItem(CHAVE_DA_SESSAO);
+    if (bruto) tokenAntigo = (JSON.parse(bruto) as { access_token?: string })?.access_token ?? null;
+  } catch { /* sessão ilegível: só apagar */ }
+  try { window.localStorage.removeItem(CHAVE_DA_SESSAO); } catch { /* idem */ }
+  apagarMarca();
+  if (tokenAntigo && supabaseConfigurado) {
+    // Melhor esforço: se a rede falhar, o acesso antigo expira sozinho.
+    void fetch(`${URL}/auth/v1/logout`, {
+      method: 'POST',
+      headers: { apikey: CHAVE as string, Authorization: `Bearer ${tokenAntigo}` },
+      keepalive: true,
+    }).catch(() => { /* não impede nada */ });
+  }
+}
+concluirSaidaInterrompida();
+
 export const supabase: SupabaseClient = createClient(
   URL ?? 'https://indisponivel.supabase.co',
   CHAVE ?? 'chave-ausente',
@@ -283,6 +345,8 @@ export async function entrar(login: string, senha: string): Promise<ResultadoLog
     return { ok: false, mensagem: 'Usuário ou senha incorretos.' };
   }
 
+  // Quem vai entrar não pode ser derrubado por uma saída anterior que ficou pendente.
+  limparMarcaDeSaida();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
   if (error || !data.user) {
     await supabase.rpc('registrar_falha_login', { p_login: chaveTentativas });
@@ -330,7 +394,20 @@ export async function conferirSenhaAtual(senha: string): Promise<boolean> {
 }
 
 export async function sair(): Promise<void> {
-  await supabase.auth.signOut();
+  // Se a pessoa já entrou de novo (a marca foi limpa no login), este Sair
+  // atrasado não pode derrubar o acesso novo.
+  if (!saidaPedida) return;
+  try {
+    await supabase.auth.signOut();
+  } finally {
+    // Mesmo com falha de rede, a sessão local sai e a marca é encerrada.
+    // (Se a pessoa entrou de novo no meio do caminho, não derruba o acesso novo.)
+    if (saidaPedida) {
+      try { await supabase.auth.signOut({ scope: 'local' }); } catch { /* já limpa */ }
+      saidaPedida = false;
+      apagarMarca();
+    }
+  }
 }
 
 export async function sessaoAtual(): Promise<Session | null> {
