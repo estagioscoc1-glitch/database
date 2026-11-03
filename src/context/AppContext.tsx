@@ -28,6 +28,7 @@ import {
   criarAcesso,
   entrar as entrarNoPortal,
   sair as sairDoPortal,
+  marcarSaida,
   carregarPerfil,
   sessaoAtual,
   idDoAlunoLogado,
@@ -3194,6 +3195,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
+    // PRIMEIRO PASSO: registra que a saída foi pedida. Se a página for
+    // atualizada antes de a gravação abaixo terminar, o carregamento seguinte
+    // apaga a sessão em vez de entrar sozinho (ver `marcarSaida`).
+    marcarSaida();
+
     // GRAVA NOTA/FALTA/AULA PENDENTE ANTES DE ENCERRAR A SESSÃO.
     //
     // O caminho abaixo (`saveStateToCloud`) só roda para a gestão — e, mesmo
