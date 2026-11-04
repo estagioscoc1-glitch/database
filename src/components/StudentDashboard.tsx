@@ -33,6 +33,7 @@ import { AditivoPendenteAviso } from './AditivoPendenteAviso';
 import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
 import { useEstagioSge, PainelEstagioSge } from './estagios/MeuProgressoSge';
 import { useOfertaEstagioSge, escolherOferta, InscricaoEstagioSge } from './estagios/InscricaoEstagioSge';
+import OrientacoesEstagioAluno from './estagios/OrientacoesEstagioAluno';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -66,7 +67,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
   const [printHistorico, setPrintHistorico] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo' | 'certificados' | 'financeiro'>('aproveitamento');
+  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'orientacoes_estagio' | 'historico_completo' | 'certificados' | 'financeiro'>('aproveitamento');
   const [financeiroVisivel, setFinanceiroVisivel] = useState(false);
   const [printDeclType, setPrintDeclType] = useState<'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | null>(null);
   
@@ -364,6 +365,18 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                   💰 Financeiro
                 </button>
               )}
+              {/* Orientações de estágio (texto da gerência de estágio). Fica por último; com o Financeiro visível ocupa a linha inteira de baixo. */}
+              <button
+                onClick={() => setActiveSubTab('orientacoes_estagio')}
+                id="student-orientacoes-estagio-btn"
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${financeiroVisivel ? 'col-span-3' : ''} ${
+                  activeSubTab === 'orientacoes_estagio'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                📚 Orientações Estágios
+              </button>
               {/* "Meus Certificados" escondido a pedido — a escola tem outra
                   solução para entregar certificado ao aluno, fora do portal. */}
             </div>
@@ -710,6 +723,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               </div>
             );
           })()}
+
+          {/* ORIENTAÇÕES DE ESTÁGIO (só leitura) */}
+          {activeSubTab === 'orientacoes_estagio' && <OrientacoesEstagioAluno />}
 
           {/* TAB 4: ESTÁGIO (Student Tracking & Self-Enrollment) */}
           {activeSubTab === 'financeiro' && financeiroVisivel && (
