@@ -4,7 +4,7 @@
  * Como funciona: a secretaria abre a vaga no SGE escolhendo as turmas. O SGE publica no banco (tabela `sge_estagio_oferta`) a vaga liberada para a turma de cada aluno,
  * se ele PODE se inscrever e, se não puder, as pendências em linguagem de aluno. O aluno pede a inscrição (tabela `sge_estagio_pedido`) e o SGE — que é quem decide —
  * confere tudo de novo na hora, inclui o aluno na vaga e responde. O portal só mostra e pede: nunca decide e nunca grava na oferta (RLS: cada aluno só enxerga as próprias linhas).
- * Aparece uma vaga por vez. Se o SGE não tiver nada para o aluno (ou a leitura falhar), `disponivel` fica falso e a tela de vagas continua como era.
+ * Aparece um cartão para cada vaga liberada à turma do aluno (cada uma segue as próprias regras no SGE). Se o SGE não tiver nada para o aluno (ou a leitura falhar), `disponivel` fica falso e a tela de vagas continua como era.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock, MapPin, Phone, RefreshCw, UserCheck, Users } from 'lucide-react';
@@ -77,12 +77,16 @@ export function useOfertaEstagioSge(alunoId: string | undefined): { ofertas: Ofe
   return { ofertas: ofertas ?? [], disponivel: ofertas !== null, recarregar: carregar };
 }
 
-/** Uma vaga por vez: a que o aluno já ocupa; senão a de data mais próxima. */
+/** Todas as vagas liberadas para a turma do aluno, uma abaixo da outra (data de início mais próxima primeiro; empate: menor nº da vaga).
+ *  Antes aparecia só uma por aluno e a segunda (ex.: CME depois de Tratamento Especializado) ficava escondida (corrigido em 05/11/2026). */
+export function ordenarOfertas(ofertas: OfertaEstagioSge[]): OfertaEstagioSge[] {
+  return [...ofertas].sort((a, b) => (a.vaga.inicio ?? '9999-12-31').localeCompare(b.vaga.inicio ?? '9999-12-31') || a.codigo_vaga - b.codigo_vaga);
+}
+
+/** NÃO é mais usada pela tela (mostrava uma vaga só). Fica exportada só para que o envio em duas etapas ao GitHub nunca deixe a tela sem esta função. */
 export function escolherOferta(ofertas: OfertaEstagioSge[]): OfertaEstagioSge | null {
   if (!ofertas.length) return null;
-  const inscrita = ofertas.find((o) => o.inscrito);
-  if (inscrita) return inscrita;
-  return [...ofertas].sort((a, b) => (a.vaga.inicio ?? '9999-12-31').localeCompare(b.vaga.inicio ?? '9999-12-31') || a.codigo_vaga - b.codigo_vaga)[0];
+  return ofertas.find((o) => o.inscrito) ?? ordenarOfertas(ofertas)[0];
 }
 
 const fmtDia = (iso: string | null | undefined): string => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10).split('-').reverse().join('/') : '');
@@ -202,7 +206,7 @@ export const InscricaoEstagioSge: React.FC<{ oferta: OfertaEstagioSge; alunoId: 
         fase === 'confirmando' ? (
           <div className="p-3 border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20 rounded-xl space-y-2.5">
             <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
-              Confirmar a sua inscrição na vaga nº {v.codigo_vaga}? Você entra na lista da vaga e só poderá escolher outra depois que a sua nota nesta for lançada.
+              Confirmar a sua inscrição na vaga nº {v.codigo_vaga}? Você entra na lista desta vaga.
             </p>
             {verComo ? <p className="text-xs font-black text-rose-700 dark:text-rose-300">Atenção: você está vendo o portal como este aluno. Ao confirmar, a inscrição será feita DE VERDADE para ele.</p> : null}
             <div className="flex flex-wrap gap-2">
