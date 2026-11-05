@@ -34,6 +34,7 @@ import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAce
 import { useEstagioSge, PainelEstagioSge } from './estagios/MeuProgressoSge';
 import { useOfertaEstagioSge, ordenarOfertas, InscricaoEstagioSge } from './estagios/InscricaoEstagioSge';
 import OrientacoesEstagioAluno from './estagios/OrientacoesEstagioAluno';
+import { resultadoLiberado, avisoResultadoConselho } from '../lib/resultadoAposConselho';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -142,6 +143,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   const regularComNota = regulares.find(id => temNotaLancada(studentGrades.filter(g => g.classId === id)));
   const studentClassId = regularComNota ?? regulares[0] ?? classIdsCandidatas[0];
   const targetClass = classes.find(c => c.id === studentClassId) || activePeriodClasses[0];
+
+  // CONCEITO E RESULTADO SÓ DEPOIS DO CONSELHO DE CLASSE (pedido da direção,
+  // 05/11/2026): no módulo em andamento (e nas dependências do período atual)
+  // essas duas colunas ficam escondidas até passar o dia do Conselho no
+  // Calendário Acadêmico. Módulos já finalizados (períodos anteriores) mostram
+  // tudo. As notas (S1, S2, AFC, EX, CS, PF) e as faltas nunca são escondidas.
+  // Regra em src/lib/resultadoAposConselho.ts.
+  const liberaResultado = (turma: { year: number; semester: number }) =>
+    resultadoLiberado(turma, currentPeriod, calendarEvents, simulatedDate);
+  const avisoConselho = avisoResultadoConselho(calendarEvents, currentPeriod);
+  const ocultaResultadoFicha = targetClass ? !liberaResultado(targetClass) : false;
 
   // Course info
   const courseInfo = targetClass ? courses.find(co => co.id === targetClass.courseId) : null;
@@ -408,8 +420,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                       <th className="py-2.5 px-2 text-center">CS</th>
                       <th className="py-2.5 px-2 text-center font-bold text-blue-700 dark:text-blue-300">PF</th>
                       <th className="py-2.5 px-2 text-center">Faltas</th>
-                      <th className="py-2.5 px-2 text-center">Conceito</th>
-                      <th className="py-2.5 px-3 text-right">Resultado</th>
+                      {!ocultaResultadoFicha && <th className="py-2.5 px-2 text-center">Conceito</th>}
+                      {!ocultaResultadoFicha && <th className="py-2.5 px-3 text-right">Resultado</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
@@ -430,11 +442,12 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                           <td className="py-2.5 px-2 text-center font-mono text-slate-500 dark:text-slate-400">
                             {absences.total}
                           </td>
-                          <td className="py-2.5 px-2 text-center font-black">{score ? score.concept : 'D'}</td>
+                          {!ocultaResultadoFicha && <td className="py-2.5 px-2 text-center font-black">{score ? score.concept : 'D'}</td>}
+                          {!ocultaResultadoFicha && (
                           <td className="py-2.5 px-3 text-right">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black tracking-wide ${
-                              score?.result?.includes('APTO') 
-                                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                              score?.result?.includes('APTO')
+                                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400'
                                 : (score?.result === 'F. NOTA' || score?.result === 'REP. FALTAS' || score?.result === 'NÃO APTO')
                                   ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                                   : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
@@ -442,12 +455,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                               {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                             </span>
                           </td>
+                          )}
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+
+              {ocultaResultadoFicha && (
+                <p data-testid="aviso-resultado-conselho" className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl px-3 py-2">
+                  {avisoConselho}
+                </p>
+              )}
 
               {/* Explanatory footer matches original PDF legend styling */}
               <div className="bg-slate-50 dark:bg-slate-800/20 p-3 rounded-2xl text-[10px] text-slate-400 leading-relaxed font-semibold font-sans">
@@ -1320,6 +1340,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                     {studentClasses.map(cls => {
                       const classGrades = studentGrades.filter(g => g.classId === cls.id);
                       const clsSubjects = (cls.isDependency && cls.dependencySubjectId ? subjects.filter(s => s.id === cls.dependencySubjectId) : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module));
+                      // Módulo/dependência do período atual: Conceito e Resultado só depois do Conselho.
+                      const ocultaRes = !liberaResultado(cls);
 
                       return (
                         <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
@@ -1348,8 +1370,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                   <th className="py-3 px-2 text-center w-12">CS</th>
                                   <th className="py-3 px-2 text-center w-14 font-black">PF</th>
                                   <th className="py-3 px-3 text-center w-16">Faltas</th>
-                                  <th className="py-3 px-3 text-center w-20">Conceito</th>
-                                  <th className="py-3 px-4 text-right w-24">Resultado</th>
+                                  {!ocultaRes && <th className="py-3 px-3 text-center w-20">Conceito</th>}
+                                  {!ocultaRes && <th className="py-3 px-4 text-right w-24">Resultado</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
@@ -1383,9 +1405,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                       <td className="py-3 px-3 text-center font-mono font-bold text-red-600">
                                         {absences.total}
                                       </td>
+                                      {!ocultaRes && (
                                       <td className="py-3 px-3 text-center">
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                          score?.concept === 'A' 
+                                          score?.concept === 'A'
                                             ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
                                             : score?.concept === 'B' 
                                             ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
@@ -1396,20 +1419,28 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                           {score ? score.concept : 'D'}
                                         </span>
                                       </td>
+                                      )}
+                                      {!ocultaRes && (
                                       <td className="py-3 px-4 text-right">
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                          score?.result === 'APTO' 
-                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                                          score?.result === 'APTO'
+                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
                                             : 'bg-red-500/10 text-red-600 dark:text-red-400'
                                         }`}>
                                           {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                                         </span>
                                       </td>
+                                      )}
                                     </tr>
                                   );
                                 })}
                               </tbody>
                             </table>
+                            {ocultaRes && (
+                              <p data-testid="aviso-resultado-conselho-modulo" className="mx-4 my-3 text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl px-3 py-2">
+                                {avisoConselho}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
@@ -1638,6 +1669,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           studentId={activeStudent.id}
           classId={targetClass?.id || 'class_enf_m1_matutino'}
           subjectId={studentSubjects[0]?.id || ''}
+          ocultarResultadoAteConselho
           onClose={() => setPrintDoc(false)}
         />
       )}
@@ -1660,6 +1692,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           studentId={activeStudent.id}
           classId={targetClass?.id || 'class_enf_m1_matutino'}
           subjectId={''}
+          ocultarResultadoAteConselho
           onClose={() => setPrintHistorico(false)}
         />
       )}

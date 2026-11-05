@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
+import { resultadoLiberado, avisoResultadoConselho } from '../lib/resultadoAposConselho';
 import { LOGO_COLEGIO_OSWALDO_CRUZ, LOGO_COLEGIO_OSWALDO_CRUZ_SIMPLES, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
 import { carregarModelo, preencherDeclaracao, cursoParaDocumento } from '../lib/supabaseDeclaracoes';
 import type { ModeloDeclaracao, TipoDeclaracao } from '../lib/declaracaoTextos';
@@ -18,14 +19,25 @@ interface PrintModalProps {
   studentId?: string; // For boletim
   classId: string;
   subjectId: string;
+  /**
+   * Só a tela do ALUNO passa isto: nas turmas do período em andamento, a
+   * ficha/PDF sai SEM as colunas Conceito e Resultado até passar o Conselho de
+   * Classe (turmas de períodos anteriores saem completas). Administração,
+   * secretaria e professores não passam — o documento deles continua completo.
+   */
+  ocultarResultadoAteConselho?: boolean;
   onClose: () => void;
 }
 
-export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId, classId, subjectId, onClose }) => {
-  const { 
-    classes, subjects, grades, users, courses, attendance, 
-    getStudentAbsences, getStudentAttendanceGrid, currentPeriod
+export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId, classId, subjectId, ocultarResultadoAteConselho, onClose }) => {
+  const {
+    classes, subjects, grades, users, courses, attendance,
+    getStudentAbsences, getStudentAttendanceGrid, currentPeriod, calendarEvents, simulatedDate
   } = useApp();
+  // true = esconder Conceito/Resultado desta turma (só quando pedido pela tela do aluno).
+  const esconderResultado = (turma: { year: number; semester: number } | null | undefined) =>
+    !!ocultarResultadoAteConselho && !!turma && !resultadoLiberado(turma, currentPeriod, calendarEvents, simulatedDate);
+  const avisoConselho = avisoResultadoConselho(calendarEvents, currentPeriod);
 
   const printAreaRef = useRef<HTMLDivElement>(null);
 
@@ -1641,7 +1653,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                 {!['decl_escolaridade', 'decl_ctransp', 'decl_vacina'].includes(documentType) && renderHeader()}
 
                 {/* BOLETIM TABLE */}
-                {documentType === 'boletim' && targetStudent && (
+                {documentType === 'boletim' && targetStudent && (() => {
+                  // Turma do período em andamento, antes do Conselho: sem Conceito/Resultado (só quando pedido pela tela do aluno).
+                  const ocultaRes = esconderResultado(targetClass);
+                  return (
                   <div className="overflow-hidden mb-4">
                     <table className="w-full table-fixed text-left border-collapse text-[10px] text-black border border-black">
                       <colgroup>
@@ -1653,8 +1668,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         <col style={{ width: '40px' }} />
                         <col style={{ width: '50px' }} />
                         <col style={{ width: '60px' }} />
-                        <col style={{ width: '65px' }} />
-                        <col style={{ width: '85px' }} />
+                        {!ocultaRes && <col style={{ width: '65px' }} />}
+                        {!ocultaRes && <col style={{ width: '85px' }} />}
                       </colgroup>
                       <thead>
                         <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[9px]">
@@ -1666,8 +1681,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           <th className="py-1.5 px-1.5 text-center border-r border-black w-[40px]">CS</th>
                           <th className="py-1.5 px-1.5 text-center border-r border-black w-[50px] bg-gray-50 font-bold">PF</th>
                           <th className="py-1.5 px-1.5 text-center border-r border-black w-[60px]">Faltas</th>
-                          <th className="py-1.5 px-1.5 text-center border-r border-black w-[65px] font-bold">Conceito</th>
-                          <th className="py-1.5 px-2 text-right w-[85px] font-bold border-r border-black">Resultado</th>
+                          {!ocultaRes && <th className="py-1.5 px-1.5 text-center border-r border-black w-[65px] font-bold">Conceito</th>}
+                          {!ocultaRes && <th className="py-1.5 px-2 text-right w-[85px] font-bold border-r border-black">Resultado</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black font-medium text-[9px]">
@@ -1699,19 +1714,25 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                               <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined && !oc.includes('conselho') ? score.conselho.toFixed(1) : '-'}</td>
                               <td className="py-1.5 px-1.5 text-center border-r border-black font-black font-mono bg-gray-50">{score && !oc.includes('pf') ? score.pf.toFixed(1) : (oc.includes('pf') ? '-' : '0.0')}</td>
                               <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{absences.total}</td>
-                              <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>
+                              {!ocultaRes && <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>}
+                              {!ocultaRes && (
                               <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${
                                 score?.result?.includes('APTO') ? 'text-emerald-700' : score?.result === 'DISPENSADO' ? 'text-purple-700' : score?.result === 'DESISTENTE' ? 'text-slate-600' : 'text-red-600'
                               }`}>
                                 {score ? (score.result === 'F. NOTA' ? 'NÃO APTO' : score.result) : 'Pendente'}
                               </td>
+                              )}
                             </tr>
                           );
                         })}
                       </tbody>
                     </table>
+                    {ocultaRes && (
+                      <p className="mt-2 border border-black p-1.5 text-[9px] font-bold text-black">{avisoConselho}</p>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* HISTÓRICO ACADÊMICO COMPLETO */}
                 {documentType === 'historico_completo' && targetStudent && (() => {
@@ -1767,6 +1788,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         const clsSubjects = cls.isDependency && cls.dependencySubjectId
                           ? subjects.filter(s => s.id === cls.dependencySubjectId)
                           : subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                        // Módulo/dependência do período em andamento, antes do Conselho: sem Conceito/Resultado (só pedido pela tela do aluno).
+                        const ocultaRes = esconderResultado(cls);
 
                         return (
                           <div key={cls.id} className="border border-black p-3 rounded bg-white text-black page-break-inside-avoid">
@@ -1793,8 +1816,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                 <col style={{ width: '36px' }} /> {/* CS */}
                                 <col style={{ width: '42px' }} /> {/* PF */}
                                 <col style={{ width: '38px' }} /> {/* Faltas */}
-                                <col style={{ width: '45px' }} /> {/* Conceito */}
-                                <col style={{ width: '68px' }} /> {/* Resultado */}
+                                {!ocultaRes && <col style={{ width: '45px' }} />} {/* Conceito */}
+                                {!ocultaRes && <col style={{ width: '68px' }} />} {/* Resultado */}
                               </colgroup>
                               <thead>
                                 <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[8px]">
@@ -1806,8 +1829,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                   <th className="py-1 px-1 text-center border-r border-black">CS</th>
                                   <th className="py-1 px-1 text-center border-r border-black font-bold bg-gray-50">PF</th>
                                   <th className="py-1 px-1 text-center border-r border-black">Faltas</th>
-                                  <th className="py-1 px-1 text-center border-r border-black font-bold">Conceito</th>
-                                  <th className="py-1 px-1.5 text-right font-bold w-[75px] border-r border-black">Resultado</th>
+                                  {!ocultaRes && <th className="py-1 px-1 text-center border-r border-black font-bold">Conceito</th>}
+                                  {!ocultaRes && <th className="py-1 px-1.5 text-right font-bold w-[75px] border-r border-black">Resultado</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-black font-medium text-[8.5px]">
@@ -1831,17 +1854,22 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined && !oc.includes('conselho') ? score.conselho.toFixed(1) : '-'}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-black font-mono bg-gray-50">{score && !oc.includes('pf') ? score.pf.toFixed(1) : (oc.includes('pf') ? '-' : '0.0')}</td>
                                       <td className="py-1 px-1 text-center border-r border-black font-mono">{absences.total}</td>
-                                      <td className="py-1 px-1 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>
+                                      {!ocultaRes && <td className="py-1 px-1 text-center border-r border-black font-black">{score && !oc.includes('concept') ? score.concept : (oc.includes('concept') ? '-' : 'D')}</td>}
+                                      {!ocultaRes && (
                                       <td className={`py-1 px-1.5 text-right border-r border-black font-black text-[8.5px] ${
                                         score?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                       }`}>
                                         {score ? (score.result === 'F. NOTA' ? 'NÃO APTO' : score.result) : 'Pendente'}
                                       </td>
+                                      )}
                                     </tr>
                                   );
                                 })}
                               </tbody>
                             </table>
+                            {ocultaRes && (
+                              <p className="mt-1.5 border border-black p-1 text-[8.5px] font-bold text-black">{avisoConselho}</p>
+                            )}
                           </div>
                         );
                       })}
