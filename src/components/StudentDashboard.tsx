@@ -32,7 +32,7 @@ import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'luci
 import { AditivoPendenteAviso } from './AditivoPendenteAviso';
 import { CalendarioEscolarAcessoRapido } from './calendario/CalendarioEscolarAcessoRapido';
 import { useEstagioSge, PainelEstagioSge } from './estagios/MeuProgressoSge';
-import { useOfertaEstagioSge, escolherOferta, InscricaoEstagioSge } from './estagios/InscricaoEstagioSge';
+import { useOfertaEstagioSge, ordenarOfertas, InscricaoEstagioSge } from './estagios/InscricaoEstagioSge';
 import OrientacoesEstagioAluno from './estagios/OrientacoesEstagioAluno';
 
 interface StudentDashboardProps {
@@ -896,15 +896,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 {estagioSubMode === 'vagas_abertas' && (
                   <div className="space-y-4">
                     {/* Vaga liberada pelo SGE para a turma do aluno: inscrição direta, com as pendências na hora */}
-                    {ofertaSge.disponivel && ofertaSge.ofertas.length > 0 && (
+                    {ofertaSge.disponivel && ofertaSge.ofertas.length > 1 && (
+                      <p className="text-xs font-bold text-slate-600 dark:text-slate-300" data-testid="varias-vagas-liberadas">
+                        Há {ofertaSge.ofertas.length} vagas de estágio liberadas para a sua turma. Veja todas abaixo.
+                      </p>
+                    )}
+                    {ofertaSge.disponivel && ordenarOfertas(ofertaSge.ofertas).map((oferta) => (
                       <InscricaoEstagioSge
-                        oferta={escolherOferta(ofertaSge.ofertas)!}
+                        key={oferta.codigo_vaga}
+                        oferta={oferta}
                         alunoId={activeStudent.id}
                         somenteLeitura={!!studentId && studentId !== currentUser?.id}
                         verComo={!!usuarioAdminOriginal}
                         onAtualizar={ofertaSge.recarregar}
                       />
-                    )}
+                    ))}
 
                     {/* Cronogramas Banner */}
                     {cronogramas.length > 0 && (
