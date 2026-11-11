@@ -246,6 +246,11 @@ interface AppContextType {
   // (o diário apareceria vazio e a pessoa digitaria tudo de novo, duplicando as aulas).
   aulasCarregadas: boolean;
   aulasErroCarga: boolean;
+  /** As notas já lançadas foram lidas do banco (antes disso a tela de notas não deixa digitar). */
+  notasCarregadas: boolean;
+  notasErroCarga: boolean;
+  /** As faltas lançadas direto (total) foram lidas do banco. */
+  faltasCarregadas: boolean;
   // Situação REAL da gravação das aulas de um diário: aguardando envio / barradas por falta de permissão.
   statusGravacaoAulas: (classId: string, subjectId: string) => { pendentes: number; bloqueadas: number };
   directAbsences: Record<string, number>;
@@ -1272,7 +1277,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
 
           try {
-            const notas = await carregarNotas();
+            let notas = await carregarNotas();
+            // Mesma rede de proteção das aulas (11/11/2026): falha passageira na
+            // leitura tenta de novo 2×; se ainda falhar, a tela de notas avisa e
+            // não deixa digitar (ver `notasCarregadas`) — nada digitado se perde.
+            for (const espera of [2000, 5000]) {
+              if (notas !== null || desmontado) break;
+              await new Promise(r => setTimeout(r, espera));
+              notas = await carregarNotas();
+            }
+            if (!desmontado) {
+              if (notas !== null) { setNotasCarregadasOk(true); setNotasErroCarga(false); }
+              else if (!notasPrimeiraCargaFeitaRef.current) setNotasErroCarga(true);
+            }
             if (notas && !desmontado) {
               // O QUE ACABOU DE VIR DO BANCO NÃO PRECISA VOLTAR PARA O BANCO.
               //
@@ -1317,7 +1334,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           try {
-            const faltas = await carregarFaltas();
+            let faltas = await carregarFaltas();
+            for (const espera of [2000, 5000]) {
+              if (faltas !== null || desmontado) break;
+              await new Promise(r => setTimeout(r, espera));
+              faltas = await carregarFaltas();
+            }
+            if (faltas !== null && !desmontado) setFaltasCarregadasOk(true);
             if (faltas && !desmontado) {
               // O QUE ACABOU DE VIR DO BANCO NÃO PRECISA VOLTAR PARA O BANCO.
               //
@@ -1802,6 +1825,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notasGravadasRef = React.useRef<Map<string, string>>(new Map());
   const notasPrimeiraCargaFeitaRef = React.useRef<boolean>(false);
 
+  // AS TELAS DE NOTAS E DE FALTAS SÓ LIBERAM A DIGITAÇÃO DEPOIS DE LER O BANCO
+  // (11/11/2026). Antes da primeira leitura, o que está na tela é a cópia
+  // guardada neste navegador, que pode ser velha: gravá-la por cima do banco
+  // desfazia lançamentos feitos em outro computador; e o que se digitasse
+  // nesse meio-tempo seria trocado pelo banco quando a leitura chegasse.
+  // `...ErroCarga`: a leitura falhou mesmo depois de tentar de novo.
+  const [notasCarregadasOk, setNotasCarregadasOk] = React.useState(false);
+  const [notasErroCarga, setNotasErroCarga] = React.useState(false);
+  const [faltasCarregadasOk, setFaltasCarregadasOk] = React.useState(false);
+
   /*
    * POR QUE OS EFEITOS ABAIXO DEPENDEM DE `currentUser?.id` E NÃO DE
    * `currentUser`
@@ -1853,6 +1886,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- notas
   useEffect(() => {
     if (!bancoDisponivel || !currentUser || isLoading) return;
+    // Nada sobe antes de ler o banco: a cópia velha do navegador (`oc_grades`)
+    // não pode ser regravada por cima de notas lançadas em outro computador.
+    if (!notasCarregadasOk) return;
 
     const tempo = setTimeout(async () => {
       const pendentes = grades.filter(g => {
@@ -1928,7 +1964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1200);
 
     return () => clearTimeout(tempo);
-  }, [grades, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, rodadaDeGravacao]);
+  }, [grades, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, rodadaDeGravacao, notasCarregadasOk]);
 
   // --- diário de classe (aulas + chamada)
   //
@@ -2157,7 +2193,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!bancoDisponivel || !currentUser || isLoading) return;
     // Mesma trava das aulas: a cópia do navegador não sobe antes de o banco
     // ter sido lido (senão ela regrava por cima o que mudou em outro lugar).
-    if (!faltasPrimeiraCargaFeitaRef.current) return;
+    if (!faltasCarregadasOk) return;
 
     const tempo = setTimeout(async () => {
       let falhas = 0;
@@ -2216,7 +2252,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1200);
 
     return () => clearTimeout(tempo);
-  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades, rodadaDeGravacao]);
+  }, [directAbsences, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, grades, rodadaDeGravacao, faltasCarregadasOk]);
 
   // --- salvamento automático do estado geral
   //
@@ -2470,7 +2506,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // celular e o que dispara ao fechar a aba); `beforeunload` fica como rede de
   // segurança para o desktop.
   const dadosDoDiarioRef = React.useRef<any>({});
-  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser, aulasCarregadasOk };
+  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser, aulasCarregadasOk, notasCarregadasOk, faltasCarregadasOk };
 
   const descarregarPendenciasDoDiario = React.useCallback(async () => {
     const d = dadosDoDiarioRef.current;
@@ -2483,7 +2519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     // Notas
-    for (const nota of (d.grades || [])) {
+    for (const nota of (d.notasCarregadasOk ? (d.grades || []) : [])) {   // só depois de ler o banco
       if (!nota.classId || !nota.subjectId || !nota.studentId) continue;
       if (!podeGravarNoDiario(nota.classId, nota.subjectId)) continue;
       if (notasGravadasRef.current.get(nota.id) === JSON.stringify(nota)) continue;
@@ -2507,7 +2543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Faltas lançadas direto — idem: só depois de lidas do banco.
-    for (const [chave, total] of Object.entries(faltasPrimeiraCargaFeitaRef.current ? (d.directAbsences || {}) : {})) {
+    for (const [chave, total] of Object.entries(d.faltasCarregadasOk ? (d.directAbsences || {}) : {})) {
       if (faltasGravadasRef.current.get(chave) === total) continue;
       const alvo = (d.grades || []).find(
         (g: any) => `${g.classId}_${g.subjectId}_${g.studentId}` === chave
@@ -7088,6 +7124,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dependencies, createDependencyEnrollment, cancelDependencyEnrollment, marcarStatusDependenciaContexto, createDependencyOnlyStudent,
       saveAttendanceSession, addAttendanceSession,
       aulasCarregadas: !bancoDisponivel || aulasCarregadasOk, aulasErroCarga, statusGravacaoAulas,
+      notasCarregadas: !bancoDisponivel || notasCarregadasOk, notasErroCarga,
+      faltasCarregadas: !bancoDisponivel || faltasCarregadasOk,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, deleteMessage, addNotification, clearNotifications,
       avisosVistos, marcarAvisoVisto,
