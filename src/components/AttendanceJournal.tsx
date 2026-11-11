@@ -70,7 +70,7 @@ export const AttendanceJournal: React.FC = () => {
     users, classes, subjects, attendance, grades,
     activeClassId, activeSubjectId, currentUser, getStudentAbsences, updateStudentAbsences,
     saveAttendanceSession, addAttendanceSession,
-    aulasCarregadas, aulasErroCarga, statusGravacaoAulas,
+    aulasCarregadas, aulasErroCarga, statusGravacaoAulas, faltasCarregadas,
     isClassDefinitiveLocked, autoLockEnabled, simulatedDate, calendarEvents,
     currentPeriod
   } = useApp();
@@ -767,7 +767,7 @@ export const AttendanceJournal: React.FC = () => {
           <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${aulasErroCarga ? 'bg-red-500' : 'bg-amber-500'}`} />
           <span className="font-extrabold">
             {aulasErroCarga
-              ? 'Não foi possível carregar as aulas já lançadas. Atualize a página (F5) antes de lançar datas novas, para não repetir aulas.'
+              ? 'Não foi possível carregar as aulas já lançadas. Atualize a página (F5) antes de lançar datas ou faltas, para não repetir aulas nem perder o que lançar.'
               : 'Carregando as aulas já lançadas neste diário…'}
           </span>
         </div>
@@ -838,7 +838,7 @@ export const AttendanceJournal: React.FC = () => {
                     <JournalDateInput
                       key={`m${colIdx}-${versaoCampos}`}
                       placeholder="MM"
-                      disabled={isLocked}
+                      disabled={isLocked || !aulasCarregadas}
                       initialValue={col.month}
                       onSave={(val) => handleUpdateMonth(colIdx, val)}
                       title="Mês da Aula (MM)"
@@ -861,7 +861,7 @@ export const AttendanceJournal: React.FC = () => {
                     <JournalDateInput
                       key={`d${colIdx}-${versaoCampos}`}
                       placeholder="DD"
-                      disabled={isLocked}
+                      disabled={isLocked || !aulasCarregadas}
                       initialValue={col.day}
                       onSave={(val) => handleUpdateDay(colIdx, val)}
                       title="Dia da Aula (DD)"
@@ -931,7 +931,8 @@ export const AttendanceJournal: React.FC = () => {
                     {/* 30 attendance grid cells */}
                     {cols.map((col, colIdx) => {
                       const isAbsent = col.records[stud.id] === 'F';
-                      const isDisabled = isLocked || isTransferred || isStudentBlockedForTeacher;
+                      // `!aulasCarregadas`: sem ler o banco, a falta marcada aqui não seria gravada (11/11/2026).
+                      const isDisabled = isLocked || isTransferred || isStudentBlockedForTeacher || !aulasCarregadas;
                       return (
                         <td key={`record-${stud.id}-${colIdx}`} className="py-1 px-0.5 border-r border-slate-150 dark:border-slate-800 text-center w-[40px]">
                           <div className="flex items-center justify-center">
@@ -965,7 +966,7 @@ export const AttendanceJournal: React.FC = () => {
                         O professor continua sem acesso: quem abona é a
                         secretaria, e diário encerrado não se altera. */}
                     <td className="py-2 px-4 text-center w-[90px] min-w-[90px] max-w-[90px] font-black font-mono border-l border-slate-150 dark:border-slate-800">
-                      {podeEditarTotalDeFaltas && targetSubject ? (
+                      {podeEditarTotalDeFaltas && targetSubject && faltasCarregadas ? (
                         <input
                           type="number"
                           min={0}

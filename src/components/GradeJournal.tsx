@@ -11,11 +11,21 @@ import { motion } from 'motion/react';
 
 export const GradeJournal: React.FC = () => {
   const { 
-    grades, updateGrade, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, mostrarAviso, users, classes, subjects, 
+    grades, updateGrade: updateGradeNoContexto, ocultarTurmaNoHistorico, ocultarDisciplinaNoHistorico, alternarCampoOculto, ocultarCampoParaTodos, marcarDesistenteNaTurma, mostrarAviso, users, classes, subjects,
     activeClassId, activeSubjectId, currentUser, toggleJournalStatus,
     getStudentAbsences, isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
-    autoLockEnabled, simulatedDate, calendarEvents
+    autoLockEnabled, simulatedDate, calendarEvents,
+    notasCarregadas, notasErroCarga
   } = useApp();
+
+  // NÃO DEIXA LANÇAR NOTA ANTES DE LER AS NOTAS DO BANCO (11/11/2026).
+  // Até lá a tela mostra a cópia guardada neste navegador; o que se digitasse
+  // seria trocado pelo banco quando a leitura chegasse (e não iria para lá).
+  const updateGrade: typeof updateGradeNoContexto = (...args) => {
+    if (!notasCarregadas) return;
+    return updateGradeNoContexto(...args);
+  };
+  const semNotasDoBanco = !notasCarregadas;
 
   const [printDoc, setPrintDoc] = useState<any | null>(null);
   const [painelCampoAberto, setPainelCampoAberto] = useState(false);
@@ -94,6 +104,16 @@ export const GradeJournal: React.FC = () => {
 
   return (
     <div id="grade-journal-wrapper" className="space-y-4">
+      {semNotasDoBanco && (
+        <div className={`p-3.5 rounded-2xl text-xs flex items-center gap-2 shadow-xs animate-fade-in border ${notasErroCarga ? 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border-red-200/50 dark:border-red-900/35' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/35'}`}>
+          <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${notasErroCarga ? 'bg-red-500' : 'bg-amber-500'}`} />
+          <span className="font-extrabold">
+            {notasErroCarga
+              ? 'Não foi possível carregar as notas já lançadas. Atualize a página (F5) antes de lançar notas, para não perder o que digitar.'
+              : 'Carregando as notas já lançadas neste diário… Em alguns segundos você poderá lançar.'}
+          </span>
+        </div>
+      )}
       {/* Journal Info & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-150 dark:border-slate-800">
         <div className="space-y-1">
@@ -607,7 +627,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av1 !== null && grade.av1 !== undefined ? grade.av1 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av1', e.target.value, stud.id)}
@@ -623,7 +643,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av2 !== null && grade.av2 !== undefined ? grade.av2 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av2', e.target.value, stud.id)}
@@ -639,7 +659,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av3 !== null && grade.av3 !== undefined ? grade.av3 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av3', e.target.value, stud.id)}
@@ -655,7 +675,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.recS1 !== null ? grade.recS1 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'recS1', e.target.value, stud.id)}
@@ -676,7 +696,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av4 !== null && grade.av4 !== undefined ? grade.av4 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av4', e.target.value, stud.id)}
@@ -692,7 +712,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av5 !== null && grade.av5 !== undefined ? grade.av5 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av5', e.target.value, stud.id)}
@@ -708,7 +728,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.av6 !== null && grade.av6 !== undefined ? grade.av6 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'av6', e.target.value, stud.id)}
@@ -724,7 +744,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.recS2 !== null ? grade.recS2 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'recS2', e.target.value, stud.id)}
@@ -745,7 +765,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.extra !== null ? grade.extra : ''}
                         onChange={(e) => handleValueChange(grade.id, 'extra', e.target.value, stud.id)}
@@ -761,7 +781,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.conselho !== null ? grade.conselho : ''}
                         onChange={(e) => handleValueChange(grade.id, 'conselho', e.target.value, stud.id)}
@@ -777,7 +797,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isStudentBlockedForTeacher}
+                        disabled={isLocked || isStudentBlockedForTeacher || semNotasDoBanco}
                         placeholder="-"
                         value={grade.afc !== null ? grade.afc : ''}
                         onChange={(e) => handleValueChange(grade.id, 'afc', e.target.value, stud.id)}
