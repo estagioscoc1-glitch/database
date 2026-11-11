@@ -181,7 +181,18 @@ export async function saveStateToCloud(state: SystemStatePayload): Promise<boole
     // O calendário entrou nesta lista depois: as datas de fechamento travam o
     // lançamento de nota da escola inteira, e num retrato gravado por completo
     // dois administradores mexendo ao mesmo tempo se sobrescreviam.
-    const { users, courses, classes, subjects, grades, calendarEvents, ...semDuplicidade } = state;
+    //
+    // As AULAS do diário (frequência + conteúdo) e as FALTAS lançadas direto
+    // também saíram daqui (11/11/2026): têm as tabelas `aulas`, `frequencia` e
+    // `faltas_diretas`. Com cópia aqui, o retrato velho era reaplicado a cada
+    // recarga da gestão, tratado como "alteração ainda não gravada" e mandado
+    // de volta ao banco — as datas corrigidas do diário do prof. Marcelo
+    // voltaram todas assim, inclusive aulas que tinham sido apagadas.
+    const {
+      users, courses, classes, subjects, grades, calendarEvents,
+      attendance, directAbsences,
+      ...semDuplicidade
+    } = state;
 
     const conteudo = JSON.stringify({
       ...semDuplicidade,
