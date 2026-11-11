@@ -1053,8 +1053,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Cursos, turmas, disciplinas, professores, alunos e notas NÃO vêm daqui.
       // Eles têm tabelas próprias e são carregados por carregarEstrutura().
       // Ler daqui recriaria a duplicidade que causou os dados "ressuscitando".
-      if (state.attendance) { setAttendance(state.attendance); safeLocalStorage.setItem('oc_attendance', JSON.stringify(state.attendance)); }
-      if (state.directAbsences) { setDirectAbsences(state.directAbsences); safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(state.directAbsences)); }
+      // AULAS DO DIÁRIO E FALTAS DIRETAS TAMBÉM NÃO VÊM MAIS DAQUI (11/11/2026).
+      //
+      // Têm tabela própria (`aulas`/`frequencia` e `faltas_diretas`), lidas
+      // logo abaixo por carregarAulas() e carregarFaltas(). Esta rotina roda de
+      // novo a cada alteração de QUALQUER pessoa; aplicar aqui a cópia do
+      // retrato punha a versão velha na tela, a recarga das aulas a tomava por
+      // "alteração local ainda não gravada" e a mandava de volta ao banco.
+      // Foi assim que as datas corrigidas do diário de Saúde Coletiva (prof.
+      // Marcelo) voltaram todas às antigas, com as aulas apagadas de volta.
+      // Retratos antigos ainda trazem esses campos: são ignorados de propósito.
       if (state.conceptRanges) { setConceptRanges(state.conceptRanges); safeLocalStorage.setItem('oc_concept_ranges', JSON.stringify(state.conceptRanges)); }
       if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
       if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
@@ -1957,6 +1965,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (!bancoDisponivel || !currentUser || isLoading) return;
+    // NADA SOBE ANTES DE LER O QUE O BANCO TEM (11/11/2026).
+    //
+    // Até a primeira leitura das aulas dar certo, o que está na tela é a cópia
+    // guardada neste navegador (`oc_attendance`), que pode ser de dias atrás.
+    // Como o controle "já gravado" ainda está vazio, TODAS essas aulas pareciam
+    // pendentes e eram regravadas por cima do banco, desfazendo correções
+    // feitas em outro computador. Se a leitura falhar, a tela já avisa e não
+    // deixa criar data nova; a gravação espera a próxima leitura dar certo.
+    if (!aulasCarregadasOk) return;
 
     const tempo = setTimeout(async () => {
       const pendentes = (attendance || []).filter(a => {
@@ -2024,7 +2041,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1500);
 
     return () => clearTimeout(tempo);
-  }, [attendance, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, rodadaDeGravacao]);
+  }, [attendance, currentUser?.id, currentUser?.role, currentPeriod, isLoading, podeGravarNoDiario, rodadaDeGravacao, aulasCarregadasOk]);
 
   // --- documentos do aluno
   //
@@ -2138,6 +2155,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- faltas
   useEffect(() => {
     if (!bancoDisponivel || !currentUser || isLoading) return;
+    // Mesma trava das aulas: a cópia do navegador não sobe antes de o banco
+    // ter sido lido (senão ela regrava por cima o que mudou em outro lugar).
+    if (!faltasPrimeiraCargaFeitaRef.current) return;
 
     const tempo = setTimeout(async () => {
       let falhas = 0;
@@ -2209,8 +2229,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Espelho sempre atual, para o intervalo abaixo ler sem virar dependência.
   const dadosEstadoRef = React.useRef<any>({});
+  // Aulas e faltas diretas não vão mais para o retrato (ver saveStateToCloud):
+  // fora daqui também, para uma chamada lançada não disparar regravação dele.
   dadosEstadoRef.current = {
-    attendance, directAbsences, conceptRanges, calendarEvents,
+    conceptRanges, calendarEvents,
     messages, notifications, currentPeriod, periods, simulatedDate,
     autoLockEnabled, securityLogs, declarationConfigs, studentDocuments,
     internships, staffMembers, dependencies, adminPasswordResetDone,
@@ -2448,7 +2470,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // celular e o que dispara ao fechar a aba); `beforeunload` fica como rede de
   // segurança para o desktop.
   const dadosDoDiarioRef = React.useRef<any>({});
-  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser };
+  dadosDoDiarioRef.current = { grades, attendance, directAbsences, classes, subjects, currentPeriod, currentUser, aulasCarregadasOk };
 
   const descarregarPendenciasDoDiario = React.useCallback(async () => {
     const d = dadosDoDiarioRef.current;
@@ -2469,9 +2491,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res.ok) notasGravadasRef.current.set(nota.id, JSON.stringify(nota));
     }
 
-    // Aulas (frequência + conteúdo programático)
-    for (const aula of (d.attendance || [])) {
+    // Aulas (frequência + conteúdo programático) — só depois de o banco ter
+    // sido lido nesta sessão (mesma trava do efeito de gravação das aulas).
+    for (const aula of (d.aulasCarregadasOk ? (d.attendance || []) : [])) {
       if (!aula.classId || !aula.subjectId || !aula.date) continue;
+      if (/-00(-|$)/.test(aula.date)) continue; // data incompleta: o banco recusa (igual ao efeito de gravação)
       if (!podeGravarNoDiario(aula.classId, aula.subjectId)) continue;
       if (aulasGravadasRef.current.get(aula.id) === JSON.stringify(aula)) continue;
       const res = await salvarAula(
@@ -2482,8 +2506,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (res.ok) aulasGravadasRef.current.set(aula.id, JSON.stringify(aula));
     }
 
-    // Faltas lançadas direto
-    for (const [chave, total] of Object.entries(d.directAbsences || {})) {
+    // Faltas lançadas direto — idem: só depois de lidas do banco.
+    for (const [chave, total] of Object.entries(faltasPrimeiraCargaFeitaRef.current ? (d.directAbsences || {}) : {})) {
       if (faltasGravadasRef.current.get(chave) === total) continue;
       const alvo = (d.grades || []).find(
         (g: any) => `${g.classId}_${g.subjectId}_${g.studentId}` === chave
