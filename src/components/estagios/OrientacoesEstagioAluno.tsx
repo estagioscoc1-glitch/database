@@ -83,7 +83,7 @@ export default function OrientacoesEstagioAluno() {
         </Destaque>
 
         <Texto>
-          <strong>⏰ Prazo para entrega: 15 dias.</strong>
+          <strong>⏰ Prazo para entrega: até 18 de dezembro de 2026.</strong>
         </Texto>
         <Texto>📍 A entrega será realizada exclusivamente em via WhatsApp da gerente de estágio.</Texto>
         <Texto>
