@@ -146,17 +146,21 @@ export const AttendanceJournal: React.FC = () => {
     return true;
   };
 
-  /** Mesma data duas vezes no mesmo diário = aula repetida (e falta contada em dobro). */
+  /** Até 2 colunas com a mesma data no mesmo diário (2 aulas dadas no dia — pedido da escola em 17/11/2026);
+   *  a 3ª coluna com a mesma data é barrada, porque repetição de 3 ou mais quase sempre é aula lançada em dobro. */
+  const MAX_COLUNAS_MESMA_DATA = 2;
   const bloqueiaDataRepetida = (dateStr: string, ignorarId: string | null = null): boolean => {
     const [, mes, dia] = dateStr.split('-');
     if (mes === '00' || dia === '00') return false; // data ainda incompleta (só o mês ou só o dia digitado)
-    const indice = subjectSessions.findIndex(s => s.date === dateStr && s.id !== ignorarId);
-    if (indice < 0) return false;
+    const colunas = subjectSessions
+      .map((s, i) => ({ s, i }))
+      .filter(({ s }) => s.date === dateStr && s.id !== ignorarId);
+    if (colunas.length < MAX_COLUNAS_MESMA_DATA) return false;
     const [, mm, dd] = dateStr.split('-');
     setVersaoCampos(v => v + 1);
     setWarningMessage(
-      `Já existe uma coluna com a data ${dd}/${mm} neste diário (coluna ${indice + 1}). ` +
-      `Para registrar mais de uma aula no mesmo dia, use o botão de quantidade de aulas (1, 2 ou 4) no topo daquela coluna.`
+      `Já existem ${colunas.length} colunas com a data ${dd}/${mm} neste diário (colunas ${colunas.map(({ i }) => i + 1).join(' e ')}). ` +
+      `O limite é ${MAX_COLUNAS_MESMA_DATA} colunas por dia. Para registrar mais aulas no mesmo dia, use o botão de quantidade de aulas (1, 2 ou 4) no topo de uma dessas colunas.`
     );
     return true;
   };
